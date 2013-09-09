@@ -1,0 +1,140 @@
+
+
+
+
+
+Feature summary:
+ - Connect to a confluence instance and, 
+ - Add notes to one of a list of "current experiments"
+ - Upload experiment files automatically to wiki page, optionally filtered by size and filetype.
+ - Retrieve files from external sources
+ - Push files to external backup locations
+
+Interfaces:
+ - Running single one-line commands from terminal (bash / command prompt)
+ - Starting a long-running session able to enter special modes (parsing user input lines with keywords)
+ - Having a ipython-based console with direct api access
+ - Tkinter GUI
+
+
+Interfaces, detailed:
+Single-line terminal commands are just convenience.
+Long-running session would be the default startup; 
+entering special modes are just to avoid repeating the 
+same command, e.g. when journalling something.
+
+
+
+
+================================
+---- Command line interface ----
+================================
+
+Commands can either be 'global', i.e. working on all experiments 
+(optionally in current folder, e.g. year),
+or they can be applied to each experiment individually.
+
+
+Keywords:
+"\" escape character: Used if you want to write a string that begins with one of the other keywords.
+q, quit     > quit the current mode, go back to "main screen" mode
+journal  > Start journalling mode with current experiment. 
+    journal <ExpId> will start journalling for the requested id
+    j <string> will add string to current experiment journal
+    All journal-lines are prefixed with a custom timebased predicate, e.g. "20130423 18:24 --"
+jbuffer
+    jbuffer begin > start a new journal buffer session.
+    jbuffer commit > Commit current journal buffer. 
+    jbuffer set-timeout > If commit has not been given before a certain timeout, automatically commit journal buffer.
+upload      > Upload all files not previously uploaded for the current experiment
+    upload <ExpId/ExpItemId>
+fetch       > Fetch experiment files from a source to local directory
+backup      > Backup files to one or more backup locations
+
+
+auto [mode[, arg]   automatically perform mode for all items, optionally using arguments.
+auto upload RS130   will automatically upload all files related experiment RS130 to the wiki
+auto RS130  >   should automatically fetch files related to RS130 from all available sources
+                and then upload files to the wiki.
+maybe call this doallfor instead of auto?
+
+
+
+
+
+=================================
+------ Features, detailed  ------
+=================================
+
+
+-- UPLOAD --
+upload <experimentid> will upload all filter (matching the current file filter)
+to the experiment's wiki page. If the wikipageid has not already been specified,
+query it based on the experimentid. In case of ambiguty, try parsing/interpreting
+with the regular expressions.
+
+
+
+-- FETCH --
+fetch RS130 will fetch all files related to RS130 from all available sources.
+
+
+
+
+
+
+
+-------------------------
+--- Implementation: -----
+-------------------------
+
+At the file-system level:
+Filestructure:
+_experiment_data/
+    <EXPERIMENT FOLDER>/
+        <EXPERIMENT ITEM FOLDER>/
+            (data)
+
+Files:
+_experiment_data/.experiments.cfg
+_experiment_data/<EXPERIMENT FOLDER>/.experiment.cfg
+
+
+experiment.cfg (one for eash experiment) stores:
+ - Experiment ID
+ - Experiment short desc / title / name
+ - Date-begin, date-end
+ - URL (None, if given by title / pageid)
+ - wikipageid
+ - Wiki attachment names and IDs (cache)
+ - ItemWikiPageTokenList : When starting a new experiment-item, the previous 
+
+.experiments.cfg file stores permanent configs: (could also be saved to the user home folder)
+ - Sources (list with directories, etc,...)
+ - A list of the current experiments
+ - Experiment title format string (produce 
+ - Experiment regular expression (interpret experiment ID, shortdesc, etc from e.g. a folder name or wiki page name)
+ - ExperimentId boolean regular expression: Determine if an input is an experiment id, e.g. "RS130"
+ - ExperimentItemId boolean regular expression: Determine if an input is an experiment-item-id, e.g. "RS130b"
+ - WikiDefaultFileFilter: Only upload files that match these criteria.
+ - WikiPageJournalTokens : All journal notes are added just before this token on the wiki page. 
+  ---> perhaps have separate tokens for each experiment_entry (rather than one for the whole experiment_serie)
+  ---> global "tokens" should only be for experiments without existing tokens... more like a regex pattern than token.
+ - WikiExperimentsHomeSpaceId : When searching for experiments with experiment-id, use this if ambiguous.
+ - WikiExperimentsRootPageId  : If ambiguty is still present, try this.
+ - WikiAddNewExperimentsToPage : When creating a new wiki experiment from within the software, use this page as parent.
+ - WikiCompletedExperimentsPage : If set, when an experiment is marked as complete, it is moved to this page.
+ - WikiAddEntryInCompletedExperimentsList : If set, add a link to the experiment on this page.
+ Can optionally be one or more format strings, where stuff like <experiment>, <experiment-item>, 
+ <experiment-item-next>, etc are parsed before searching, to enable journalling of one experiment-item
+ even if another experiment-item has been initiated. 
+ - Workstation hash (individual for each workstation)
+ - Time last updated (for enabling effortless transition between workstations)
+ (perhaps have a hash file or something to enable this...)
+ (optionally just let each workstation have its own config and allow them to load and save 
+ configs from other workstations after asking the user).
+
+
+In time, the config files (.experiments.cfg and .experiment.cfg) could be stored
+on a database rather than the filesystem; this would make it easier to use the 
+software concurrently from multiple workstations.
