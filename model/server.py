@@ -19,6 +19,11 @@
 import xmlrpclib
 import socket
 import os.path
+import itertools
+import string
+from Crypto.Cipher import AES
+#import Crypto.Random
+from Crypto.Random import random as crypt_random
 from confighandler import ConfigHandler, ExpConfigHandler
 
 
@@ -29,15 +34,20 @@ def error_out(error_message):
     exit()
 
 class AbstractServer(object):
-    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, protocol=None, urlpostfix=None, globalconfighandler=None, VERBOSE=0):
+    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, 
+                 protocol=None, urlpostfix=None, globalconfighandler=None, VERBOSE=0):
         """
         Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
         However, this could also be simplified using getattr...
         """
         local_vars = locals()
         self.VERBOSE = local_vars.get('VERBOSE', 0)
-        self.ConfigEntries = getattr(self, 'ConfigEntries', dict( (key, "server_{}".format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] ) )
+        if not hasattr(self, 'CONFIG_FORMAT'):
+            self.CONFIG_FORMAT = 'server_{}'
+        if not hasattr(self, 'ConfigEntries'):
+            self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] ) 
         self.GlobalConfighandler = globalconfighandler or getattr(self, 'GlobalConfighandler', dict())
+        self.Confighandler = self.GlobalConfighandler
         if not hasattr(self, '_defaultopts'):
             self._defaultopts = dict(host="localhost", port='80', protocol='http', urlpostfix='', username='', logintoken='')
         
@@ -47,6 +57,7 @@ class AbstractServer(object):
             cfgentry = self.ConfigEntries[key]
             val = local_vars.get(key.lower(), None)
             if val is None:
+                print "\nAbstractServer init params:"
                 print "getattr(self, {})                returns: {}".format(key, getattr(self, key, 'not-found-default'))
                 print "GlobalConfighandler.get({}) returns: {}".format(cfgentry, self.GlobalConfighandler.get(cfgentry, 'not-found-default'))
                 print "self._defaultopts.get({})        returns: {}".format(key.lower(), self._defaultopts.get(key.lower(), 'not-found-default'))
@@ -90,9 +101,80 @@ class AbstractServer(object):
             return urlfmtstr.format(host=self.Host, port=self.Port, protocol=self.Protocol, postfix=self.Urlpostfix)
 
 
+    def getToken(self, token_crypt=None):
+        if token_crypt is None:
+            token_crypt = self.Confighandler.get('wiki_logintoken_crypt')
+        if token_crypt is None:
+            print "\nAbstractServer.getToken() :: ERROR, token_crypt is None; aborting..."
+            return
+        crypt_key_default = '6xytURQ4JITKMhgN'
+        crypt_key = self.Confighandler.get('crypt_key', crypt_key_default)
+        if crypt_key == crypt_key_default:
+            print "\nAbstractServer.getToken() :: Warning, using default crypt_key for encryption. You should manually edit the labfluence system config and set this to something else."
+        crypt_iv = self.Confighandler.get('crypt_iv', None) 
+        # The IV is set along with the encrypted token; if the IV is not present, the encrypted token cannot be decrypted.
+        # Using an initiation vector different from the one used to encrypt the message will produce scamble.
+        if crypt_iv is None:
+            print "\nAbstractServer.getToken() :: Warning, could not retrieve initiation vector for decrypting token..."
+            token_unencrypted = self.Confighandler.get('wiki_logintoken')
+            if token_unencrypted:
+                print "\nAbstractServer.getToken() :: unencrypted logintoken found in config. Returning this, but please try to transfer to encrypted version."
+                return token_unencrypted
+            else:
+                print "AbstractServer.getToken() :: Aborting..."
+                return 
+        # Uh, it might be better to use AES.MODE
+        cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
+        token = cryptor.decrypt(token_crypt)
+        # Perform a check; I believe the tokens consists of string.ascii_letters+string.digits only.
+        char_space = string.ascii_letters+string.digits
+        for char in token:
+            if char not in char_space:
+                print "getToken() :: ERROR, invalid token decrypted, token is '{}'".format(token)
+                return None
+        print token
+        return token
 
+    def saveToken(self, token, persist=True, username=None):
+        """
+        When saving token, it is probably only sane also to be able to persist the username. 
+        From what I can tell, it is not easy to retrieve a username based on a token...
+        """
+        crypt_key = self.Confighandler.get('crypt_key', '6xytURQ4JITKMhgN') # crypt key should generally be stored in the system config; different from the one where crypt_iv is stored...
+        # Note: I'm pretty sure the initiation vector needs to be randomly generated on each encryption,
+        # but not sure how to do this in practice... should the IV be saved for later decryption?
+        # Probably only relevant for multi-message encrypted communication and not my simple use-case...?
+        # crypt_iv = self.Confighandler.get('crypt_key', 'Ol6beVHM91ZBh7XP')
+        # ok, edit: I'm generating a random IV on every new save; this can be "publically" readable...
+        # But, it probably does not make a difference either way; the crypt_key is readable anyways...
+        crypt_iv = "".join(crypt_random.sample(string.ascii_letters+string.digits, 16)) 
+        # Not exactly 128-bit worth of bytes since ascii_letters+digits is only 62 in length, but should be ok still; I want to make sure it is realiably persistable with yaml.
+        cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
+        if token is None:
+            print "\nAbstractServer.saveToken() :: ERROR, token is None; aborting..."
+            return
+        token_crypt = cryptor.encrypt(token)
+        if persist:
+            cfgtypes = set()
+            cfgtypes.add(self.Confighandler.setkey('wiki_logintoken_crypt', token_crypt, 'user'))
+            cfgtypes.add(self.Confighandler.setkey('crypt_iv', crypt_iv, 'user'))
+            if username:
+                cfgtypes.add(self.Confighandler.setkey('wiki_username', username, 'user'))
+            self.Confighandler.saveConfigs(cfgtypes)
+        return (token_crypt, crypt_iv, crypt_key)
 
-
+    def clearToken(self):
+        self.Logintoken = None
+        cfgtypes = set()
+        for key in ('wiki_logintoken','wiki_logintoken_crypt'):
+            res = self.Confighandler.popkey(key, check_all_configs=True)
+            if res:
+                # How to use izip to add every other entry in list/tuple:
+                # izip(iter, iter) makes pairs (iter[0]+iter[1]), (iter[2], iter[3]), ...)
+                # Note that this ONLY works because iterators are single-run generators; does not work with e.g. lists.
+                cfgs = ( pair[1] for pair in itertools.izip(*[(x for x in res)]*2) )
+                cfgtypes.add(cfgs) # only adding the first key, but should be ok I believe.
+        self.Confighandler.saveConfigs(cfgtypes)
 
 
 class ConfluenceXmlRpcServer(AbstractServer):
@@ -102,56 +184,91 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
 https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
     """
 
-    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, autologin=True, protocol=None, urlpostfix=None, globalconfighandler=None, VERBOSE=0):
+    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, 
+                 protocol=None, urlpostfix=None, globalconfighandler=None, autologin=True, prompt='auto', VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
         self._defaultopts = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
 #        super(AbstractServer, self).__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, globalconfighandler=globalconfighandler)
-        self.ConfigEntries = dict( (key, "wiki_{}".format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
+        self.CONFIG_FORMAT = 'wiki_{}'
+        #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
+        # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
         AbstractServer.__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, globalconfighandler=globalconfighandler, VERBOSE=VERBOSE)
         print "Making server with url: {}".format(self.Url)
         if self.Url is None:
             return None
         self.RpcServer = xmlrpclib.Server(self.Url)
-        if autologin:
+        # I intend to do something like if prompt='never'/'auto'/'force'
+        if prompt in ('force'):
+            self.login(prompt=True)
+        elif autologin:
             if self.Logintoken and self.test_token(self.Logintoken, doset=True):
                 print 'Connected to server using provided login token...'
             elif self.Username and self.Password and self.login(doset=True):
+                # Providing a plain-text password should generally not be used; 
+                # there is really no need for a password other than for login, only store the token.
                 print 'Connected to server using provided username and password...'
             elif self.find_and_test_tokens(doset=True):
-                print 'Found token by magic, login ok...'
-            elif getattr(self, 'Username', None) and getattr(self, 'Password', None):
-                self.login()
-            else:
+                print 'Token found by magic, login ok...'
+            elif prompt in ('auto'):
                 self.login(prompt=True)
 
 
     def find_and_test_tokens(self, doset=False):
-        #print "ERROR: find_and_test_tokens() | finding login tokens is not implemented..."
-        return None
-        raise NotImplementedError("finding login tokens is not implemented...")
+        """
+        Attempts to find a saved token, looking for standard places.
+        Found tokens are checked with self.test_token(token).
+        Currently only checks the config provided via GlobalConfighandler.
+        If a valid token is found, returns that token. Otherwise return None.
+        """
+        # 1) Check the config...:
+        token = self.getToken()
+        if token and self.test_token(token, doset=True):
+            return token
+        else:
+            print "find_and_test_tokens() :: No valid token found in config..."
+        # 2) Check a list of files?
+        # Not implemented...
+
 
     def test_token(self, logintoken=None, doset=True):
+        """
+        Test a login token; must be decrypted. 
+        If token=None, will test self.Logintoken
+        If doset=True (default), and the token proves valid, this method will store the token in self.
+        Returns:
+        - True if token is valid.
+        - False if token is not valid (or if otherwise failed to connect to server <-- should be fixed...)
+        - None if no valid token was provided.
+        """
         if logintoken is None:
-            logintoken=self.Logintoken
+            logintoken = getattr(self, 'Logintoken', None)
+        if not logintoken:
+            print "ConfluenceXmlRpcServer.test_token() :: No token provided, aborting..."
+            return None
         try:
             serverinfo = self.RpcServer.confluence2.getServerInfo(logintoken)
             if doset:
                 self.Logintoken = logintoken
             return True
         except xmlrpclib.Fault as err:
-            print "(tested token did not work; {}: {})".format( err.faultCode, err.faultString)
+            print "ConfluenceXmlRpcServer.test_token() : tested token did not work; {}: {}".format( err.faultCode, err.faultString)
             return False
 
-    def login(self, username=None, password=None, logintoken=None, doset=True, prompt=False, retry=3):
+    def login(self, username=None, password=None, logintoken=None, doset=True, prompt=False, retry=3, dopersist=True):
         if username is None: username=self.Username
         if password is None: password=self.Password
         if prompt is True:
             username, password = login_prompt(username)
+        if not (username and password):
+            print "ConfluenceXmlRpcServer.login() :: Username and password are boolean False; aborting..."
+            return
         socket.setdefaulttimeout(120) # without this there is no timeout, and this may block the requests
         try:
-            token = self.RpcServer.confluence2.login(username,password)
+            token = self._login(username,password)
             if doset:
                 self.Logintoken = token
+            if dopersist:
+                self.saveToken(token, username=username)
             if self.VERBOSE > 3:
                 print "Logged in as '{}', received token '{}'".format(username, token)
         except xmlrpclib.Fault as err:
@@ -164,26 +281,71 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
         return token
 
 
+    ##################################
+    #### AUTHENTICATION methods ######
+    ##################################
+
+    def _login(self, username,password):
+        """
+        Returns a login token.
+        Raises xmlrpclib.Fauls on auth error/failure.
+        """
+        return self.RpcServer.confluence2.login(username,password)
+
+    def logout(self, token=None):
+        """
+        Returns True if token was present (and now removed), False if token was not present.
+        Returns None if no token could be found.
+        """
+        if token is None:
+            token = self.Logintoken
+        if token is None:
+            print "Error, login token is None."
+            return
+        return self.RpcServer.confluence2.logout(token)
+
+
     ################################
     #### SERVER-level methods ######
     ################################
 
-    def getServerInfo(self):
-        # returns a list of dicts with space info for spaces that the user can see.
-        return self.RpcServer.confluence2.getServerInfo(self.Logintoken)
+    def getServerInfo(self, token=None):
+        """
+        returns a list of dicts with space info for spaces that the user can see.
+        """
+        if token is None:
+            token = self.Logintoken
+        if token is None:
+            print "Error, login token is None."
+            return
+        return self.RpcServer.confluence2.getServerInfo(token)
 
-    def getSpaces(self):
-        # returns a list of dicts with space info for spaces that the user can see.
-        return self.RpcServer.confluence2.getSpaces(self.Logintoken)
+    def getSpaces(self, token=None):
+        """
+        returns a list of dicts with space info for spaces that the user can see.
+        """
+        if token is None:
+            token = self.Logintoken
+        if token is None:
+            print "Error, login token is None."
+            return
+        return self.RpcServer.confluence2.getSpaces(token)
 
 
     ################################
     #### USER methods       ########
     ################################
 
-    def getUser(self, username):
-        # returns a dict with name, email, fullname, url and key.
-        return self.RpcServer.confluence2.getUser(self.Logintoken, username)
+    def getUser(self, username, token=None):
+        """
+        returns a dict with name, email, fullname, url and key.
+        """
+        if token is None:
+            token = self.Logintoken
+        if token is None:
+            print "Error, login token is None."
+            return
+        return self.RpcServer.confluence2.getUser(token, username)
 
     def createUser(self, newuserinfo, newuserpasswd):
         self.RpcServer.confluence2.addUser(self.Logintoken, newuserinfo, newuserpasswd)
@@ -195,6 +357,11 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
     def getGroup(self, group):
         # returns a single group. Requires admin priviledges.
         return self.RpcServer.confluence2.getSpaces(self.Logintoken, group)
+
+
+    def getActiveUsers(self, viewAll):
+        # returns a list of all active users.
+        return self.RpcServer.confluence2.getActiveUsers(self.Logintoken, viewAll)
 
 
 
@@ -324,6 +491,10 @@ Note: the return value can be null, if an error that did not throw an exception 
 
 
 
+    def convertWikiToStorageFormat(self, wikitext):
+        return self.RpcServer.confluence2.convertWikiToStorageFormat(self.Logintoken, wikitext)
+
+
     ##############################
     #### Search methods      #####
     ##############################
@@ -383,7 +554,7 @@ contributor:
         page_struct = self.getPage(pageId, spaceKey)
         #print data
         if contentformat == 'wiki':
-            newContent = self._server.confluence2.convertWikiToStorageFormat(self._token2, newContent)
+            newContent = self.convertWikiToStorageFormat(newContent)
         page_struct['content'] = newContent
         page = self._server.confluence2.storePage(self.Logintoken, page_struct)
         return True
@@ -433,12 +604,99 @@ if __name__ == "__main__":
             ch.setkey('wiki_logintoken', server.Logintoken)
         ch.saveConfigs()
 
+    def test2():
+        confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
+        print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
+        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5)
+
+    def test_loginAndSetToken(ch=None, persist=False):
+        if ch is None:
+            ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
+#        ch.setkey('wiki_password', 'http://10.14.40.245:8090/rpc/xmlrpc')
+        print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
+        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5, autologin=False)
+        token = server.Logintoken
+        print "\ntoken (before forced login):\t{}".format(token)
+        token = server.login(dopersist=persist, prompt=True)
+        print "token (after login):\t\t{}".format(token)
+        token_crypt, crypt_iv, crypt_key = server.saveToken(token, persist=persist)
+        print "token_crypt, iv, key:\t{}".format((token_crypt, crypt_iv, crypt_key))
+        token_decrypt = server.getToken(token_crypt)
+        print "token_decrypt:\t\t\t{}".format(token_decrypt)
+
+    def test_loadToken(ch=None):
+        if ch is None:
+            ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
+        print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
+        # Deactivating autologin...
+        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5, prompt='never', autologin=False)
+        token = server.find_and_test_tokens()
+        print "\nFound token: {}".format(token)
+        print "server.Logintoken: {}".format(token)
+        return server
+
+
+    def test_getServerInfo(ch=None):
+        if ch is None:
+            ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
+        print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
+        # Deactivating autologin...
+        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5, prompt='never', autologin=False)
+        token = server.find_and_test_tokens()
+        print "\nFound token: {}".format(token)
+        print "server.Logintoken: {}".format(token)
+        if token is None:
+            token = server.login(prompt=True)
+        serverinfo = server.getServerInfo()
+        print "\nServer info:"
+        print serverinfo
+
+
+
 
     #test_login()
-    server = test_config1()
+    #server = test_config1()
+    #test_loginAndSetToken(persist=True)
+    test_getServerInfo()
+    #test_loadToken()
 
 
 
 
     print "TEST RUN COMPLETE!"
 
+
+
+"""
+
+NOTES ON ENCRYPTION:
+- Currently using pycrypto with CFB mode AES. 
+--- I previously used CBC mode, but that requires plaintext and cipertext lenghts being an integer of 16. CFB does not require this.
+--- Although according to litterature, OCB mode would be better. But this is patented and not available in pycrypto as far as I can tell.
+- SimpleCrypt module also requires pycrypto.
+--- Only uses pycrypto for legacy encryption; uses openssl (via process call) for encryption. Not sure how this ports to e.g. windows?
+--- Both new and legacy methods uses CBC MODE with AES.
+--- It also currently uses random.randint as entrypy provider which is not as good as the random library provided by pycrypto.
+- alo-aes 0.3: Does not seem mature; very little documentation.
+- pyOCB, https://github.com/kravietz/pyOCB
+--- This seems to be a pure-python OCB mode AES cryptography module.
+--- When mature, this is probably the best option for small passwords...
+- wheezy.security: simple wrapper for pycrypto.
+
+REGARDING MODE:
+- input length and padding: 
+--- http://stackoverflow.com/questions/14179784/python-encrypting-with-pycrypto-aes
+
+
+CRYPTOGRAPHY REFS:
+- pycrypto: www.dlitz.net/software/pycrypto/
+- http://stackoverflow.com/questions/1220751/how-to-choose-an-aes-encryption-mode-cbc-ecb-ctr-ocb-cfb
+- http://www.codinghorror.com/blog/2009/05/why-isnt-my-encryption-encrypting.html (mostly the comments...)
+- http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
+- https://github.com/dlitz/pycrypto/pull/33 <- This discussion (from 2013) is interesting. It discusses addition of AEAD modes, of which OCB is one type.
+- http://scienceblogs.com/goodmath/2008/08/07/encryption-privacy-and-you/ (OT)
+"""
