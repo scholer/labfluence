@@ -35,7 +35,7 @@ def error_out(error_message):
 
 class AbstractServer(object):
     def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, 
-                 protocol=None, urlpostfix=None, globalconfighandler=None, VERBOSE=0):
+                 protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         """
         Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
         However, this could also be simplified using getattr...
@@ -46,22 +46,22 @@ class AbstractServer(object):
             self.CONFIG_FORMAT = 'server_{}'
         if not hasattr(self, 'ConfigEntries'):
             self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] ) 
-        self.GlobalConfighandler = globalconfighandler or getattr(self, 'GlobalConfighandler', dict())
-        self.Confighandler = self.GlobalConfighandler
+        self.Confighandler = confighandler or getattr(self, 'Confighandler', dict())
+        self.Confighandler = self.Confighandler
         if not hasattr(self, '_defaultopts'):
             self._defaultopts = dict(host="localhost", port='80', protocol='http', urlpostfix='', username='', logintoken='')
         
         for key, cfgkey in self.ConfigEntries.items():
-            # first try locals, then try self, then try GlobalConfighandler, then try _defaultopts...
+            # first try locals, then try self, then try Confighandler, then try _defaultopts...
             # key is uppercase (attribute name), but _defaultopts is lower.
             cfgentry = self.ConfigEntries[key]
             val = local_vars.get(key.lower(), None)
             if val is None:
                 print "\nAbstractServer init params:"
                 print "getattr(self, {})                returns: {}".format(key, getattr(self, key, 'not-found-default'))
-                print "GlobalConfighandler.get({}) returns: {}".format(cfgentry, self.GlobalConfighandler.get(cfgentry, 'not-found-default'))
+                print "Confighandler.get({}) returns: {}".format(cfgentry, self.Confighandler.get(cfgentry, 'not-found-default'))
                 print "self._defaultopts.get({})        returns: {}".format(key.lower(), self._defaultopts.get(key.lower(), 'not-found-default'))
-                val = getattr(self, key, self.GlobalConfighandler.get(cfgentry, self._defaultopts.get(key.lower(), None) ) )
+                val = getattr(self, key, self.Confighandler.get(cfgentry, self._defaultopts.get(key.lower(), None) ) )
             print "--Init: setting attr '{}' to '{}' ({})".format(key, val, cfgentry)
             setattr(self, key, val)
         
@@ -73,26 +73,26 @@ class AbstractServer(object):
 #            self.Host = host
 #        elif not hasattr(self, 'Host'):
 #            # if host is already set (e.g. by child class), do not overwrite it.
-#            self.Host = self.GlobalConfighandler.get('server_host', self._defaultopts.get('host'))
+#            self.Host = self.Confighandler.get('server_host', self._defaultopts.get('host'))
 #        if port is not None:
 #            self.Port = port # do not use the " = port or <default value" trick; input might be something that is interpreted as boolean False e.g. ""
 #        elif not hasattr(self, 'Port'):
 #            # if port is already set (e.g. by child class), do not overwrite it.
-#            self.Port = self.GlobalConfighandler.get('server_port', self._defaultopts.get('port', '80'))
+#            self.Port = self.Confighandler.get('server_port', self._defaultopts.get('port', '80'))
 #        if protocol is not None:
 #            self.Protocol = protocol # do not use the " = port or <default value" trick; input might be boolean False e.g. ""
 #        elif not hasattr(self, 'Protocol'):
 #            # if port is already set (e.g. by child class), do not overwrite it.
-#            self.Protocol = self.GlobalConfighandler.get('server_urlpostfix', self._defaultopts.get('protocol', 'http'))
+#            self.Protocol = self.Confighandler.get('server_urlpostfix', self._defaultopts.get('protocol', 'http'))
 #        if urlpostfix is not None:
 #            self.Urlpostfix = urlpostfix # do not use the " = port or <default value" trick; input might be boolean False e.g. ""
 #        elif not hasattr(self, 'Urlpostfix'):
 #            # if port is already set (e.g. by child class), do not overwrite it.
-#            self.Urlpostfix = self.GlobalConfighandler.get('server_urlpostfix', self._defaultopts.get('urlpostfix', ''))
+#            self.Urlpostfix = self.Confighandler.get('server_urlpostfix', self._defaultopts.get('urlpostfix', ''))
 #        self.Url = url or self.makeUrl()
-#        self.Username = username or self.GlobalConfighandler.get('server_username', self._defaultopts.get('username', ''))
+#        self.Username = username or self.Confighandler.get('server_username', self._defaultopts.get('username', ''))
 #        self.Password = password
-#        self.Logintoken = logintoken or self.GlobalConfighandler.get('server_logintoken', self._defaultopts.get('logintoken', ''))
+#        self.Logintoken = logintoken or self.Confighandler.get('server_logintoken', self._defaultopts.get('logintoken', ''))
 
 
     def makeUrl(self):#host, port, protocol='http', urlpostfix=None)
@@ -139,6 +139,9 @@ class AbstractServer(object):
         """
         When saving token, it is probably only sane also to be able to persist the username. 
         From what I can tell, it is not easy to retrieve a username based on a token...
+        Note that AES encryption of tokens are different from e.g. saving a password or password hash.
+        If saving a password or password hash, you should use a slow encrypting or hashing algorithm, 
+        e.g. bcrypt or similar for making password hashes.
         """
         crypt_key = self.Confighandler.get('crypt_key', '6xytURQ4JITKMhgN') # crypt key should generally be stored in the system config; different from the one where crypt_iv is stored...
         # Note: I'm pretty sure the initiation vector needs to be randomly generated on each encryption,
@@ -179,20 +182,31 @@ class AbstractServer(object):
 
 class ConfluenceXmlRpcServer(AbstractServer):
     """
+
+Note regarding long integer vs string for pageIds etc (from the docs):
+Confluence uses 64-bit long values for things like object IDs, but XML-RPC's largest supported numeric type is int32. 
+As a result, all IDs and other long values are converted to Strings when passed through XML-RPC API.
+
+Alternative to xmlrpc (at /rpc/xmlrpc) includes:
+* SOAP API, at /rpc/soap-axis/confluenceservice-v2?wsdl
+* JSON API, at /rpc/json-rpc/confluenceservice-v2
+* REST API, at /confluence/rest/prototype/1/space/ds (/context/rest/api-name/api-version/resource-name)
+
 https://developer.atlassian.com/display/CONFDEV/Confluence+XML-RPC+and+SOAP+APIs
 https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
 https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
+https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
     """
 
     def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, 
-                 protocol=None, urlpostfix=None, globalconfighandler=None, autologin=True, prompt='auto', VERBOSE=0):
+                 protocol=None, urlpostfix=None, confighandler=None, autologin=True, prompt='auto', VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
         self._defaultopts = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
-#        super(AbstractServer, self).__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, globalconfighandler=globalconfighandler)
+#        super(AbstractServer, self).__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, confighandler=confighandler)
         self.CONFIG_FORMAT = 'wiki_{}'
         #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
-        AbstractServer.__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, globalconfighandler=globalconfighandler, VERBOSE=VERBOSE)
+        AbstractServer.__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, confighandler=confighandler, VERBOSE=VERBOSE)
         print "Making server with url: {}".format(self.Url)
         if self.Url is None:
             return None
@@ -217,7 +231,7 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
         """
         Attempts to find a saved token, looking for standard places.
         Found tokens are checked with self.test_token(token).
-        Currently only checks the config provided via GlobalConfighandler.
+        Currently only checks the config provided via Confighandler.
         If a valid token is found, returns that token. Otherwise return None.
         """
         # 1) Check the config...:
@@ -374,8 +388,14 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
         return self.RpcServer.confluence2.getPages(self.Logintoken, spaceKey)
 
     def getPage(self, pageId=None, spaceKey=None, pageTitle=None):
-        
+        """
+        Wrapper for xmlrpc getPage method.
+        Takes pageId as long (not int but string!).
+        Edit: xmlrpc only supports 32-bit long ints and confluence uses 64-bit, all long integers should
+        be transmitted as strings, not native ints.
+        """
         if pageId:
+            pageId = str(pageId) # getPage method takes a long int.
             return self.RpcServer.confluence2.getPage(self.Logintoken, pageId)
         elif spaceKey and pageTitle:
             return self.RpcServer.confluence2.getPage(self.Logintoken, spaceKey, pageTitle)
@@ -383,46 +403,92 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
             raise("Must specify either pageId or spaceKey/pageTitle.")
 
     def removePage(self, pageId):
+        """
+        Removes a page, returns None.
+        takes pageId as string.
+        """
+        pageId = str(pageId)
         return self.RpcServer.confluence2.removePage(self.Logintoken, pageId)
 
     def movePage(self, sourcePageId, targetPageId, position='append'):
-        """moves a page to the top level of the target space. This corresponds to PageManager - movePageToTopLevel.
-position either of above, below or append.
-above -> source and target become/remain sibling pages and the source is moved above the target in the page tree.
-below -> source and target become/remain sibling pages and the source is moved below the target in the page tree.
-append-> source becomes a child of the target.
-"""
+        """
+        moves a page's position in the hierarchy.
+        takes pageIds as strings.
+        Arguments:
+        * sourcePageId - the id of the page to be moved.
+        * targetPageId - the id of the page that is relative to the sourcePageId page being moved.
+        * position - "above", "below", or "append". (Note that the terms 'above' and 'below' refer to the relative vertical position of the pages in the page tree.)
+        Details for position:
+        * above -> source and target become/remain sibling pages and the source is moved above the target in the page tree.
+        * below -> source and target become/remain sibling pages and the source is moved below the target in the page tree.
+        * append-> source becomes a child of the target.
+        """
+        sourcePageId, targetPageId = str(sourcePageId), str(targetPageId)
         return self.RpcServer.confluence2.movePage(self.Logintoken, sourcePageId, targetPageId, position)
 
     def getPageHistory(self, pageId):
+        """
+        Returns all the PageHistorySummaries
+         - useful for looking up the previous versions of a page, and who changed them.
+        takes pageId as string.
+        """
+        pageId = str(pageId)
         return self.RpcServer.confluence2.getPageHistory(self.Logintoken, pageId)
 
     def getAttachments(self, pageId):
-        # Returns list of page attachments
+        """
+        Returns list of page attachments,
+        takes pageId as string.
+        """
+        pageId = str(pageId)
         return self.RpcServer.confluence2.getAttachments(self.Logintoken, pageId)
 
     def getAncestors(self, pageId):
+        """
         # Returns list of page attachments
+        takes pageId as string.
+        """
+        pageId = str(pageId)
         return self.RpcServer.confluence2.getAncestors(self.Logintoken, pageId)
 
     def getChildren(self, pageId):
+        """
         # Returns all the direct children of this page.
+        takes pageId as string.
+        """
+        pageId = str(pageId)
         return self.RpcServer.confluence2.getChildren(self.Logintoken, pageId)
 
     def getDescendents(self, pageId):
+        """
         # Returns all the descendants of this page (children, children's children etc).
+        takes pageId as string.
+        """
+        pageId = str(pageId)
         return self.RpcServer.confluence2.getDescendents(self.Logintoken, pageId)
 
     def getComments(self, pageId):
+        """
         # Returns all the comments for this page.
+        takes pageId as string.
+        """
+        pageId = str(pageId)
         return self.RpcServer.confluence2.getComments(self.Logintoken, pageId)
 
     def getComment(self, commentId):
-        # Returns all the comments for this page.
+        """
+        # Returns an individual comment.
+        takes commentId as string.
+        """
+        commentId = str(commentId)
         return self.RpcServer.confluence2.getComment(self.Logintoken, commentId)
 
     def removeComment(self, commentId):
+        """
         # Returns an individual comment.
+        takes commentId as string.
+        """
+        commentId = str(commentId)
         return self.RpcServer.confluence2.removeComment(self.Logintoken, commentId)
 
     def addComment(self, comment_struct):
@@ -449,15 +515,16 @@ append-> source becomes a child of the target.
         return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, pageId, fileName, versionNumber)
 
     def addAttachment(self, contentId, attachment_struct, attachmentData):
-        """add a new attachment to a content entity object. 
-Note that this uses a lot of memory - about 4 times the size of the attachment. 
-The 'long contentId' is actually a String pageId for XML-RPC.
-"""
+        """
+        Add a new attachment to a content entity object. 
+        Note that this uses a lot of memory - about 4 times the size of the attachment. 
+        The 'long contentId' is actually a String pageId for XML-RPC.
+        """
         return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, contentId, attachment_struct, attachmentData)
 
     def removeAttachment(self, contentId, fileName):
         """remove an attachment from a content entity object.
-"""
+        """
         return self.RpcServer.confluence2.removeAttachment(self.Logintoken, contentId, fileName)
 
     def moveAttachment(self, originalContentId, originalName, newContentEntityId, newName):
@@ -479,6 +546,9 @@ The content is in storage format.
 Note: the return value can be null, if an error that did not throw an exception occurred.
 Operates exactly like updatePage() if the page already exists.
 """
+        if self.VERBOSE:
+            print "server.storePage() :: Storing page:"
+            print page_struct
         return self.RpcServer.confluence2.storePage(self.Logintoken, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
@@ -490,9 +560,31 @@ Note: the return value can be null, if an error that did not throw an exception 
         return self.RpcServer.confluence2.updatePage(self.Logintoken, page_struct, pageUpdateOptions)
 
 
-
     def convertWikiToStorageFormat(self, wikitext):
         return self.RpcServer.confluence2.convertWikiToStorageFormat(self.Logintoken, wikitext)
+
+
+    def renderContent(self, spaceKey=None, pageId=None, content=None):
+        """
+        Returns the HTML rendered content for this page. The behaviour depends on which arguments are passed:
+        * If only pageId is passed then the current content of the page will be rendered.
+        * If a pageId and content are passed then the content will be rendered as if it were the body of that page.
+        * If a spaceKey and content are passed then the content will be rendered as if it were on a new page in that space.
+        * Whenever a spaceKey and pageId are passed the spaceKey is ignored.
+        * If neither spaceKey nor pageId are passed then an error will be returned.
+        takes pageId as string.
+        """
+        if pageId:
+            pageId = str(pageId)
+            if content:
+                return self.RpcServer.confluence2.renderContent(self.Logintoken, pageId=pageId, content=content)
+            else:
+                return self.RpcServer.confluence2.renderContent(self.Logintoken, pageId=pageId, content=content)
+        elif spaceKey and content:
+            return self.RpcServer.confluence2.renderContent(self.Logintoken, spaceKey=pageId, content=content)
+        print "server.renderContent() :: Error, must pass either pageId (with optional content) or spaceKey and content."
+        return None
+
 
 
     ##############################
@@ -595,7 +687,7 @@ if __name__ == "__main__":
         ch.setdefault('user', 'scholer') # set defaults only sets if not already set.
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc') # setkey overrides.
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
         if server.test_token():
             print "Succesfully connected to server (retrieved serverinfo)!"
         else:
@@ -608,7 +700,7 @@ if __name__ == "__main__":
         confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
 
     def test_loginAndSetToken(ch=None, persist=False):
         if ch is None:
@@ -616,7 +708,7 @@ if __name__ == "__main__":
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
 #        ch.setkey('wiki_password', 'http://10.14.40.245:8090/rpc/xmlrpc')
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5, autologin=False)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=False)
         token = server.Logintoken
         print "\ntoken (before forced login):\t{}".format(token)
         token = server.login(dopersist=persist, prompt=True)
@@ -632,7 +724,7 @@ if __name__ == "__main__":
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
         # Deactivating autologin...
-        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5, prompt='never', autologin=False)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, prompt='never', autologin=False)
         token = server.find_and_test_tokens()
         print "\nFound token: {}".format(token)
         print "server.Logintoken: {}".format(token)
@@ -645,7 +737,7 @@ if __name__ == "__main__":
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
         # Deactivating autologin...
-        server = ConfluenceXmlRpcServer(globalconfighandler=ch, VERBOSE=5, prompt='never', autologin=False)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, prompt='never', autologin=False)
         token = server.find_and_test_tokens()
         print "\nFound token: {}".format(token)
         print "server.Logintoken: {}".format(token)
@@ -656,13 +748,71 @@ if __name__ == "__main__":
         print serverinfo
 
 
+    def test_getPageById(ch=None, server=None):
+        if ch is None:
+            ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        if server is None:
+            server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+        spaceKey = "~scholer"
+        pageId = 524310
+        pageId_erroneous = '504310'
+        page_struct1 = server.getPage(pageId=pageId)
+        print "\npage_struct1:"
+        print page_struct1
+        try:
+            page_struct_err = server.getPage(pageId=pageId_erroneous)
+            print "\npage_struct_err:"
+            print page_struct_err
+        except xmlrpclib.Fault as e:
+            print "Retrival of on-existing pages by id raises error as expected."
+
+    def test_getPageByName(ch=None, server=None):
+        if ch is None:
+            ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        if server is None:
+            server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+        spaceKey = "~scholer"
+        title = "RS001 First test page CzkTW"
+        title_err = "RS001 First test page CzTW"
+        page_struct1 = server.getPage(spaceKey=spaceKey, pageTitle=title)
+        print "\npage_struct1:"
+        print page_struct1
+        try:
+            page_struct_err = server.getPage(spaceKey=spaceKey, pageTitle=title_err)
+            print "\npage_struct_err:"
+            print page_struct_err
+        except xmlrpclib.Fault as e:
+            print "Retrival of on-existing pages by id raises error as expected."
+
+
+    def test_movePage1(ch=None, server=None):
+        if ch is None:
+            ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        if server is None:
+            server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+        spaceKey = "~scholer"
+        title = "RS001 First test page CzkTW"
+        page = server.getPage(spaceKey=spaceKey, pageTitle=title)
+        pageId = page['id']
+        #pageId = 524310  # edit, testing getPage as well...
+        rootPageTitle = "RS Experiments"
+        rootPage = server.getPage(spaceKey=spaceKey, pageTitle=rootPageTitle)
+        print "\nrootPage:"
+        print rootPage
+        targetPageId = rootPage['id'] # Remember, 'id' and not 'pageId' !
+        server.movePage(pageId, targetPageId=targetPageId)
+        
+    
 
 
     #test_login()
     #server = test_config1()
     #test_loginAndSetToken(persist=True)
-    test_getServerInfo()
+    #test_getServerInfo()
     #test_loadToken()
+    #test_movePage1()
+    test_getPageById()
+    test_getPageByName()
 
 
 
@@ -699,4 +849,10 @@ CRYPTOGRAPHY REFS:
 - http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 - https://github.com/dlitz/pycrypto/pull/33 <- This discussion (from 2013) is interesting. It discusses addition of AEAD modes, of which OCB is one type.
 - http://scienceblogs.com/goodmath/2008/08/07/encryption-privacy-and-you/ (OT)
+
+
+
+
+OTHER CONFLUENCE RPC API refs:
+* https://bobswift.atlassian.net/wiki/display/CSOAP
 """

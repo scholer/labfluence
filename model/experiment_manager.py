@@ -103,7 +103,8 @@ class ExperimentManager(object):
             print regex_str
             print localdirs
         if not regex_str:
-            print "Warning, no exp_series_regex entry found in config!"
+            print "ExperimentManager.getLocalExperiments() :: ERROR, no exp_series_regex entry found in config!"
+            return
         regex_prog = re.compile(regex_str)
         experiments = list()
         for localdir in localdirs:

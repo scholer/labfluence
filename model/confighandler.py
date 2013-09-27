@@ -43,12 +43,40 @@ class ConfigHandler(object):
 
     """
     For now, the configs are "flat", i.e. no nested entries, ala config["subject"]["key"] = value. Only config["key"] = value.
+    
+    A config type can be added through the following mechanisms:
+    1.  By specifying ch.ConfigPaths[cfgtype] = <config filepath>. 
+        ConfigPaths are read during autoRead().
+        Specifying this way requires the config filepath to be directly or indirectly 
+        specified in the source code. This is thus only done for the 'system' and 'user' configs.
+        
+    2.  Specifying ch.Config_path_entries[cfgtype] = <config key name>
+        During autoRead, if a config contains a key <config key name>, the value of that config entry
+        is expected to be a file path for a config of type <cfgtype>.
+        This is e.g. how 'exp' cfgtype is set up to load, obtaining the exp config filepath from the 'user' config.
+        This requries a defining the cfgtype and config-key in the source code, but no hard-coding of filepaths.
+        Note: These configs are added to AutoreadNewFnCache, which is used to 
+            a) Make sure not to load new configs many times, and
+            b) Adding the config filepath to ch.ConfigPaths upon completing ch.autoRead().
+        The latter ensures that e.g. 'exp' config can be saved with ch.saveConfig().
+
+    3.  Using ch.addNewConfig(inputfn, cfgtype). 
+        This will also add the config filepath to ch.ConfigPaths, making it available for ch.saveConfigs().
+        (Can be disabled by passing rememberpath=False).
+
+    4.  In a config file by defining: config_define_new: <dict>
+        where <dict> = {<cfgtype>: <config filepath>}
+        This works as an ad-hoc alternative to setting ch.Config_path_entries.
+        This does not require any hard-coding/changes in the source code, but might add some security 
+        concerns. Therefore, using this requries ch.AllowNewConfigDefinitions=True.
+        This is used for e.g. defining 'templates' cfgtype.
     """
 
     def __init__(self, systemconfigfn=None, userconfigfn=None, VERBOSE=0): 
         self.VERBOSE = VERBOSE
         self.ConfigPaths = OrderedDict()
         self.Configs = OrderedDict()
+        # For retrieving paths via config entries...
         self.Config_path_entries = dict(system='system_config_path', user='user_config_path') # maps e.g. "system_config_path" to 'system'.
         self.ConfigPaths['system'] = systemconfigfn
         self.ConfigPaths['user'] = userconfigfn
@@ -58,9 +86,28 @@ class ConfigHandler(object):
         self.AutoreadNewFnCache = dict() #list()
         self.ReadFiles = set()
         self.ReadConfigTypes = set()
+        # Setting either of these to true requires complete trust in the putative users:
         self.AllowChainToSameType = True # If one system config file has been loaded, allow loading another?
         self.AllowNextConfigOverrideChain = True # Similar, but does not alter the original config filepath.
+        self.AllowNewConfigDefinitions = True   # Allow one config to define a new config.
+        self.AllowCfgtypeOverwrite = False
+        """
+        Defining a new config can be done in a yaml as:
+        config_define_new = {<cfgtype> : <path>}
+        where path if relative, is loaded relative to the current config path.
+        """
 
+
+    def addNewConfig(self, inputfn, cfgtype, VERBOSE=None, rememberpath=True):
+        if VERBOSE is None:
+            VERBOSE = self.VERBOSE
+        if cfgtype in set(self.Configs).union(self.ConfigPaths) and not self.AllowCfgtypeOverwrite:
+            print "addNewConfig() :: cfgtype already present in configs and overwrite not allowed; aborting..."
+            return
+        if rememberpath:
+            self.ConfigPaths[cfgtype] = inputfn
+        self.Configs[cfgtype] = dict()
+        self.readConfig(inputfn, cfgtype)
 
 
     def getConfigPath(self, what='all', aslist=False):
@@ -92,6 +139,7 @@ class ConfigHandler(object):
     def get(self, key, default=None):
         """ 
         Simulated the get method of a dict.
+        Note that the ExpConfigHandler's get() adds a bit more options...
         """
         return self.getConfig(what='combined').get(key, default)
 
@@ -148,7 +196,12 @@ class ConfigHandler(object):
         if inputfn in self.ReadFiles:
             print "WARNING, file already read: {}".format(inputfn)
             return
-        newconfig = yaml.load(open(inputfn)) # I dont think this needs with... or open/close logic.
+        try:
+            newconfig = yaml.load(open(inputfn)) # I dont think this needs with... or open/close logic.
+        except IOError as e:
+            print "readConfig() :: ERROR, could not load yaml config, cfgtype '{}'".format(cfgtype)
+            print e
+            return False
         self.ReadConfigTypes.add(cfgtype)
         self.ReadFiles.add(inputfn) # To avoid recursion...
         self.Configs[cfgtype].update(newconfig)
@@ -162,6 +215,15 @@ class ConfigHandler(object):
             if VERBOSE:
                 print "\nreadConfig() :: Reading config defined by next_config_override_fn entry: {}".format(newconfig["next_config_override_fn"])
             self.readConfig(newconfig["next_config_override_fn"], cfgtype)
+        if "config_define_new" in newconfig and self.AllowNewConfigDefinitions:
+            for newtype, newconfigfn in newconfig["config_define_new"].items():
+                if not os.path.isabs(newconfigfn):
+                    # isabs basically just checks if path[0] == '/'...
+                    newconfigfn = os.path.normpath(os.path.join(os.path.dirname(inputfn), newconfigfn))
+                print "readConfig: Adding config-defined config '{}' using filepath '{}'".format(newtype, newconfigfn)
+                self.addNewConfig(newconfigfn, newtype)
+        
+        # Inputting configs through Config_path_entries:
         reversemap = dict( (val, key) for key,val in self.Config_path_entries.items() )
         for key in set(newconfig.keys()).intersection(self.Config_path_entries.values()):
             if VERBOSE > 2:
@@ -171,6 +233,7 @@ class ConfigHandler(object):
             # instead, do this:
             self.readConfig(newconfig[key], reversemap[key])
             self.AutoreadNewFnCache[reversemap[key]] = newconfig[key]
+        return newconfig
 
 
     def autoRead(self, VERBOSE=None):
@@ -737,6 +800,21 @@ if __name__ == '__main__':
     def testPathFinder1():
         pf = PathFinder(VERBOSE=10)
 
+    def test_addNewConfig():
+        ch = ExpConfigHandler( pathscheme='default1', VERBOSE=10 )
+        ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
+        print "ch.get('exp_subentry_template'):"
+        print ch.get('exp_subentry_template')
+
+    def test_cfgNewConfigDef():
+        ch = ExpConfigHandler( pathscheme='default1', VERBOSE=10 )
+        #ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
+        # I have added the following to the 'exp' config:
+        # config_define_new:
+        #   templates: ./.labfluence/templates.yml
+        print "ch.get('exp_subentry_template'):"
+        print ch.get('exp_subentry_template')
+
 
     def testExpConfig1():
         ch = ExpConfigHandler(pathscheme='default1')
@@ -757,6 +835,6 @@ if __name__ == '__main__':
     #test_readdata()
     #testPathFinder1()
     #testPfAndChain()
-    testExpConfig1()
-
-
+    #testExpConfig1()
+    #test_addNewConfig()
+    test_cfgNewConfigDef()
