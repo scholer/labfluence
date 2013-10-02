@@ -42,6 +42,9 @@ class AbstractServer(object):
         """
         local_vars = locals()
         self.VERBOSE = local_vars.get('VERBOSE', 0)
+        
+        ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
+        ## It is nice, but not sure why this was so important, though...
         if not hasattr(self, 'CONFIG_FORMAT'):
             self.CONFIG_FORMAT = 'server_{}'
         if not hasattr(self, 'ConfigEntries'):
@@ -57,12 +60,14 @@ class AbstractServer(object):
             cfgentry = self.ConfigEntries[key]
             val = local_vars.get(key.lower(), None)
             if val is None:
-                print "\nAbstractServer init params:"
-                print "getattr(self, {})                returns: {}".format(key, getattr(self, key, 'not-found-default'))
-                print "Confighandler.get({}) returns: {}".format(cfgentry, self.Confighandler.get(cfgentry, 'not-found-default'))
-                print "self._defaultopts.get({})        returns: {}".format(key.lower(), self._defaultopts.get(key.lower(), 'not-found-default'))
+                if self.VERBOSE > 5:
+                    print "\nAbstractServer init params:"
+                    print "getattr(self, {})                returns: {}".format(key, getattr(self, key, 'not-found-default'))
+                    print "Confighandler.get({}) returns: {}".format(cfgentry, self.Confighandler.get(cfgentry, 'not-found-default'))
+                    print "self._defaultopts.get({})        returns: {}".format(key.lower(), self._defaultopts.get(key.lower(), 'not-found-default'))
                 val = getattr(self, key, self.Confighandler.get(cfgentry, self._defaultopts.get(key.lower(), None) ) )
-            print "--Init: setting attr '{}' to '{}' ({})".format(key, val, cfgentry)
+            if self.VERBOSE:
+                print "--AbstractServer.__init__() :: setting attr '{}' to '{}' ({})".format(key, val, cfgentry)
             setattr(self, key, val)
         
         if not self.Url:
@@ -591,7 +596,7 @@ Note: the return value can be null, if an error that did not throw an exception 
     #### Search methods      #####
     ##############################
 
-    def search(query, maxResults, parameters=None):
+    def search(self, query, maxResults, parameters=None):
         """search
 String token, String query, int maxResults, map parameters
  return a list of results which match a given search query (including pages and other content types). This is the same as a performing a parameterised search (see below) with an empty parameter map.

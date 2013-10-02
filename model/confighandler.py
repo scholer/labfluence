@@ -82,6 +82,7 @@ class ConfigHandler(object):
         self.ConfigPaths['user'] = userconfigfn
         self.Configs['system'] = dict()
         self.Configs['user'] = dict()
+        self.Singletons = dict() # dict for singleton objects; makes it easy to share objects across application objects that already have access to the confighandler singleton.
         self.DefaultConfig = 'user'
         self.AutoreadNewFnCache = dict() #list()
         self.ReadFiles = set()
@@ -335,6 +336,7 @@ class ExpConfigHandler(ConfigHandler):
         else:
             self.HierarchicalConfigHandler = None
 
+
     def getHierarchicalEntry(self, key, path, traverseup=True):
         """
         Much like self.get, but only searches the HierarchicalConfigHandler configs.
@@ -372,9 +374,11 @@ class ExpConfigHandler(ConfigHandler):
                     return [os.path.join(exp_path, ignoreDir) for ignoreDir in cfg[key] ]
                 return cfg[key]
 
+    def getExpConfig(self, path):
+        return self.HierarchicalConfigHandler.getConfig(path)
+
     def loadExpConfig(self, path):
         return self.HierarchicalConfigHandler.loadConfig(path)
-
 
     def saveExpConfig(self, path, cfg=None):
         return self.HierarchicalConfigHandler.saveConfig(path, cfg)
@@ -462,7 +466,24 @@ class HierarchicalConfigHandler(object):
 #                cfg = yaml.load(open(os.path.realpath(os.path.join(dirpath, self.ConfigSearchFn))) )
 #                self.Configs[dirpath] = self.Configs[os.path.realpath(dirpath)] = cfg
 
+
+    def getConfig(self, path):
+        """
+        Implemented dynamic read; will try to load if config if not already loaded.
+        """
+        if path not in self.Configs:
+            return self.loadConfig(path)
+        else:
+            return self.Configs[path]
+
+
     def getConfigFileAndDirPath(self, path):
+        """
+        returns dpath and fpath, where
+        fpath = full path to config file
+        dpath = directory in which config file resides.
+        Always use dpath when searching for a config.
+        """
         if not os.path.isabs(path):
             print "Edit, this should probably be concatenated using the exp-data-path;"
             print "doing this will use the current working directory as base path..."
@@ -630,7 +651,7 @@ class HierarchicalConfigHandler(object):
                 print "yielding path {}".format(path)
                 yield path
                 parent = os.path.dirname(path)
-                if parent == path:
+                if parent == path or path == rootdir:
                     break
                 path = parent
         paths = list(getparents(path))

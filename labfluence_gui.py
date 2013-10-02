@@ -205,4 +205,13 @@ if __name__ == '__main__':
 
 
 
+"""
 
+
+REFS:
+* http://infohost.nmt.edu/tcc/help/pubs/tkinter/web/index.html
+
+Other Confluence interface implementations:
+* https://github.com/RaymiiOrg/confluence-python-cli/blob/master/confluence.py
+
+"""

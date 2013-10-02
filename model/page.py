@@ -18,7 +18,9 @@
 
 import random
 import string
+from lxml import etree
 from datetime import datetime
+import re
 
 from confighandler import ExpConfigHandler
 from server import ConfluenceXmlRpcServer
@@ -61,7 +63,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
     """
 
 
-    def __init__(self, pageId, server, pageStruct=None):#, localdir=None, experiment=None):
+    def __init__(self, pageId, server, pageStruct=None, VERBOSE=0):#, localdir=None, experiment=None):
         """
         Experiment and localdir currently not implemented.
         These are mostly intended to provide local-dir-aware config items, e.g. string formats and regexs.
@@ -69,6 +71,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         self.PageId = pageId
         self.Server = server
+        self.VERBOSE = VERBOSE
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
         if pageStruct is None:
@@ -89,10 +92,33 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         Returns a minimum struct, used for updating, etc.
         """
-        keys = ('id', 'space', 'title', 'content', 'version')
+        keys = ('id', 'space', 'title', 'content', 'version', 'parentId', 'permissions')
         struct = self.Struct
         new_struct = dict(filter(lambda t: t[0] in keys, struct.items() ) )
         return new_struct
+
+    def validate_xhtml(self, xhtml):
+            # http://lxml.de/1.3/validation.html
+            # http://www.amnet.net.au/~ghannington/confluence/readme.html
+            # https://confluence.atlassian.com/display/DOC/Confluence+Storage+Format
+            # https://confluence.atlassian.com/display/DOC/Feedback+on+Confluence+Storage+Format
+            # https://jira.atlassian.com/browse/CONF-24884 - currently, no published DTD, XSD  or similar...
+            # http://www.w3schools.com/xml/xml_dtd.asp
+            # Damn, I cannot figure out even how to ressolve the 'namespace prefix ac not defined issue...
+
+        """ My own simple validation... """
+        surplus = 0
+        for i,char in enumerate(xhtml):
+            if char == '<':
+                surplus += 1
+            if char == '>':
+                surplus -= 1
+            if surplus > 1:
+                print "xhtml failed at index {}".format(i)
+                return False
+        return True
+
+
 
     def updatePage(self, content=None, title=None, versionComment="", minorEdit=True, struct_from='cache', base='minimal'):
         """
@@ -113,18 +139,26 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
                 print "Could not retrieve updated version from server, aborting..."
                 return False
         if base == 'minimal':
-            new_struct = self.minimumStruct()
+            new_struct = self.minimumStruct() # using current value of self.Struct cache...
         else:
             new_struct = base
         if content:
             new_struct['content'] = content
+        if not self.validate_xhtml(new_struct['content']):
+            print "\nPage.updatePage() :: content failed xhtml validation, aborting..."
+            return False
         if title:
             new_struct['title'] = title
-        new_struct['version'] += 1
+        #new_struct['version'] = str(int(new_struct['version'])+0) # 'version' refers to the version you are EDITING, not the version number for the version that you are submitting.
         pageUpdateOptions = dict(versionComment=versionComment, minorEdit=minorEdit)
-        page_stuct = self.Server.updatePage(new_struct, pageUpdateOptions)
+        if self.VERBOSE or True:
+            print "new_struct:\n{}\npageUpdateOptions:\n{}".format(new_struct, pageUpdateOptions)
+        page_struct = self.Server.updatePage(new_struct, pageUpdateOptions)
         if page_struct:
             self.Struct = page_struct
+        if self.VERBOSE:
+            print "\nPage.updatePage() :: Returned page struct from server:"
+            print page_struct
         return page_struct
 
     def movePage(self, parentId, position="append"): #struct_from='cache', base='minimal'):
@@ -213,7 +247,7 @@ below        source and target become/remain sibling pages and the source is mov
 
 
 
-    def appendAtToken(self, text, token, appendBefore=False, replaceLastOccurence=True, 
+    def appendAtToken(self, text, token, appendBefore=True, replaceLastOccurence=True, 
                       updateFromServer=True, persistToServer=True, 
                       versionComment="labfluence appendAtToken", minorEdit=True):
         """
@@ -221,8 +255,60 @@ below        source and target become/remain sibling pages and the source is mov
         """
         search_string = token
         replace_string = text + token if appendBefore else text + token
-        return self.search_replace(search_string, replace_string, updateFromServer=updateFromServer, 
-                    persistToServer=persistToServer, versionComment=versionComment, minorEdit=minorEdit)
+        return self.search_replace(search_string, replace_string, replaceLastOccurence=replaceLastOccurence, 
+                    updateFromServer=updateFromServer, persistToServer=persistToServer, versionComment=versionComment, minorEdit=minorEdit)
+
+
+    def insertAtRegex(self, xhtml, regex, mode='search', versionComment="labfluence insertAtRegex", minorEdit=True,
+                      updateFromServer=True, persistToServer=True):
+        """
+        regex must have two named placeholders:
+        - before_insert
+        - after_insert
+        xhtml will be inserted between these two locations.
+        
+        mode controls what regex type is used.
+        - match will use re.match, and regex must match entire page content, typically starting and ending with .*
+        - search is very similar to re.match, but uses re.search which does not require 
+          matching the whole page. Also, search only requries one matching group, either 
+          before_insert or after_insert.
+        """
+        if updateFromServer:
+            if not self.reloadFromServer():
+                print "Could not retrieve updated version from server, aborting..."
+                return False
+        if self.VERBOSE:
+            print "\nPage.insertAtRegex() :: inserting in mode '{}' with regex:\n{}\nthe following xhtml code:\n{}".format(mode, regex, xhtml)
+        page = self.Struct['content']
+        # Developing two modes; the match is easiest to implement correctly here because it is just 
+        # joining three strings.
+        # The search mode is harder to get right here, but easier to make correct regex patterns for.
+        if mode == 'match':
+            match = re.match(regex, page, re.DOTALL)
+            if match:
+                matchgroups = match.groupdict()
+                self.Struct['content'] = "".join([matchgroups['before_insert'], xhtml, matchgroups['after_insert']])
+        else:
+            match = re.search(regex, page, re.DOTALL)
+            if match:
+                matchgroups = match.groupdict()
+                before_insert_index, after_insert_index = None, None
+                if matchgroups.get('before_insert', None):
+                    before_insert_index = match.end('before_insert')
+                if matchgroups.get('after_insert', None):
+                    after_insert_index = match.start('after_insert')
+                if before_insert_index is None and after_insert_index is None:
+                    print "Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is ({}, {}), aborting...\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page)
+                    return False
+                if before_insert_index != after_insert_index:
+                    print "Page.insertAtRegex() :: WARNING, before_insert_index != after_insert_index; risk of content loss!\n --> (before_insert_index, after_insert_index) is ({}, {})\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page)
+                self.Struct['content'] = "\n".join([page[:before_insert_index], xhtml, page[after_insert_index:] ])
+        if self.VERBOSE:
+            print "\nPage.insertAtRegex() :: {} found.".format("MATCH found" if match else "No match found")
+        if persistToServer and match:
+            self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
+        return self.Struct
+
 
 
 #    def appendAtTokenAlternatives(self, text, tokens, appendBefore=True, ifFailedAppendAtEnd=False, 
@@ -281,6 +367,56 @@ below        source and target become/remain sibling pages and the source is mov
         return self.Server.getPagePermissions(self.PageId)
 
 
+class TemplateManager(object):
+
+    def __init__(self, confighandler, server=None):
+        if 'templatemanager' in confighandler.Singletons:
+            print "TemplateManager.__init__() :: ERROR, a template manager is already registrered in the confighandler..."
+            return confighandler['templatemanager']
+        self.Confighandler = confighandler
+        self.Server = server
+        self.Cache = dict()
+        confighandler.Singletons['templatemanager'] = self
+
+
+    def get(self, templatetype):
+        return self.getTemplate(templatetype)
+
+    def getTemplate(self, templatetype=None):
+        """
+        Returns a template (text string); 
+        """
+        if templatetype is None:
+            templatetype = self.Confighandler.get('wiki_default_newpage_template', 'exp_page')
+        if templatetype in self.Cache and self.Confighandler.get('wiki_allow_template_caching', False):
+            return self.Cache[templatetype]
+        template = self.Confighandler.get(templatetype+'_template', None)
+        if template:
+            if self.Confighandler.get('wiki_allow_template_caching', False): # Maybe delete this, has little influence...
+                self.Cache[templatetype] = template
+            return template
+        template_pageids = self.Confighandler.get('wiki_templates_pageIds')
+        if template_pageids:
+            print template_pageids
+            templatePageId = template_pageids.get(templatetype, None)
+            print "templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
+            if templatePageId:
+                templatestruct = self.Server.getPage(pageId=templatePageId)
+                print "\nstruct:"
+                print templatestruct
+                #new_struct = self.makeMinimalStruct(struct)
+                # Uh... in theory, I guess I could also have permissions etc be a part of a template.
+                # However that should probably be termed page_struct template and not just template
+                # since template normally have just referred to a piece of xhtml.
+                if templatestruct and 'content' in templatestruct:
+                    template = templatestruct['content']
+                    if self.Confighandler.get('wiki_allow_template_caching', False):
+                        self.Cache[templatetype] = template
+                    return template
+        print "No matching pageId for given template '{}', aborting...".format(templatetype)
+        return
+
+
 
 
 class WikiPageFactory(object):
@@ -292,8 +428,12 @@ class WikiPageFactory(object):
     def __init__(self, server, confighandler, defaulttemplate='exp_page'):
         self.Server = server
         self.Confighandler = confighandler
+        if 'templatemanager' in confighandler.Singletons:
+            self.TemplateManager = confighandler.Singletons['templatemanager']
+        else:
+            self.TemplateManager = TemplateManager(confighandler, server)
         self.DefaultTemplateType = defaulttemplate
-        self.TemplatePagesIds = self.Confighandler.get('wiki_templates_pageIds') #{'experiment': 41746489}
+        #self.TemplatePagesIds = self.Confighandler.get('wiki_templates_pageIds') #{'experiment': 41746489}
         self.OverrideSpaceKeyRoot = True # Not sure this is ever used...
 
 
@@ -311,24 +451,25 @@ class WikiPageFactory(object):
         """
         Returns a template (text string); 
         """
-        if templatetype is None:
-            templatetype = self.DefaultTemplateType
-        template = self.Confighandler.get(templatetype+'_template')
-        if template:
-            return template
-        if self.TemplatePagesIds:
-            print self.TemplatePagesIds
-            templatePageId = self.TemplatePagesIds.get(templatetype)
-            print "templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
-            if templatePageId:
-                templatestruct = self.Server.getPage(pageId=templatePageId)
-                print "\nstruct:"
-                print templatestruct
-                #new_struct = self.makeMinimalStruct(struct)
-                if templatestruct:
-                    return templatestruct['content']
-        print "No matching pageId for given template '{}', aborting...".format(templatetype)
-        return
+        return self.TemplateManager(templatetype)
+#        if templatetype is None:
+#            templatetype = self.DefaultTemplateType
+#        template = self.Confighandler.get(templatetype+'_template')
+#        if template:
+#            return template
+#        if self.TemplatePagesIds:
+#            print self.TemplatePagesIds
+#            templatePageId = self.TemplatePagesIds.get(templatetype)
+#            print "templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
+#            if templatePageId:
+#                templatestruct = self.Server.getPage(pageId=templatePageId)
+#                print "\nstruct:"
+#                print templatestruct
+#                #new_struct = self.makeMinimalStruct(struct)
+#                if templatestruct:
+#                    return templatestruct['content']
+#        print "No matching pageId for given template '{}', aborting...".format(templatetype)
+#        return
 
 
     def makeNewPageStruct(self, content, space=None, parentPageId=None, title=None, fmt_params=None, localdirpath=None, **kwargs):
