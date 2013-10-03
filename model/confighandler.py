@@ -83,6 +83,8 @@ class ConfigHandler(object):
         self.Configs['system'] = dict()
         self.Configs['user'] = dict()
         self.Singletons = dict() # dict for singleton objects; makes it easy to share objects across application objects that already have access to the confighandler singleton.
+        self.EntryChangeCallbacks = dict()
+        self.ChangedEntriesForCallbacks = set()
         self.DefaultConfig = 'user'
         self.AutoreadNewFnCache = dict() #list()
         self.ReadFiles = set()
@@ -294,11 +296,69 @@ class ConfigHandler(object):
 
 
     def getConfigDir(self, what='user'):
-        """ Returns the directory of a particular configuration (file); defaulting to the 'user' config.
+        """ 
+        Returns the directory of a particular configuration (file); defaulting to the 'user' config.
         Valid arguments are: 'system', 'user', 'exp', etc.
         """
         return os.path.dirname(self.getConfigPath(what))
 
+
+    def registerEntryChangeCallback(self, configentry, function, args=None, kwargs=None):
+        """
+        Registers a callback for a particular entry (name).
+        Note: I see no reason to add a 'registerConfigChangeCallback' method.
+        Although this could provide per-config callbacks (e.g. an experiment that could subscribe to
+        changes only for that experiment), I think it is better to code for this situation directly.
+        
+        Note that changes are not registrered automatically. It is really not possible to see if
+        entries changes, e.g. dicts and lists which are mutable from outside the control of this confighandler.
+        Instead, this is a curtesy service, that allows one user of the confighandler to inform
+        the other objects subscribed with callbacks that something has changed.
+        Use as:
+            objB -> registers updateListWidget callable with 'app_active_experiments' using this method.
+            objA -> adds an entry to ch.get('app_active_experiments')
+            objA -> invokes invokeEntryChangeCallback('app_active_experiments')
+            ch   -> calls updateListWidget.
+        Alternative scheme:
+            objB -> registers updateListWidget callable with 'app_active_experiments' using this method.
+            objA -> adds an entry to ch.get('app_active_experiments')
+            objA -> does ch.ChangedEntriesForCallbacks.add('app_active_experiments')
+            < something else happens>
+            objC -> figues it might be a good idea to call ch.invokeEntryChangeCallback() with no args.
+            ch   -> searches through the ChangedEntriesForCallbacks set for changes since last callback.
+            ch   -> calls updateListWidget.
+        """
+        if args is None:
+            args = list()
+        if kwargs is None:
+            kwargs = dict()
+        # I would have liked this to be a set, but hard to implement set for dict-type kwargs and no frozendict in python2.
+        # Just make sure not to register the same callback twice.
+        self.EntryChangeCallbacks.setdefault(configentry, list()).append( (function, args, kwargs) )
+        # I could also have implemented as dict based on the function is hashable, e.g.:
+        #self.EntryChangeCallbacks.setdefault(configentry, dict()).set(function, (args, kwargs) )
+        # and invoke with:
+        # for function, (args, kwargs) in self.EntryChangeCallbacks[configentry].items():
+        #     function(*args, **kwargs)
+
+    def invokeEntryChangeCallback(self, configentry=None):
+        if configentry:
+            if configentry in self.EntryChangeCallbacks:
+                for function, args, kwargs in self.EntryChangeCallbacks[configentry]:
+                    function(*args, **kwargs)
+                self.ChangedEntriesForCallbacks.discard(configentry) # Erase this entry if registrered here.
+        elif self.ChangedEntriesForCallbacks:
+            # Use the self.ChangedEntriesForCallbacks set to determine what to call.
+#            for entry in self.ChangedEntriesForCallbacks:
+#                self.invokeEntryChangeCallback(entry)
+#            self.ChangedEntriesForCallbacks.clear()
+            # The ChangedEntriesForCallbacks will change during iteration, so using a while rather than for loop:
+            while True:
+                try:
+                    entry = self.ChangedEntriesForCallbacks.pop()
+                    self.invokeEntryChangeCallback(entry)
+                except KeyError: # raised when pop on empty set.
+                    break
 
 
 
@@ -850,6 +910,35 @@ if __name__ == '__main__':
         print "\n\nSaving config for path '{}'".format(path)
         ch.saveExpConfig(path)
 
+
+    def test_registerEntryChangeCallback():
+        print "\n\n>>>>>>>>>>>> starting test_registerEntryChangeCallback(): >>>>>>>>>>>>>>>>>>>>"
+        #registerEntryChangeCallback invokeEntryChangeCallback
+        ch = ExpConfigHandler(pathscheme='default1')
+        ch.setkey('testkey', 'random string')
+        def printHej(who, *args):
+            print "hi {}, other args: {}".format(who, args)
+        def printNej():
+            print "no way!"
+        def argsAndkwargs(arg1, arg2, hej, der, **kwargs):
+            print "{}, {}, {}, {}, {}".format(arg1, arg2, hej, der, kwargs)
+        ch.registerEntryChangeCallback('app_active_experiments', printHej, ('morten', ) )
+        ch.registerEntryChangeCallback('app_recent_experiments', printNej)
+        ch.registerEntryChangeCallback('app_recent_experiments', argsAndkwargs, ('word', 'up'), dict(hej='tjubang', der='sjubang', my='cat') )
+        ch.ChangedEntriesForCallbacks.add('app_active_experiments')
+        ch.ChangedEntriesForCallbacks.add('app_recent_experiments')
+        
+        print "\nRound one:"
+        ch.invokeEntryChangeCallback('app_active_experiments')
+        ch.invokeEntryChangeCallback() # invokes printNej and argsAndkwargs
+        print "\nRound two:"
+        ch.invokeEntryChangeCallback('app_active_experiments') # still invokes printHej
+        ch.invokeEntryChangeCallback() # does not invoke anything...
+        
+        print "\n<<<<<<<<<<<<< completed test_registerEntryChangeCallback(): <<<<<<<<<<<<<<<<<<<<"
+
+
+
     #test_makedata()
     #test_save1()
 #    testConfigTypeChain()
@@ -858,4 +947,5 @@ if __name__ == '__main__':
     #testPfAndChain()
     #testExpConfig1()
     #test_addNewConfig()
-    test_cfgNewConfigDef()
+    #test_cfgNewConfigDef()
+    test_registerEntryChangeCallback()

@@ -136,28 +136,33 @@ class Experiment(object):
             parentdirpath = self.getConfigEntry('local_exp_subDir')
         self.Parentdirpath = parentdirpath
         if not foldername:
-            print "Experiment.__init__() :: Huh?"
+            print "Experiment.__init__() :: Warning, could not determine foldername...????"
         self.Foldername = foldername
         self.Localdirpath = os.path.join(self.Parentdirpath, self.Foldername)
         #self.Localdir = localdir # Currently not updating; this might be relative...
 
 
         """ Experiment properties/config related """
-        if loadYmlFn and not confighandler:
-            fn = os.path.join(self.Localdirpath, loadYmlFn) if self.Localdirpath else loadYmlFn
-            self.loadProps(fn)
-        else:
-            """ I belive this should be sufficient to create a stable link... """
-            self.Props = self.Confighandler.getExpConfig(self.Localdirpath)
+        """ Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
+#        if loadYmlFn and not confighandler:
+#            fn = os.path.join(self.Localdirpath, loadYmlFn) if self.Localdirpath else loadYmlFn
+#            self.loadProps(fn)
+#        else:
+#            """ I belive this should be sufficient to create a stable link... """
+#            self.Props = self.Confighandler.getExpConfig(self.Localdirpath)
+#        
+        if self.VERBOSE:
             print "Experiment.__init__() :: HierarchicalConfig cfg: \n{}".format(self.Props)
         if props:
             self.Props.update(props)
-        print "Experiment.__init__() :: Props: \n{}".format(self.Props)
         if regex_match:
             gd = regex_match.groupdict()
             """ regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)" """
             #for k, reg in (('expid', 'expid_str'), ('exp_series_shortdesc', 'exp_title_desc'))
-            self.Props.update(gd)
+            if self.Props:
+                self.Props.update(gd)
+            else:
+                self.Props = gd
         elif not 'expid' in self.Props:
             # self.Props is still too empty. Attempt to populate it using 
             # first the localdirpath and then the wikipage.
@@ -167,14 +172,12 @@ class Experiment(object):
             if not regex_match and wikipage: # equivalent to 'if wikipage and not regex_match', but better to check first:
                 regex_match = self.updatePropsByWikipage(exp_regex_prog)
 
-
         """ Subentries related..."""
         #self.Subentries = list() # list of experiment sub-entries
         # edit, subentries is now an element in self.Props, makes it easier to save info...
         self.Subentries = self.Props.setdefault('exp_subentries', OrderedDict())
         if doparseLocaldirSubentries and self.Localdirpath:
             self.parseLocaldirSubentries()
-
 
         """
         I plan to allow for saving file histories, having a dict 
@@ -186,6 +189,17 @@ class Experiment(object):
         if not self.WikiPage:
             wikipage = self.attachWikiPage(dosearch=doserversearch)
         self.JournalAssistant = JournalAssistant(self)
+        if self.VERBOSE:
+            print "Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props)
+
+
+
+    @property
+    def Props(self):
+        return self.Confighandler.getExpConfig(self.Localdirpath)
+
+
+
 
 
 
@@ -235,31 +249,34 @@ class Experiment(object):
         return os.path.abspath(self.Localdirpath)
 
 
-    def loadProps(self, fn, clearfirst=False):
-        """
-        Load self.Props from file.
-        Currently NOT using confighandler, this should probably be implemented to be 
-        symmetric to saveProps()
-        """
-        if self.VERBOSE:
-            print "\nExperiment.loadProps() :: loading Props from file '{}'".format(fn)
-        if clearfirst:
-            self.Props.clear()
-        if not fn:
-            print "Experiment.loadProps() :: fn is '{}', aborting...".format(fn)
-            return
-        try:
-            self.Props.update(yaml.load(fn))
-        except IOError, e:
-            print e
-        except ValueError, e:
-            print e
-        if self.VERBOSE:
-            print "\nExperiment.loadProps() :: Props updated from file; Props = '{}'".format(self.Props)
-        # Make sure to set Subentries attribute on load:
-        if 'exp_subentries' in self.Props:
-            self.Subentries = self.Props['exp_subentries']
-        return self.Props
+
+
+    # Manual loadProps have been deprecated; providing a confighandler is now mandatory.
+#    def loadProps(self, fn, clearfirst=False):
+#        """
+#        Load self.Props from file.
+#        Currently NOT using confighandler, this should probably be implemented to be 
+#        symmetric to saveProps()
+#        """
+#        if self.VERBOSE:
+#            print "\nExperiment.loadProps() :: loading Props from file '{}'".format(fn)
+#        if clearfirst:
+#            self.Props.clear()
+#        if not fn:
+#            print "Experiment.loadProps() :: fn is '{}', aborting...".format(fn)
+#            return
+#        try:
+#            self.Props.update(yaml.load(fn))
+#        except IOError, e:
+#            print e
+#        except ValueError, e:
+#            print e
+#        if self.VERBOSE:
+#            print "\nExperiment.loadProps() :: Props updated from file; Props = '{}'".format(self.Props)
+#        # Make sure to set Subentries attribute on load:
+#        if 'exp_subentries' in self.Props:
+#            self.Subentries = self.Props['exp_subentries']
+#        return self.Props
 
 
     def saveIfChanged(self):
@@ -802,7 +819,8 @@ class Experiment(object):
     """ Other stuff... """
 
     def __repr__(self):
-        return "Experiment in ('{}'), with Props:\n{}".format(self.Localdirpath, yaml.dump(self.Props))
+        #return "Experiment in ('{}'), with Props:\n{}".format(self.Localdirpath, yaml.dump(self.Props))
+        return self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)
 
     def update(self, other_exp):
         """
@@ -938,7 +956,7 @@ if __name__ == '__main__':
 #    e=test_addNewSubentry(e)
 #    e=test_addNewSubentry2(e)
 #    e=test_addNewSubentry3(e)
-    e=test_addNewSubentry4(e)
+    #e=test_addNewSubentry4(e)
     print "\n------------finished test_addNewSubentry() ----------------------\n"
 
 

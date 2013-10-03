@@ -30,12 +30,78 @@ class ExperimentManager(object):
     def __init__(self, confighandler, server=None, VERBOSE=0):
         self.VERBOSE = VERBOSE
         self.Confighandler = confighandler
-        self.Server = server
-        self.Experiments = list()
-        self.ExperimentsById = dict()    # keyed as 'RS123'
-        self.ExperimentsByIndex = dict() # the '123' part of RS123.
-#        cfg = self.Confighandler.getConfig(what='combined')
-#        self.
+        if server:
+            self.Server = server
+        self.Experiments = list()       # list of experiment objects;
+        self.ExperimentsById = dict()   # also objects, but keyed as 'RS123'
+        #self.ExpSummariesById = dict()  # yaml-persisted brief info, from cache. Edit, this is now a property ExperimentPropsById
+        # Discussion: Is it worth having a cached summary?
+        # - Note: I still think basic info should be persisted on a per-experiment basis, not in a single large yaml file.
+        # - Cons: It might be easier just to have the full info, perhaps as read-only (i.e. not the main...)
+        # - Cons: It might also be better to just always make experiment objects. What is the overhead on making exp objects vs just generating a dict with info?
+        # - Pro:  
+
+
+    """ Properties: """
+    @property
+    def Server(self):
+        return self.Confighandler.Singletons.get('server', None)
+    @Server.setter
+    def Server(self, value):
+        # Do NOT override existing server if set, so using setdefault...
+        self.Confighandler.Singletons.setdefault('experimentmanager', value)
+
+
+    @property
+    def ExperimentPropsById(self):
+        return self.Confighandler.setdefault('experiments_by_id', dict())
+    @ExperimentsById.setter
+    def ExperimentPropsById(self, value):
+        # Do NOT override existing server if set, so using setdefault...
+        self.Confighandler.setdefault('experiments_by_id', value)
+
+
+    """
+    I am not really sure how to persist my active- and recent experiments.
+    - I can hardly do it as the experiment objects...
+    - I could just save the expids
+    - I could save the localdirpath... but that is not very portable... and does not work for exps that are only on the wiki...
+    - I could save expid and foldername - and use local_exp_subDir to determine path.
+    - I could save dicts or tuples with info such as expid, foldername, etc...
+    - I could persist the complete Experiment Props dict... 
+    
+    For now, the easiest thing is probably to just persist the expid. However, that requries that
+    it is easy to obtain the other info, either as exp-objects or props-dicts. Which perhaps itsn't
+    that bad, it just requires this ExperimentManager to load objects upon init.
+    Or, at least have all experiments cached in some form...
+    
+    """
+
+    @property
+    def ActiveExperimentsIds(self):
+        "List of active experiments, obtained from confighandler."
+        return self.Confighandler.setdefault('app_active_experiments', list())
+
+    @property
+    def ActiveExperimentsIds(self):
+        "List of recently opened experiments, obtained from confighandler."
+        return self.Confighandler.setdefault('app_recent_experiments', list())
+
+    @property
+    def ActiveExperiments(self):
+        "List of active experiments, obtained from confighandler."
+        return self.Confighandler.setdefault('app_active_experiments', list())
+
+    @property
+    def RecentExperiments(self):
+        "List of recently opened experiments, obtained from confighandler."
+        exps = [Experiment(manager=self, confighandler=self.Confighandler) for 
+        exps = list()
+        for expid in self.RecentExperimentsSavedList:
+            if 
+            exps.append(
+        return self.Confighandler.setdefault('app_recent_experiments', list())
+
 
 
     """ CONFIG RELATED """
@@ -77,7 +143,7 @@ class ExperimentManager(object):
 
 
 
-    def getCurrentWikiExperiments(self):
+    def getCurrentWikiExperiments(self, ret='page-structs'):
         if not self.Server:
             print "No server defined."
             logging.info("No server defined.")
@@ -89,7 +155,13 @@ class ExperimentManager(object):
         return wiki_pages
 
 
-    def getLocalExperiments(self, directory=None, store=False):
+    def getLocalExperiments(self, directory=None, store=False, ret='experiment-objects'):
+        """
+        Parse the local experiment (sub)directory and create experiment objects from these.
+        This should probably be a bit more advanced, or used from another method that processes the returned objects.
+        Alternatively, make a more specialized version that interprets the regex match first 
+        and compares that with the experiments_by_id.
+        """
         if directory is None:
             directory = self.getRealLocalExpSubDir()
         # Consider using glob.re
@@ -108,18 +180,26 @@ class ExperimentManager(object):
         regex_prog = re.compile(regex_str)
         experiments = list()
         for localdir in localdirs:
-            res = regex_prog.match(localdir)
+            match = regex_prog.match(localdir)
             if self.VERBOSE > 2:
-                print "{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", localdir, regex_str)
-            if res:
+                print "{} found when testing '{}' dirname against regex '{}'".format("MATCH" if match else "No match", localdir, regex_str)
+            if match:
                 #props = dict(localdir=localdir)
-                experiments.append(Experiment(localdir=os.path.join(directory, localdir), regex_match=res, manager=self, confighandler=self.Confighandler) )
+                if ret == 'experiment-objects':
+                    experiments.append(Experiment(localdir=os.path.join(directory, localdir), regex_match=match, manager=self, confighandler=self.Confighandler, autoattachwikipage=False) )
+                elif ret == 'regex-match':
+                    experiments.append(match)
+                elif ret == 'properties':
+                    experiments.append(dict(foldername=localdir, **match.groupdict()))
+                elif ret == 'tuple':
+                    d = match.groupdict()
+                    experiments.append(localdir, d['expid'], d.get('exp_titledesc'), d.get('date', d.get('date1', d.get('date2', None))), os.path.join(directory, localdir) )
         if store:
             self.Experiments = experiments
         return experiments
 
 
-    def makeExperimentByExpIdMap(self, experiments=None, updateSelf=True):
+    def makeExperimentByExpIdMap(self, experiments=None, updateSelf=True, ret='experiment-objects'):
         if experiments is None:
             experiments = self.Experiments
         elif experiments == 'local':
@@ -128,21 +208,24 @@ class ExperimentManager(object):
             experiments = self.getCurrentWikiExperiments()
         expByIdMap = self.ExperimentsById if updateSelf else dict()
         for experiment in experiments:
-            expId = experiment.Props.get('expid')
+            expid = experiment.Props.get('expid')
             # probably do some testing if there is already an exp with this expid !
-            if expId in expByIdMap:
-                if experiment == expByIdMap[expId]:
-                    print "Identical experiment, {}".format(expId)
+            if expid in expByIdMap:
+                if experiment == expByIdMap[expid]:
+                    print "ExperimentManager.makeExperimentByExpIdMap() :: Identical experiment, {}".format(expid)
                 else:
-                    print "WARNING: Duplicate expId '{}'".format(expId)
+                    print "ExperimentManager.makeExperimentByExpIdMap() :: WARNING: Duplicate expId '{}'".format(expid)
                     #expByIdMap[expId].update(experiment) # Not implemented; and should probably do some thorough checking before simply merging.
             else:
-                expByIdMap[expId] = experiment
+                expByIdMap[expid] = experiment
+                #print experiment
         return expByIdMap
 
 
 
-    def getExperimentsIndices(self):
+    def getExperimentsIndices(self, expByIdMap=None):
+        if expByIdMap is None:
+            expByIdMap = self.ExperimentsById
         regex_str = self.getConfigEntry('expid_regex')
         if not regex_str:
             print "No expid regex in config, aborting."
@@ -160,13 +243,8 @@ class ExperimentManager(object):
         #f = methodcaller(1) # does not work, f(a) will call a.1(), not a(1)
         #return [ intConv(getattr(regex_prog(getattr(exp, 'Props', dict()).get('expid', "")), 'group', matchgroupdummy)(1)) for exp in self.Experiments ]
         #return [ getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) for expid in self.ExperimentsById.keys() ]
-        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(self.ExperimentsById.keys()) ] ))
+        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
         # The above is basically just a list comprehension of the following:
-        
-
-
-    def getCurrentExperiments(self):
-        print "Not implemented."
 
 
 
@@ -190,7 +268,7 @@ if __name__ == "__main__":
         em, ch = setup1()
         exps = em.getLocalExperiments(store=store)
         print "Experiments:"
-        print "\n".join( "{exp.Localdir} : props={props}".format(exp=exp, props=exp.Props) for exp in exps )
+        print "\n".join( "{exp.Foldername} : props={exp.Props}".format(exp=exp) for exp in exps )
         return em, exps
     
     def test_makeExperimentsByIdMap(em=None):
@@ -202,7 +280,7 @@ if __name__ == "__main__":
         print "\ntest_makeExperimentsByIdMap: invoking em.makeExperimentByExpIdMap"
         expbyid = em.makeExperimentByExpIdMap(exps, updateSelf=True)
         print "len(em.ExperimentsById) = {}".format(len(em.ExperimentsById))
-        print "\n".join( "{} : {}".format(expid, exp.Props.get('exp_title_desc')) for expid, exp in sorted(expbyid.items()) )
+        print "\n".join( "{} : {}".format(expid, exp.Props.get('exp_titledesc')) for expid, exp in sorted(expbyid.items()) )
         return em, expbyid
 
 

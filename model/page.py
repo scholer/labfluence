@@ -81,6 +81,9 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
 
 
     def reloadFromServer(self):
+        if not self.Server:
+            print "Page.reloadFromServer() :: No server available, aborting...!"
+            return
         struct = self.Server.getPage(pageId=self.PageId)
         if not struct:
             print "Something went wrong retrieving Page struct from server...!"
