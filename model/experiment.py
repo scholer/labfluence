@@ -147,32 +147,18 @@ class Experiment(object):
 
         """ Experiment properties/config related """
         """ Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
-#        if loadYmlFn and not confighandler:
-#            fn = os.path.join(self.Localdirpath, loadYmlFn) if self.Localdirpath else loadYmlFn
-#            self.loadProps(fn)
-#        else:
-#            """ I belive this should be sufficient to create a stable link... """
-#            self.Props = self.Confighandler.getExpConfig(self.Localdirpath)
-#
         if self.VERBOSE:
             print "Experiment.__init__() :: Props already in HierarchicalConfig cfg: \n{}".format(self.Props)
-        print "\n\nHEJ!"
         if props:
             self.Props.update(props)
-            print "Experiment self.Props updated with props argument, is now {}".format(self.Props)
-        print "\n\nDER!"
+            if self.VERBOSE:
+                print "Experiment self.Props updated with props argument, is now {}".format(self.Props)
         if regex_match:
             gd = regex_match.groupdict()
             """ regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)" """
-            #for k, reg in (('expid', 'expid_str'), ('exp_series_shortdesc', 'exp_title_desc'))
             self.Props.update(gd)
-#            if self.Props:
-#                self.Props.update(gd)
-#            else:
-#                self.Props = gd
         elif not 'expid' in self.Props:
-            # self.Props is still too empty. Attempt to populate it using
-            # first the localdirpath and then the wikipage.
+            # self.Props is still too empty. Attempt to populate it using 1) the localdirpath and 2) the wikipage.
             exp_regex = self.getConfigEntry('exp_series_regex')
             exp_regex_prog = re.compile(exp_regex)
             regex_match = self.updatePropsByFoldername(exp_regex_prog)
@@ -180,8 +166,7 @@ class Experiment(object):
                 regex_match = self.updatePropsByWikipage(exp_regex_prog)
 
         """ Subentries related..."""
-        #self.Subentries = list() # list of experiment sub-entries
-        # edit, subentries is now an element in self.Props, makes it easier to save info...
+        # Subentries is currently an element in self.Props, makes it easier to save info...
         self.Subentries = self.Props.setdefault('exp_subentries', OrderedDict())
         if doparseLocaldirSubentries and self.Localdirpath:
             self.parseLocaldirSubentries()
@@ -191,7 +176,6 @@ class Experiment(object):
         Fileshistory['RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'] -> list of {datetime:<datetime>, md5:<md5digest>} dicts.
         This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
         """
-        #self.Fileshistory = dict()
         self.loadFileshistory()
         if not self.WikiPage:
             wikipage = self.attachWikiPage(dosearch=doserversearch)
@@ -232,7 +216,6 @@ class Experiment(object):
          - self.Fileshistory, dict in .labfluence/files_history.yml
         What else is stored in <localdirpath>/.labfluence/ ??
          - what about journal assistant files?
-
         """
         self.saveProps()
         self.saveFileshistory()
@@ -250,7 +233,6 @@ class Experiment(object):
             self.Props.get(cfgkey)
         if cfgkey is in self.Props.
         However, probing self.Props.get(cfgkey) directly should be somewhat faster.
-
         """
         if cfgkey in self.Props:
             return self.Props.get(cfgkey)
@@ -261,35 +243,6 @@ class Experiment(object):
     def getAbsPath(self):
         return os.path.abspath(self.Localdirpath)
 
-
-
-
-    # Manual loadProps have been deprecated; providing a confighandler is now mandatory.
-#    def loadProps(self, fn, clearfirst=False):
-#        """
-#        Load self.Props from file.
-#        Currently NOT using confighandler, this should probably be implemented to be
-#        symmetric to saveProps()
-#        """
-#        if self.VERBOSE:
-#            print "\nExperiment.loadProps() :: loading Props from file '{}'".format(fn)
-#        if clearfirst:
-#            self.Props.clear()
-#        if not fn:
-#            print "Experiment.loadProps() :: fn is '{}', aborting...".format(fn)
-#            return
-#        try:
-#            self.Props.update(yaml.load(fn))
-#        except IOError, e:
-#            print e
-#        except ValueError, e:
-#            print e
-#        if self.VERBOSE:
-#            print "\nExperiment.loadProps() :: Props updated from file; Props = '{}'".format(self.Props)
-#        # Make sure to set Subentries attribute on load:
-#        if 'exp_subentries' in self.Props:
-#            self.Subentries = self.Props['exp_subentries']
-#        return self.Props
 
 
     def saveIfChanged(self):
@@ -370,8 +323,6 @@ class Experiment(object):
                 fmt_params.update(self.getSubentries()[subentry_idx])
         if props:
             fmt_params.update(props) # doing this after to ensure no override.
-#        if 'subentryid' not in fmt_params and self.getConfigEntry('exp_subentryid_fmt'):
-#            fmt_params['subentryid'] = self.getConfigEntry('exp_subentryid_fmt').format(fmt_params)
         fmt_params['date'] = fmt_params['datetime'].strftime(self.Confighandler.get('journal_date_format', '%Y%m%d'))
         return fmt_params
 
@@ -450,6 +401,24 @@ class Experiment(object):
                 self.Subentries[idx] = dict()
 
 
+    @property
+    def Subentries_regex_prog(self):
+        regex_prog = getattr(self, '_subentries_regex_prog', None)
+        if regex_prog:
+            return regex_prog
+        else:
+            regex_str = self.getConfigEntry('exp_subentry_regex', directory) #getExpSubentryRegex()
+            if not regex_str:
+                print "Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default."
+                regex_str = "(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
+            self._subentries_regex_prog = re.compile(regex_str)
+            return self._subentries_regex_prog
+    @Subentries_regex_prog.setter
+    def Subentries_regex_prog(self, value):
+        self._subentries_regex_prog = value
+
+
+
     def parseLocaldirSubentries(self, directory=None):
         """
         make self.Subentries by parsing local dirs like '20130106 RS102f PAGE of STV-col11 TR staps (20010203)'.
@@ -460,16 +429,8 @@ class Experiment(object):
         if directory is None:
             print "Experiment.parseLocaldirSubentries() :: ERROR, no directory provided and no localdir in Props attribute."
             return
-#        if not self.Subentries_regex_prog and not self.Manager:
-#            print "Experiment.parseLocaldirSubentries() :: ERROR, no self.Subentries_regex_prog and no self.Manager; cannot obtain exp_subentry_regex string."
         # Consider using glob.re
-        if self.Subentries_regex_prog:
-            regex_prog = self.Subentries_regex_prog
-        else:
-            regex_str = self.getConfigEntry('exp_subentry_regex', directory) #getExpSubentryRegex()
-            if not regex_str:
-                print "Warning, no exp_subentry_regex entry found in config!"
-            regex_prog = re.compile(regex_str)
+        regex_prog = self.Subentries_regex_prog
         localdirs = sorted([dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ])
         if self.VERBOSE:
             print "Experiment.parseLocaldirSubentries() :: self.Props:\n{}".format(self.Props)
@@ -499,18 +460,12 @@ class Experiment(object):
                 #else:
                 #    current_idx =  self.getNewSubentryIdx() # self.subentry_index_increment(current_idx)
                 subentries.setdefault(current_idx, dict()).update(props)
-        #self.Props['exp_subentries'] = subentries
+
 
     def getNewSubentryIdx(self):
         if not self.Subentries:
             return 'a'
         return increment_idx(sorted(self.Subentries.keys())[-1])
-
-
-    # Deprechated; use utils.increment_idx() instead.
-#    def subentry_index_increment(self, current_idx='a'):
-#        if isinstance(current_idx, basestring):
-#            return chr( ord('current_idx') +1 )
 
 
 
@@ -665,7 +620,6 @@ class Experiment(object):
                     ret.append( tup )
                     return tup
         else:
-            #appendfun = appendfile
             def appendfile(dirpath, filename):
                     path = os.path.join(dirpath, filename)
                     if relative == 'filename-only':
