@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
-## 
+##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
 ##    the Free Software Foundation, either version 3 of the License, or
@@ -22,7 +22,7 @@ from datetime import datetime
 from collections import OrderedDict
 import xmlrpclib
 import hashlib
-
+import fnmatch
 
 from confighandler import ExpConfigHandler
 from server import ConfluenceXmlRpcServer
@@ -46,14 +46,14 @@ class Experiment(object):
     This class is the main model for a somewhat abstract "Experiment".
     It mostly models the local directory in which the experiment (data) is saved.
     However, it is also the main node onto which other model parts of an experiment is attached, e.g.
-     - A WikiPage object, representing the wiki page on the server. This object should be capable of 
+     - A WikiPage object, representing the wiki page on the server. This object should be capable of
        performing most server-related inqueries, particularly including wiki-page updates/appends.
-       Experiment objects can also refer directly to the server object. However, this is mostly as 
-       a convenience and is mostly used before a WikiPage object is attached; in particular the 
+       Experiment objects can also refer directly to the server object. However, this is mostly as
+       a convenience and is mostly used before a WikiPage object is attached; in particular the
        server object is used to search for existing/matching wiki pages.
        Most other logic should be done by the ExperimentManager rather than individual experiments.
-    
-    
+
+
     The Prop attribute is a dict which include the following info (is persisted as a .labfluence.yml file)
      - localdir, relative to local_exp_rootDir
      - expid, generated expid string e.g. 'RS123'
@@ -65,7 +65,7 @@ class Experiment(object):
 
      Regarding "experiment entry" vs "experiment item" vs "-subitem":
       - 'subitem' returns 2e6 google hits, has entry at merriam-webster and wikitionary.
-      - 'subentry' returns 4e5 google hits, but also has 
+      - 'subentry' returns 4e5 google hits, but also has
       - 'item' returns 4e9 hits.
       - 'entry' returns 1.6e9 hits.
       --> I think I will go with entry, as that also relates to "entry in a journal/log".
@@ -73,28 +73,28 @@ class Experiment(object):
      Subentries attribute is a list of dicts, keyed alphabetically ('a','b',...) which each include:
      - subentry_id, generated string e.g. 'RS123a'
      - subentry_idx, index e.g. 'a'.
-     - subentry_titledesc, 
+     - subentry_titledesc,
      - dirname, directory relative to the main experiment
      - dirname should match expitem_title_desc
      Note: The properties are related via config items exp_subentry_dir_fmt and exp_subentry_regex.
-           The dir can be generated using exp_subentry_dir_fmt.format(...), 
+           The dir can be generated using exp_subentry_dir_fmt.format(...),
            while reversedly the items can be generated from the dirname using exp_subentry_regex,
            in much the same way as is done with the experiment (series).
-     
+
      Changes:
-      - Trying to eliminate all the 'series' annotations and other excess; 
+      - Trying to eliminate all the 'series' annotations and other excess;
         - exp_series_index --> exp_index
         - exp_series_shortdesc --> exp_title_desc
         - expid_str --> expid
       - Settled on term 'subentry' to designate 'RS123a'-like items.
-      
+
       Considerations:
       - I recently implemented HierarchicalConfigHandler, which loads all '.labfluence.yml' files in the experiment tree.
         It seems counter-productive to also implement loading/saving of yaml files here
     """
 
 
-    def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None, VERBOSE=0, 
+    def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None, VERBOSE=0,
                  doparseLocaldirSubentries=True, subentry_regex_prog=None, loadYmlFn='.labfluence.yml',
                  autoattachwikipage=True, doserversearch=False, savepropsonchange=True):
         """
@@ -107,7 +107,7 @@ class Experiment(object):
         - regex_match: A re.Match object, provided by reading e.g. the folder name or wiki pagetitle.
         - VERBOSE: The verbose level of the object, e.g. for debugging. (In addition to logging levels)
         - doparseLocaldirSubentries: Search the current directory for experiment subentries.
-        - subentry_regex_prog: compiled regex pattern; saved for reuse. 
+        - subentry_regex_prog: compiled regex pattern; saved for reuse.
           If not provided, will call confighandler.getEntry() to retrieve a regex.
         - loadYmlFn: filename to use when loading and persisting experiment props; only used if confighandler is not provided.
         """
@@ -118,7 +118,7 @@ class Experiment(object):
         self.Confighandler = confighandler
         self.WikiPage = wikipage
         self.SavePropsOnChange = savepropsonchange
-        self.PropsChanged = False # Flag, 
+        self.PropsChanged = False # Flag,
         self.Subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
         self.ConfigFn = loadYmlFn
 
@@ -127,19 +127,22 @@ class Experiment(object):
                 localdir = props.get('localdir')
             else:
                 print "\n\nExperiment.__init__() :: CRITICAL: No localdir provided; functionality of this object will be greatly reduced and may break at any time.\n\n"
-                return
-        # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
-        parentdirpath, foldername = os.path.split(localdir)
-        if not parentdirpath:
-            # The path provided was relative, e.g. "RS102 Strep-col11 TR annealed with biotin".
-            # Assume that the experiment is based in the local_exp_subDir:
-            parentdirpath = self.getConfigEntry('local_exp_subDir')
-        self.Parentdirpath = parentdirpath
-        if not foldername:
-            print "Experiment.__init__() :: Warning, could not determine foldername...????"
-        self.Foldername = foldername
-        self.Localdirpath = os.path.join(self.Parentdirpath, self.Foldername)
-        #self.Localdir = localdir # Currently not updating; this might be relative...
+                self.Localdirpath = None
+                self.Foldername = None
+                self.Parentdirpath = None
+        else:
+            # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
+            parentdirpath, foldername = os.path.split(localdir)
+            if not parentdirpath:
+                # The path provided was relative, e.g. "RS102 Strep-col11 TR annealed with biotin".
+                # Assume that the experiment is based in the local_exp_subDir:
+                parentdirpath = self.getConfigEntry('local_exp_subDir')
+            self.Parentdirpath = parentdirpath
+            if not foldername:
+                print "Experiment.__init__() :: Warning, could not determine foldername...????"
+            self.Foldername = foldername
+            self.Localdirpath = os.path.join(self.Parentdirpath, self.Foldername)
+            #self.Localdir = localdir # Currently not updating; this might be relative...
 
 
         """ Experiment properties/config related """
@@ -150,21 +153,25 @@ class Experiment(object):
 #        else:
 #            """ I belive this should be sufficient to create a stable link... """
 #            self.Props = self.Confighandler.getExpConfig(self.Localdirpath)
-#        
+#
         if self.VERBOSE:
-            print "Experiment.__init__() :: HierarchicalConfig cfg: \n{}".format(self.Props)
+            print "Experiment.__init__() :: Props already in HierarchicalConfig cfg: \n{}".format(self.Props)
+        print "\n\nHEJ!"
         if props:
             self.Props.update(props)
+            print "Experiment self.Props updated with props argument, is now {}".format(self.Props)
+        print "\n\nDER!"
         if regex_match:
             gd = regex_match.groupdict()
             """ regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)" """
             #for k, reg in (('expid', 'expid_str'), ('exp_series_shortdesc', 'exp_title_desc'))
-            if self.Props:
-                self.Props.update(gd)
-            else:
-                self.Props = gd
+            self.Props.update(gd)
+#            if self.Props:
+#                self.Props.update(gd)
+#            else:
+#                self.Props = gd
         elif not 'expid' in self.Props:
-            # self.Props is still too empty. Attempt to populate it using 
+            # self.Props is still too empty. Attempt to populate it using
             # first the localdirpath and then the wikipage.
             exp_regex = self.getConfigEntry('exp_series_regex')
             exp_regex_prog = re.compile(exp_regex)
@@ -180,7 +187,7 @@ class Experiment(object):
             self.parseLocaldirSubentries()
 
         """
-        I plan to allow for saving file histories, having a dict 
+        I plan to allow for saving file histories, having a dict
         Fileshistory['RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'] -> list of {datetime:<datetime>, md5:<md5digest>} dicts.
         This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
         """
@@ -194,14 +201,29 @@ class Experiment(object):
 
 
 
+    """ ATTRIBUTE PROPERTIES: """
     @property
     def Props(self):
-        return self.Confighandler.getExpConfig(self.Localdirpath)
+        if getattr(self, 'Localdirpath', None):
+            return self.Confighandler.getExpConfig(self.Localdirpath)
+        props_cache = self.Confighandler.get('expprops_by_id_cache')
+        if props_cache and getattr(self, '_expid', None):
+            return props_cache.setdefault(self._expid, dict())
+        else:
+            print "Warning, no localdirpath provided for this experiment and no props_cache or no self._expid."
+            if not hasattr(self, '_props'):
+                self._props = dict()
+            return self._props
+
+    @property
+    def Subentries(self):
+        return self.Props.setdefault('exp_subentries', OrderedDict())
+    @Subentries.setter
+    def Subentries(self, subentries):
+        self.Props['exp_subentries'] = subentries
 
 
-
-
-
+    """ Macro methods: """
 
     def saveAll(self):
         """
@@ -210,11 +232,10 @@ class Experiment(object):
          - self.Fileshistory, dict in .labfluence/files_history.yml
         What else is stored in <localdirpath>/.labfluence/ ??
          - what about journal assistant files?
-        
+
         """
         self.saveProps()
         self.saveFileshistory()
-
 
 
     """
@@ -223,26 +244,18 @@ class Experiment(object):
 
     def getConfigEntry(self, cfgkey, default=None):
         """
-        self.Props is linked to Confighandler, so 
+        self.Props is linked to Confighandler, so
             self.Confighandler.get(cfgkey, path=self.Localdirpath)
-        should return exactly the same as 
+        should return exactly the same as
             self.Props.get(cfgkey)
         if cfgkey is in self.Props.
         However, probing self.Props.get(cfgkey) directly should be somewhat faster.
-           
+
         """
         if cfgkey in self.Props:
             return self.Props.get(cfgkey)
         else:
             return self.Confighandler.get(cfgkey, default=default, path=self.Localdirpath)
-
-    # deprechated version...
-#    def getConfigEntry(self, key, path=None):
-#        confighandler = self.Confighandler or getattr(self.Manager, 'Confighandler', None)
-#        if not confighandler:
-#            print "No confighandler available..."
-#            return
-#        return confighandler.get(key, path=path)
 
 
     def getAbsPath(self):
@@ -255,7 +268,7 @@ class Experiment(object):
 #    def loadProps(self, fn, clearfirst=False):
 #        """
 #        Load self.Props from file.
-#        Currently NOT using confighandler, this should probably be implemented to be 
+#        Currently NOT using confighandler, this should probably be implemented to be
 #        symmetric to saveProps()
 #        """
 #        if self.VERBOSE:
@@ -299,7 +312,7 @@ class Experiment(object):
         if self.Confighandler:
             if not os.path.isdir(path):
                 path = os.path.dirname(path)
-            if self.VERBOSE > 3: 
+            if self.VERBOSE > 3:
                 print "\nself.Confighandler.updateAndPersist(path, self.Props) ->"
                 print path
                 print self.Props
@@ -353,7 +366,7 @@ class Experiment(object):
         if subentry_idx:
             fmt_params['subentry_idx'] = subentry_idx
             fmt_params['next_subentry_idx'] = increment_idx(subentry_idx)
-            if self.getSubentries() and subentry_idx in self.getSubentries():
+            if self.Subentries and subentry_idx in self.getSubentries():
                 fmt_params.update(self.getSubentries()[subentry_idx])
         if props:
             fmt_params.update(props) # doing this after to ensure no override.
@@ -367,7 +380,7 @@ class Experiment(object):
     """ STUFF RELATED TO SUBENTRIES """
 
     def sortSubentrires(self):
-        org_keyorder = self.Subentries.keys()
+        #org_keyorder = self.Subentries.keys()
         if self.Subentries.keys() == sorted(self.Subentries.keys()):
             return
         self.Props['exp_subentries'] = self.Subentries = OrderedDict(sorted(self.Subentries.items()) )
@@ -424,29 +437,13 @@ class Experiment(object):
         return subentry_foldername
 
 
-    def getSubentries(self):
-        if self.Subentries != self.Props.get('exp_subentries', None):
-            print "\nExperiment.getSubentry: WARNING, Subentries does not match 'exp_subentries' entry in Props:"
-            print "--> '{}' != '{}'".format(self.Subentries, self.Props.get('exp_subentries', None))
-            if self.Props.get('exp_subentries', None):
-                print "Resetting self.Subentries to match 'exp_subentries' in self.Props..."
-                self.Subentries = self.Props['exp_subentries']
-        return self.Subentries
-
     def getSubentry(self, subentry_idx, ensureExisting=True):
-        if self.Subentries != self.Props.get('exp_subentries', None):
-            print "\nExperiment.getSubentry: WARNING, Subentries does not match 'exp_subentries' entry in Props:"
-            print "--> '{}' != '{}'".format(self.Subentries, self.Props.get('exp_subentries', None))
-            if self.Props.get('exp_subentries', None):
-                print "Resetting self.Subentries to match 'exp_subentries' in self.Props..."
-                self.Subentries = self.Props['exp_subentries']
         if subentry_idx not in self.Subentries:
             self.initSubentriesUpTo(subentry_idx)
         return self.Subentries[subentry_idx]
 
-
     def initSubentriesUpTo(self, subentry_idx):
-        if not self.getSubentries():
+        if not self.Subentries:
             self.Subentries = OrderedDict()
         for idx in idx_generator(subentry_idx):
             if idx not in self.Subentries:
@@ -456,7 +453,7 @@ class Experiment(object):
     def parseLocaldirSubentries(self, directory=None):
         """
         make self.Subentries by parsing local dirs like '20130106 RS102f PAGE of STV-col11 TR staps (20010203)'.
-        
+
         """
         if directory is None:
             directory = self.Localdirpath
@@ -504,9 +501,8 @@ class Experiment(object):
                 subentries.setdefault(current_idx, dict()).update(props)
         #self.Props['exp_subentries'] = subentries
 
-
     def getNewSubentryIdx(self):
-        if not self.getSubentries():
+        if not self.Subentries:
             return 'a'
         return increment_idx(sorted(self.Subentries.keys())[-1])
 
@@ -526,13 +522,13 @@ class Experiment(object):
 
     def renameSubentriesFoldersByFormat(self, createNonexisting=False):
         """
-        Renames all subentries folders to match 
+        Renames all subentries folders to match
         """
         dir_fmt = self.getConfigEntry('exp_subentry_dir_fmt')
         if not dir_fmt:
             print "No 'exp_subentry_dir_fmt' found in config; aborting"
             return
-        for subentry in self.getSubentries().values():
+        for subentry in self.Subentries.values():
             # subentry is a dict
             newname = dir_fmt.format(subentry)
             newname_full = os.path.join(self.Localdirpath, newname)
@@ -572,7 +568,7 @@ class Experiment(object):
         """
         Default is currently md5, although e.g. sha1 is not that much slower.
         The sha256 and sha512 are approx 2x slower than md5, and I dont think that is requried.
-        
+
         Returns digestentry dict {datetime:datetime.now(), <digesttype>:digest }
         """
         print "Experiment.hashFile() :: Not tested yet - take care ;)"
@@ -609,6 +605,8 @@ class Experiment(object):
         yaml.dump(self.Fileshistory, open(fn, 'wb'), default_flow_style=False)
 
     def loadFileshistory(self):
+        if not getattr(self, 'Localdirpath', None):
+            return
         savetofolder = os.path.join(self.Localdirpath, '.labfluence')
         fn = os.path.join(savetofolder, 'files_history.yml')
         try:
@@ -624,7 +622,95 @@ class Experiment(object):
         if not getattr(self, 'Fileshistory', None):
             self.Fileshistory = dict()
 
+    def getRelativeStartPath(self, relative):
+        if relative is None or relative=='exp':
+            relstart = self.Localdirpath
+        elif relative == 'local_exp_subDir':
+            relstart = self.Confighandler.get('local_exp_subDir')
+        elif relative == 'local_exp_rootDir':
+            relstart = self.Confighandler.get('local_exp_rootDir')
+        else:
+            relstart = relative
+        return relstart
 
+    def listLocalFiles(self, relative=None):
+        if not self.Localdirpath:
+            return list()
+        relstart = self.getRelativeStartPath(relative)
+        return [os.path.relpath(os.path.join(dirpath, filename),relstart) for dirpath,dirnames,filenames in os.walk(self.Localdirpath) for filename in filenames]
+
+
+
+    def getLocalFilelist(self, fn_pattern=None, fn_is_regex=False, relative=None, subentries=True):
+        # oneliner for listing files with os.walk:
+        #print "\n".join("{}:\n{}".format(dirpath,
+        #        "\n".join(os.path.join(dirpath, filename) for filename in filenames))for dirpath,dirnames,filenames in os.walk('.') )
+        ret = list()
+        if not self.Localdirpath:
+            return ret
+        relstart = self.getRelativeStartPath(relative)
+        # I am not actually sure what is fastest, repeatedly checking "if include_prog and include_prog.match()
+        if fn_pattern:
+            if not fn_is_regex:
+                # fnmatch translates into equivalent regex, offers the methods fnmatch, fnmatchcase, filter, re and translate
+                fn_pattern = fnmatch.translate(fn_pattern)
+            include_prog = re.compile(fn_pattern)
+            def appendfile(dirpath, filename):
+                if include_prog.search(filename):
+                    path = os.path.join(dirpath, filename)
+                    if relative == 'filename-only':
+                        tup = (filename, path)
+                    else:
+                        tup = ( os.path.relpath(path, relstart), path )
+                    ret.append( tup )
+                    return tup
+        else:
+            #appendfun = appendfile
+            def appendfile(dirpath, filename):
+                    path = os.path.join(dirpath, filename)
+                    if relative == 'filename-only':
+                        tup = (filename, path)
+                    else:
+                        tup = ( os.path.relpath(path, relstart), path )
+                    ret.append( tup )
+                    return tup
+        if subentries:
+            print "returning filelist using subentries..."
+            if not self.Subentries:
+                print "getLocalFilelist() :: subentries requested, but no subentries loaded, aborting."
+                return ret
+            for idx,subentry in self.Subentries.items():
+                if (subentries is True or idx in subentries) and 'foldername' in subentry:
+                    for dirpath,dirnames,filenames in os.walk(os.path.join(self.Localdirpath,subentry['foldername'])):
+                        for filename in filenames:
+                            appendfile(dirpath, filename)
+            return ret
+        ignore_pat = self.Confighandler.get('local_exp_ignore_pattern')
+        if ignore_pat:
+            print "returning filelist by ignore pattern '{}'".format(ignore_pat)
+            ignore_prog = re.compile(ignore_pat)
+            for dirpath,dirnames,filenames in os.walk(self.Localdirpath):
+                # http://stackoverflow.com/questions/18418/elegant-way-to-remove-items-from-sequence-in-python
+                # remember to modify dirnames list in-place:
+                #dirnames = filter(lambda d: ignore_prog.search(d) is None, dirnames) # does not work
+                #dirnames[:] = filter(lambda d: ignore_prog.search(d) is None, dirnames) # works
+                dirnames[:] = ( d for d in dirnames if ignore_prog.search(d) is None ) # works, using generator
+                # alternatively, use list.remove() in a for-loop, but remember to iterate backwards.
+                # or perhaps even better, iterate over a copy of the list, and remove items with list.remove().
+                # if you can control the datatype, you can also use e.g. collections.deque instead of a list.
+                print "filtered dirnames: {}".format(dirnames)
+                for filename in filenames:
+                    if ignore_prog.search(filename) is None:
+                        appendfile(dirpath, filename)
+                    else:
+                        print "filename {} matched ignore_pat {}, skipping.".format(filename, ignore_pat)
+        else:
+            print "returning complete filelist..."
+            #return [(path, os.path.relpath(path) for dirpath,dirnames,filenames in os.walk(self.Localdirpath) for filename in filenames for path in (appendfile(dirpath, filename), ) if path]
+            for dirpath,dirnames,filenames in os.walk(self.Localdirpath):
+                for filename in filenames:
+                    appendfile(dirpath, filename)
+        return ret
 
 
     """
@@ -689,7 +775,7 @@ class Experiment(object):
                 result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
                 if result:
                     return result
-            else: 
+            else:
                 # Too many results? Perhaps two or something?
                 print "Experiment.searchForWikiPage() :: Unable to find unique page result, aborting..."
                 return None
@@ -735,10 +821,10 @@ class Experiment(object):
 
     def makeWikiSubentry(self, subentry_idx, subentry_titledesc=None, updateFromServer=True, persistToServer=True):
         """
-        Edit: This has currently been delegated to self.JournalAssistant, which specializes in inserting 
+        Edit: This has currently been delegated to self.JournalAssistant, which specializes in inserting
         content at the right location using regex'es.
         """
-        if subentry_idx not in self.getSubentries():
+        if subentry_idx not in self.Subentries:
             print "Experiment.makeWikiSubentry() :: ERROR, subentry_idx '{}' not in self.Subentries; make sure to first add the subentry to the subentries list and _then_ add a corresponding subentry on the wikipage.".format(subentry_idx)
             return
         res = self.JournalAssistant.newExpSubentry(subentry_idx, subentry_titledesc=subentry_titledesc, updateFromServer=updateFromServer, persistToServer=persistToServer)
@@ -750,20 +836,20 @@ class Experiment(object):
 
     def uploadAttachment(self, filepath, attachmentInfo=None, digesttype='md5'):
         """
-        Upload attachment to wiki page. 
+        Upload attachment to wiki page.
         Returns True if succeeded, False if failed and None if no attemt was made to upload due to a local Error.
         Fields for attachmentInfo are:
-            Key         Type    Value                                         
-            id          long    numeric id of the attachment                  
-            pageId      String  page ID of the attachment                     
-            title       String  title of the attachment                       
-            fileName    String  file name of the attachment (Required)        
-            fileSize    String  numeric file size of the attachment in bytes  
+            Key         Type    Value
+            id          long    numeric id of the attachment
+            pageId      String  page ID of the attachment
+            title       String  title of the attachment
+            fileName    String  file name of the attachment (Required)
+            fileSize    String  numeric file size of the attachment in bytes
             contentType String  mime content type of the attachment (Required)
-            created     Date    creation date of the attachment               
-            creator     String  creator of the attachment                     
-            url         String  url to download the attachment online         
-            comment     String  comment for the attachment (Required)         
+            created     Date    creation date of the attachment
+            creator     String  creator of the attachment
+            url         String  url to download the attachment online
+            comment     String  comment for the attachment (Required)
         """
         print "Experiment.uploadAttachment() :: Not tested yet - take care ;)"
         if not getattr(self, 'WikiPage', None):
@@ -787,8 +873,8 @@ class Experiment(object):
             digestentry = self.hashFile(filepath, (digesttype, ))
             attachmentInfo.setdefault("{}-hexdigest: {}".format(digesttype, digestentry[digesttype]))
         with open(filepath, 'rb') as f:
-            # Not sure exactly what format the file bytes should have. 
-#            attachmentData = f # Is a string/file-like object ok? 
+            # Not sure exactly what format the file bytes should have.
+#            attachmentData = f # Is a string/file-like object ok?
 #            attachmentData = f.read() # Can I just load the bytes?
             # Should I do e.g. base64 encoding of the bytes?
             attachmentData = xmlrpclib.Binary(f.read())# as seen in https://confluence.atlassian.com/display/DISC/Upload+attachment+via+Python+XML-RPC
@@ -798,15 +884,17 @@ class Experiment(object):
 
     def listAttachments(self):
         """
-        Lists attachments on the wiki page. 
-        Returns a list of attachments if succeeded, 
+        Lists attachments on the wiki page.
+        Returns a list of attachments if succeeded,
         False if failed and None if no attemt was made to upload due to a local Error.
-        
+
         """
         if not getattr(self, 'WikiPage', None):
             print "Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self)
             return None
         print "Experiment.listAttachments() :: Not implemented yet - take care ;)"
+        attachment_structs = self.WikiPage.getAttachments()
+
 
 
 
@@ -820,7 +908,7 @@ class Experiment(object):
 
     def __repr__(self):
         #return "Experiment in ('{}'), with Props:\n{}".format(self.Localdirpath, yaml.dump(self.Props))
-        return self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)
+        return "e>"+self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)
 
     def update(self, other_exp):
         """
@@ -832,13 +920,21 @@ class Experiment(object):
 
 
 if __name__ == '__main__':
-    def setup1():
+    import glob
+    def setup1(useserver=True):
         confighandler = ExpConfigHandler( pathscheme='default1', VERBOSE=1 )
         print "----"
-        ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
+        rootdir = confighandler.get("local_exp_subDir")
+        print "rootdir: {}".format(rootdir)
+        print "glob res: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
+        ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
+        print "ldir: {}".format(ldir)
+        ldir2 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS105*"))[0] )
+        print "ldir2: {}".format(ldir2)
+        #ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
 #                '/home/scholer/Documents/labfluence_data_testsetup/.labfluence
-        ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3"
-        server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, prompt='auto', autologin=True)
+        #ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3":
+        server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, prompt='auto', autologin=True) if useserver else None
         e = Experiment(confighandler=confighandler, server=server, localdir=ldir, VERBOSE=10)
         return e
 
@@ -936,11 +1032,39 @@ if __name__ == '__main__':
         return e
 
 
+    def test_getLocalFilelist(e=None):
+        print "\n>>>>>>>>>>>>>> test_getLocalFilelist() started >>>>>>>>>>>>>"
+        if not e:
+            e = setup1(useserver=False)
+        print "All local files in exp.Localdirpath: {}".format(e.Localdirpath)
+        # oneliner for listing files with os.walk:
+        print "\n".join("{}:\n{}".format(dirpath,
+                "\n".join(os.path.join(dirpath, filename) for filename in filenames))for dirpath,dirnames,filenames in os.walk(e.Localdirpath) )
+        print "\nGetting all local files: e.getLocalFilelist(subentries=False)"
+        flist = e.getLocalFilelist(subentries=False)
+        print "\n".join("{}: {}".format(*itm) for itm in flist)
+        print "\nGetting all local files matching *.png: e.getLocalFilelist(subentries=False, fn_pattern='*.png')"
+        flist = e.getLocalFilelist(subentries=False, fn_pattern='*.png')
+        print "\n".join("{}: {}".format(*itm) for itm in flist)
+        print "\nGetting all local files matching r'.*\.dxml': e.getLocalFilelist(subentries=False, fn_pattern=r'.*\.dxml', fn_is_regex='regex')"
+        flist = e.getLocalFilelist(subentries=False, fn_pattern=r'.*\.dxml', fn_is_regex='regex')
+        print "\n".join("{}: {}".format(*itm) for itm in flist)
+        print "\nGetting subentry files: e.getLocalFilelist(subentries=True, relative='filename-only')"
+        flist = e.getLocalFilelist(subentries=True, relative='filename-only')
+        print "\n".join("{}: {}".format(*itm) for itm in flist)
+        print "\nGetting files for subentry 'f': e.getLocalFilelist(subentries=('f',))"
+        flist = e.getLocalFilelist(subentries=('f',))
+        print "\n".join("{}: {}".format(*itm) for itm in flist)
+        print "\nGetting subentry files matching *.png: e.getLocalFilelist(subentries=True, fn_pattern='*.png')"
+        flist = e.getLocalFilelist(subentries=True, fn_pattern='*.png')
+        print "\n".join("{}: {}".format(*itm) for itm in flist)
+        print "<<<<<<<<<<<<<< test_getLocalFilelist() finished <<<<<<<<<<<<"
+        return e
 
 
 
     print "\n\n---------------- STARTING EXPERIMENT.PY MAIN TESTS --------------\n\n"
-    e=test_1()
+    #e=test_1()
     print "\n------------finished test_1() ----------------------\n"
 
     #e=test_saveProps(e)
@@ -967,8 +1091,8 @@ if __name__ == '__main__':
 #    e=test_makeNewWikiSubentry(e, 'c')
 #    print "\n------------finished test_makeNewWikiSubentry() ----------------------\n"
 
-
-
+    e = None
+    e = test_getLocalFilelist(e)
     print "\n\n"
     print e
 

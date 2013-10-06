@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
-## 
+##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
 ##    the Free Software Foundation, either version 3 of the License, or
@@ -34,7 +34,7 @@ def error_out(error_message):
     exit()
 
 class AbstractServer(object):
-    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, 
+    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None,
                  protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         """
         Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
@@ -42,18 +42,18 @@ class AbstractServer(object):
         """
         local_vars = locals()
         self.VERBOSE = local_vars.get('VERBOSE', 0)
-        
+
         ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
         ## It is nice, but not sure why this was so important, though...
         if not hasattr(self, 'CONFIG_FORMAT'):
             self.CONFIG_FORMAT = 'server_{}'
         if not hasattr(self, 'ConfigEntries'):
-            self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] ) 
+            self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
         self.Confighandler = confighandler or getattr(self, 'Confighandler', dict())
         self.Confighandler = self.Confighandler
         if not hasattr(self, '_defaultopts'):
             self._defaultopts = dict(host="localhost", port='80', protocol='http', urlpostfix='', username='', logintoken='')
-        
+
         for key, cfgkey in self.ConfigEntries.items():
             # first try locals, then try self, then try Confighandler, then try _defaultopts...
             # key is uppercase (attribute name), but _defaultopts is lower.
@@ -69,11 +69,11 @@ class AbstractServer(object):
             if self.VERBOSE:
                 print "--AbstractServer.__init__() :: setting attr '{}' to '{}' ({})".format(key, val, cfgentry)
             setattr(self, key, val)
-        
+
         if not self.Url:
             self.Url = self.makeUrl()
-            
-        
+
+
 #        if host:
 #            self.Host = host
 #        elif not hasattr(self, 'Host'):
@@ -116,7 +116,7 @@ class AbstractServer(object):
         crypt_key = self.Confighandler.get('crypt_key', crypt_key_default)
         if crypt_key == crypt_key_default:
             print "\nAbstractServer.getToken() :: Warning, using default crypt_key for encryption. You should manually edit the labfluence system config and set this to something else."
-        crypt_iv = self.Confighandler.get('crypt_iv', None) 
+        crypt_iv = self.Confighandler.get('crypt_iv', None)
         # The IV is set along with the encrypted token; if the IV is not present, the encrypted token cannot be decrypted.
         # Using an initiation vector different from the one used to encrypt the message will produce scamble.
         if crypt_iv is None:
@@ -127,7 +127,7 @@ class AbstractServer(object):
                 return token_unencrypted
             else:
                 print "AbstractServer.getToken() :: Aborting..."
-                return 
+                return
         # Uh, it might be better to use AES.MODE
         cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
         token = cryptor.decrypt(token_crypt)
@@ -142,10 +142,10 @@ class AbstractServer(object):
 
     def saveToken(self, token, persist=True, username=None):
         """
-        When saving token, it is probably only sane also to be able to persist the username. 
+        When saving token, it is probably only sane also to be able to persist the username.
         From what I can tell, it is not easy to retrieve a username based on a token...
         Note that AES encryption of tokens are different from e.g. saving a password or password hash.
-        If saving a password or password hash, you should use a slow encrypting or hashing algorithm, 
+        If saving a password or password hash, you should use a slow encrypting or hashing algorithm,
         e.g. bcrypt or similar for making password hashes.
         """
         crypt_key = self.Confighandler.get('crypt_key', '6xytURQ4JITKMhgN') # crypt key should generally be stored in the system config; different from the one where crypt_iv is stored...
@@ -155,7 +155,7 @@ class AbstractServer(object):
         # crypt_iv = self.Confighandler.get('crypt_key', 'Ol6beVHM91ZBh7XP')
         # ok, edit: I'm generating a random IV on every new save; this can be "publically" readable...
         # But, it probably does not make a difference either way; the crypt_key is readable anyways...
-        crypt_iv = "".join(crypt_random.sample(string.ascii_letters+string.digits, 16)) 
+        crypt_iv = "".join(crypt_random.sample(string.ascii_letters+string.digits, 16))
         # Not exactly 128-bit worth of bytes since ascii_letters+digits is only 62 in length, but should be ok still; I want to make sure it is realiably persistable with yaml.
         cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
         if token is None:
@@ -189,7 +189,7 @@ class ConfluenceXmlRpcServer(AbstractServer):
     """
 
 Note regarding long integer vs string for pageIds etc (from the docs):
-Confluence uses 64-bit long values for things like object IDs, but XML-RPC's largest supported numeric type is int32. 
+Confluence uses 64-bit long values for things like object IDs, but XML-RPC's largest supported numeric type is int32.
 As a result, all IDs and other long values are converted to Strings when passed through XML-RPC API.
 
 Alternative to xmlrpc (at /rpc/xmlrpc) includes:
@@ -203,7 +203,7 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
 https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
     """
 
-    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None, 
+    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None,
                  protocol=None, urlpostfix=None, confighandler=None, autologin=True, prompt='auto', VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
         self._defaultopts = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
@@ -223,7 +223,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
             if self.Logintoken and self.test_token(self.Logintoken, doset=True):
                 print 'Connected to server using provided login token...'
             elif self.Username and self.Password and self.login(doset=True):
-                # Providing a plain-text password should generally not be used; 
+                # Providing a plain-text password should generally not be used;
                 # there is really no need for a password other than for login, only store the token.
                 print 'Connected to server using provided username and password...'
             elif self.find_and_test_tokens(doset=True):
@@ -251,7 +251,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
 
     def test_token(self, logintoken=None, doset=True):
         """
-        Test a login token; must be decrypted. 
+        Test a login token; must be decrypted.
         If token=None, will test self.Logintoken
         If doset=True (default), and the token proves valid, this method will store the token in self.
         Returns:
@@ -521,10 +521,19 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
 
     def addAttachment(self, contentId, attachment_struct, attachmentData):
         """
-        Add a new attachment to a content entity object. 
-        Note that this uses a lot of memory - about 4 times the size of the attachment. 
+        Add a new attachment to a content entity object.
+        Note that this uses a lot of memory - about 4 times the size of the attachment.
         The 'long contentId' is actually a String pageId for XML-RPC.
         """
+        # Uh, how to determine if attachmentData is actually a filename?
+        # If attachmentData is read from a text file, it will still be a basestring...
+        # Perhaps real attachmentData must be base64 encoded or something?
+        if isinstance(attachmentData, basestring):
+            try:
+                data = open(attachmentData, 'rb').read()
+                attachmentData = data
+            except IOError:
+                pass
         return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, contentId, attachment_struct, attachmentData)
 
     def removeAttachment(self, contentId, fileName):
@@ -543,11 +552,11 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
 
 
     def storePage(self, page_struct):
-        """ adds or updates a page. 
-For adding, the Page given as an argument should have space, title and content fields at a minimum. 
-For updating, the Page given should have id, space, title, content and version fields at a minimum. 
-The parentId field is always optional. All other fields will be ignored. 
-The content is in storage format. 
+        """ adds or updates a page.
+For adding, the Page given as an argument should have space, title and content fields at a minimum.
+For updating, the Page given should have id, space, title, content and version fields at a minimum.
+The parentId field is always optional. All other fields will be ignored.
+The content is in storage format.
 Note: the return value can be null, if an error that did not throw an exception occurred.
 Operates exactly like updatePage() if the page already exists.
 """
@@ -557,9 +566,9 @@ Operates exactly like updatePage() if the page already exists.
         return self.RpcServer.confluence2.storePage(self.Logintoken, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
-        """ updates a page. 
-The Page given should have id, space, title, content and version fields at a minimum. 
-The parentId field is always optional. All other fields will be ignored. 
+        """ updates a page.
+The Page given should have id, space, title, content and version fields at a minimum.
+The parentId field is always optional. All other fields will be ignored.
 Note: the return value can be null, if an error that did not throw an exception occurred.
 """
         return self.RpcServer.confluence2.updatePage(self.Logintoken, page_struct, pageUpdateOptions)
@@ -615,7 +624,7 @@ modified
 * Search recently modified content
 * Valus: TODAY, YESTERDAY, LASTWEEK, LASTMONTH
 * Default: No limit
-contributor: 
+contributor:
 * The original creator or any editor of Confluence content. For mail, this is the person who imported the mail, not the person who sent the email message.
 * values: Username of a Confluence user.
 * default: Results are not filtered by contributor
@@ -672,7 +681,7 @@ def login_prompt(username=None):
 
 
 if __name__ == "__main__":
-    
+
     def test1():
         username = 'scholer'
         username, password = login_prompt()
@@ -806,8 +815,8 @@ if __name__ == "__main__":
         print rootPage
         targetPageId = rootPage['id'] # Remember, 'id' and not 'pageId' !
         server.movePage(pageId, targetPageId=targetPageId)
-        
-    
+
+
 
 
     #test_login()
@@ -829,7 +838,7 @@ if __name__ == "__main__":
 """
 
 NOTES ON ENCRYPTION:
-- Currently using pycrypto with CFB mode AES. 
+- Currently using pycrypto with CFB mode AES.
 --- I previously used CBC mode, but that requires plaintext and cipertext lenghts being an integer of 16. CFB does not require this.
 --- Although according to litterature, OCB mode would be better. But this is patented and not available in pycrypto as far as I can tell.
 - SimpleCrypt module also requires pycrypto.
@@ -843,7 +852,7 @@ NOTES ON ENCRYPTION:
 - wheezy.security: simple wrapper for pycrypto.
 
 REGARDING MODE:
-- input length and padding: 
+- input length and padding:
 --- http://stackoverflow.com/questions/14179784/python-encrypting-with-pycrypto-aes
 
 

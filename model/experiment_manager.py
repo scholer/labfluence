@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
-## 
+##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
 ##    the Free Software Foundation, either version 3 of the License, or
@@ -15,11 +15,11 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-import glob
+#import glob
 import os
 import re
 import logging
-from operator import attrgetter, itemgetter, methodcaller
+#from operator import attrgetter, itemgetter, methodcaller
 
 
 from experiment import Experiment
@@ -27,19 +27,26 @@ from confighandler import ExpConfigHandler
 
 
 class ExperimentManager(object):
-    def __init__(self, confighandler, server=None, VERBOSE=0):
+    def __init__(self, confighandler, server=None, VERBOSE=0, autoinit=None):
         self.VERBOSE = VERBOSE
         self.Confighandler = confighandler
         if server:
             self.Server = server
-        self.Experiments = list()       # list of experiment objects;
+        #self.Experiments = list()       # list of experiment objects;
+        if autoinit is None:
+            autoinit = self.Confighandler.get('exp_manager_autoinit')
         self.ExperimentsById = dict()   # also objects, but keyed as 'RS123'
+        if autoinit:
+            if 'localexps' in autoinit:
+                self.ExperimentsById = self.makeExperimentByExpIdMap(self.getLocalExperiments())
+            if 'wikiexps' in autoinit:
+                print "wikiexps in autoinit not implemented..."
         #self.ExpSummariesById = dict()  # yaml-persisted brief info, from cache. Edit, this is now a property ExperimentPropsById
         # Discussion: Is it worth having a cached summary?
         # - Note: I still think basic info should be persisted on a per-experiment basis, not in a single large yaml file.
         # - Cons: It might be easier just to have the full info, perhaps as read-only (i.e. not the main...)
         # - Cons: It might also be better to just always make experiment objects. What is the overhead on making exp objects vs just generating a dict with info?
-        # - Pro:  
+        # - Pro:
 
 
     """ Properties: """
@@ -55,7 +62,7 @@ class ExperimentManager(object):
     @property
     def ExperimentPropsById(self):
         return self.Confighandler.setdefault('experiments_by_id', dict())
-    @ExperimentsById.setter
+    @ExperimentPropsById.setter
     def ExperimentPropsById(self, value):
         # Do NOT override existing server if set, so using setdefault...
         self.Confighandler.setdefault('experiments_by_id', value)
@@ -68,13 +75,13 @@ class ExperimentManager(object):
     - I could save the localdirpath... but that is not very portable... and does not work for exps that are only on the wiki...
     - I could save expid and foldername - and use local_exp_subDir to determine path.
     - I could save dicts or tuples with info such as expid, foldername, etc...
-    - I could persist the complete Experiment Props dict... 
-    
+    - I could persist the complete Experiment Props dict...
+
     For now, the easiest thing is probably to just persist the expid. However, that requries that
     it is easy to obtain the other info, either as exp-objects or props-dicts. Which perhaps itsn't
     that bad, it just requires this ExperimentManager to load objects upon init.
     Or, at least have all experiments cached in some form...
-    
+
     """
 
     @property
@@ -83,24 +90,35 @@ class ExperimentManager(object):
         return self.Confighandler.setdefault('app_active_experiments', list())
 
     @property
-    def ActiveExperimentsIds(self):
+    def RecentExperimentsIds(self):
         "List of recently opened experiments, obtained from confighandler."
         return self.Confighandler.setdefault('app_recent_experiments', list())
 
     @property
     def ActiveExperiments(self):
         "List of active experiments, obtained from confighandler."
-        return self.Confighandler.setdefault('app_active_experiments', list())
+        expids = self.RecentExperimentsIds
+        return self.getExpsById(expids)
 
     @property
     def RecentExperiments(self):
         "List of recently opened experiments, obtained from confighandler."
-        exps = [Experiment(manager=self, confighandler=self.Confighandler) for 
-        exps = list()
-        for expid in self.RecentExperimentsSavedList:
-            if 
-            exps.append(
-        return self.Confighandler.setdefault('app_recent_experiments', list())
+        expids = self.RecentExperimentsIds
+        return self.getExpsById(expids)
+
+
+    def initExpIds(self, expids):
+        for expid in expids:
+            if expid not in self.ExperimentsById:
+                print "\nexpid '{}' not initialized, doing so manually...".format(expid)
+                exp = self.ExperimentsById[expid] = Experiment(manager=self, confighandler=self.Confighandler, props=dict(expid=expid, exp_titledesc='Untitled experiment'), VERBOSE=self.VERBOSE)
+                print "Experiment initialized: {e} with props {e.Props}".format(e=exp)
+
+    def getExpsById(self, expids):
+        # Make sure all expids are initialized.
+        # This is a lot faster if you have already initialized all experiments in the exp_local_subdir
+        self.initExpIds(expids)
+        return [ self.ExperimentsById[expid] for expid in expids ]
 
 
 
@@ -159,7 +177,7 @@ class ExperimentManager(object):
         """
         Parse the local experiment (sub)directory and create experiment objects from these.
         This should probably be a bit more advanced, or used from another method that processes the returned objects.
-        Alternatively, make a more specialized version that interprets the regex match first 
+        Alternatively, make a more specialized version that interprets the regex match first
         and compares that with the experiments_by_id.
         """
         if directory is None:
@@ -258,19 +276,19 @@ if __name__ == "__main__":
         print "Clock: {}".format(time.clock()-start)
     #logging.basicConfig(filename='/tmp/test.log', level=logging.DEBUG, format='%(asctime)s | %(levelname)s | %(funcName)s |%(message)s')
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s | %(levelname)s | %(funcName)s |%(message)s')
-    
+
     def setup1():
         confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
         em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
         return em, confighandler
-    
+
     def test_getLocalExperiments(store=True):
         em, ch = setup1()
         exps = em.getLocalExperiments(store=store)
         print "Experiments:"
         print "\n".join( "{exp.Foldername} : props={exp.Props}".format(exp=exp) for exp in exps )
         return em, exps
-    
+
     def test_makeExperimentsByIdMap(em=None):
         exps = None
         if em is None:

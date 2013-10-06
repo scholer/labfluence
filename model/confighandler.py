@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
-## 
+##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
 ##    the Free Software Foundation, either version 3 of the License, or
@@ -43,36 +43,36 @@ class ConfigHandler(object):
 
     """
     For now, the configs are "flat", i.e. no nested entries, ala config["subject"]["key"] = value. Only config["key"] = value.
-    
+
     A config type can be added through the following mechanisms:
-    1.  By specifying ch.ConfigPaths[cfgtype] = <config filepath>. 
+    1.  By specifying ch.ConfigPaths[cfgtype] = <config filepath>.
         ConfigPaths are read during autoRead().
-        Specifying this way requires the config filepath to be directly or indirectly 
+        Specifying this way requires the config filepath to be directly or indirectly
         specified in the source code. This is thus only done for the 'system' and 'user' configs.
-        
+
     2.  Specifying ch.Config_path_entries[cfgtype] = <config key name>
         During autoRead, if a config contains a key <config key name>, the value of that config entry
         is expected to be a file path for a config of type <cfgtype>.
         This is e.g. how 'exp' cfgtype is set up to load, obtaining the exp config filepath from the 'user' config.
         This requries a defining the cfgtype and config-key in the source code, but no hard-coding of filepaths.
-        Note: These configs are added to AutoreadNewFnCache, which is used to 
+        Note: These configs are added to AutoreadNewFnCache, which is used to
             a) Make sure not to load new configs many times, and
             b) Adding the config filepath to ch.ConfigPaths upon completing ch.autoRead().
         The latter ensures that e.g. 'exp' config can be saved with ch.saveConfig().
 
-    3.  Using ch.addNewConfig(inputfn, cfgtype). 
+    3.  Using ch.addNewConfig(inputfn, cfgtype).
         This will also add the config filepath to ch.ConfigPaths, making it available for ch.saveConfigs().
         (Can be disabled by passing rememberpath=False).
 
     4.  In a config file by defining: config_define_new: <dict>
         where <dict> = {<cfgtype>: <config filepath>}
         This works as an ad-hoc alternative to setting ch.Config_path_entries.
-        This does not require any hard-coding/changes in the source code, but might add some security 
+        This does not require any hard-coding/changes in the source code, but might add some security
         concerns. Therefore, using this requries ch.AllowNewConfigDefinitions=True.
         This is used for e.g. defining 'templates' cfgtype.
     """
 
-    def __init__(self, systemconfigfn=None, userconfigfn=None, VERBOSE=0): 
+    def __init__(self, systemconfigfn=None, userconfigfn=None, VERBOSE=0):
         self.VERBOSE = VERBOSE
         self.ConfigPaths = OrderedDict()
         self.Configs = OrderedDict()
@@ -117,7 +117,7 @@ class ConfigHandler(object):
         if what=='all':
             return self.ConfigPaths.values()
         elif aslist:
-            return self.ConfigPaths.get(what, None), 
+            return self.ConfigPaths.get(what, None),
         else:
             return self.ConfigPaths.get(what, None)
 
@@ -140,7 +140,7 @@ class ConfigHandler(object):
                 return self.Configs.get(what, None)
 
     def get(self, key, default=None):
-        """ 
+        """
         Simulated the get method of a dict.
         Note that the ExpConfigHandler's get() adds a bit more options...
         """
@@ -155,7 +155,7 @@ class ConfigHandler(object):
 
     def setkey(self, key, value, cfgtype=None, check_for_existing_entry=True):
         """
-        Sets a config key. 
+        Sets a config key.
         If key is already set in one of the main configs, and check_for_existing_entry
         is set to True then update the config where entry is found. (RECOMMENDED)
         If key is not already set, store in config specified by <cfgtype> arg.
@@ -225,7 +225,7 @@ class ConfigHandler(object):
                     newconfigfn = os.path.normpath(os.path.join(os.path.dirname(inputfn), newconfigfn))
                 print "readConfig: Adding config-defined config '{}' using filepath '{}'".format(newtype, newconfigfn)
                 self.addNewConfig(newconfigfn, newtype)
-        
+
         # Inputting configs through Config_path_entries:
         reversemap = dict( (val, key) for key,val in self.Config_path_entries.items() )
         for key in set(newconfig.keys()).intersection(self.Config_path_entries.values()):
@@ -265,7 +265,7 @@ class ConfigHandler(object):
         #for (outputfn, config) in zip(self.getConfigPath(what='all'), self.getConfig(what='all')):
         for cfgtype,outputfn in self.ConfigPaths.items():
             if (what=='all' or cfgtype in what or cfgtype==what):
-                if outputfn: 
+                if outputfn:
                     if VERBOSE:
                         print "saveConfigs() :: Saving config '{}' to file: {}".format(cfgtype, outputfn)
                     self._saveConfig(outputfn, self.Configs[cfgtype])
@@ -296,7 +296,7 @@ class ConfigHandler(object):
 
 
     def getConfigDir(self, what='user'):
-        """ 
+        """
         Returns the directory of a particular configuration (file); defaulting to the 'user' config.
         Valid arguments are: 'system', 'user', 'exp', etc.
         """
@@ -309,7 +309,7 @@ class ConfigHandler(object):
         Note: I see no reason to add a 'registerConfigChangeCallback' method.
         Although this could provide per-config callbacks (e.g. an experiment that could subscribe to
         changes only for that experiment), I think it is better to code for this situation directly.
-        
+
         Note that changes are not registrered automatically. It is really not possible to see if
         entries changes, e.g. dicts and lists which are mutable from outside the control of this confighandler.
         Instead, this is a curtesy service, that allows one user of the confighandler to inform
@@ -364,7 +364,7 @@ class ConfigHandler(object):
 
 
 class ExpConfigHandler(ConfigHandler):
-    def __init__(self, systemconfigfn=None, userconfigfn=None, expconfigfn=None, VERBOSE=0, 
+    def __init__(self, systemconfigfn=None, userconfigfn=None, expconfigfn=None, VERBOSE=0,
                 readfiles=True, pathscheme='default1', hierarchy_rootdir_config_key='local_exp_rootDir',
                 enableHierarchy=True, hierarchy_ignoredirs_config_key='local_exp_ignoreDirs'):
         self.Pathfinder = PathFinder()
@@ -382,7 +382,7 @@ class ExpConfigHandler(ConfigHandler):
             self.autoRead()
         elif VERBOSE:
             print "__init()__ :: not autoreading..."
-        
+
         if enableHierarchy and hierarchy_rootdir_config_key:
             rootdir = self.get(hierarchy_rootdir_config_key)
             ignoredirs = self.get(hierarchy_ignoredirs_config_key)
@@ -402,7 +402,7 @@ class ExpConfigHandler(ConfigHandler):
         Much like self.get, but only searches the HierarchicalConfigHandler configs.
         This is useful if you need to retrieve options that must be defined at the path-level,
         e.g. an exp_pageId or exp_id.
-        If traverseup is set to True, then the HierarchicalConfigHandler is allowed to return a 
+        If traverseup is set to True, then the HierarchicalConfigHandler is allowed to return a
         config value from a config in a parent directory if none is found in the first looked directory.
         """
         return self.HierarchicalConfigHandler.getEntry(key, path, traverseup=traverseup)
@@ -413,7 +413,7 @@ class ExpConfigHandler(ConfigHandler):
 
 
     def get(self, key, default=None, path=None, pathsrelativetoexp=True):
-        """ 
+        """
         Simulated the get method of a dict.
         If path is provided, will search HierarchicalConfigHandler for a matching config before
         resolving to the 'main' configs.
@@ -469,11 +469,11 @@ class ExpConfigHandler(ConfigHandler):
 
 
 
-class HierarchicalConfigHandler(object): 
+class HierarchicalConfigHandler(object):
     """
-    The point of this handler is to provide the ability of having individual configs in different 
-    branches of the directory tree. 
-    E.g., the main config might have 
+    The point of this handler is to provide the ability of having individual configs in different
+    branches of the directory tree.
+    E.g., the main config might have
         exp_subentry_regex: (?P<exp_id>RS[0-9]{3})-?(?P<subentry_idx>[\ ]) (?P<subentry_titledesc>.*) \((?P<subentry_date>[0-9]{8})\)
     but in the directory 2012_Aarhus, you might want to use the regex:
         exp_subentry_regex: (?P<subentry_date>[0-9]{8}) (?P<exp_id>RS[0-9]{3})-?(?P<subentry_idx>[\ ]) (?P<subentry_titledesc>.*)
@@ -483,10 +483,10 @@ class HierarchicalConfigHandler(object):
     - As a "mixin" class, making methods available to parent.
     - As a parent, deriving from e.g. ExpConfigHandler
     - As a wrapper; instantiates its own ConfigHandler object.
-    
-    Notice that I originally intended to always automatically load the hierarchy; 
+
+    Notice that I originally intended to always automatically load the hierarchy;
     however, it is probably better to do this dynamically/on request, to speed up startup time.
-    
+
     """
     def __init__(self, rootdir, ignoredirs=None, doautoloadroothierarchy=False, VERBOSE=0):
         self.VERBOSE = VERBOSE
@@ -559,6 +559,10 @@ class HierarchicalConfigHandler(object):
         elif os.path.isfile(path):
             fpath = path
             dpath = os.path.dirname(path)
+        else:
+            print "\n\nCritical warning: Confighandler.getConfigFileAndDirPath() :: Could not find path:\n{}\n".format(path)
+            raise ValueError("Confighandler.getConfigFileAndDirPath() :: Could not find path:\n{}".format(path))
+            return (None, None)
         return dpath, fpath
 
 
@@ -586,10 +590,13 @@ class HierarchicalConfigHandler(object):
             else:
                 self.Configs[dpath] = cfg
         except IOError, e:
-            if VERBOSE:
+            if VERBOSE or True:
                 print "HierarchicalConfigHandler.loadConfig() :: Could not open path '{}'".format(path)
                 print e
-            cfg = None
+            if os.path.exists(fpath):
+                print "HierarchicalConfigHandler.loadConfig() :: Could not open path '{}', but it does exists (maybe directory or broken link); I cannot just create a new config then.".format(path)
+                raise IOError(e)
+            cfg = self.Configs[dpath] = dict() # Best thing is probably to create a new dict then...
         parentdirpath = os.path.dirname(dpath)
         if (doloadparent == 'new' and parentdirpath not in self.Configs) or doloadparent == 'reload':
             self.loadConfig(parentdirpath, doloadparent='never')
@@ -621,7 +628,7 @@ class HierarchicalConfigHandler(object):
 
     def renameConfigKey(self, oldpath, newpath):
         """
-        Note: This only works for regular dicts; 
+        Note: This only works for regular dicts;
         for OrderedDict you probably need to rebuild...
         """
         self.Configs[newpath] = self.Configs.pop(oldpath)
@@ -672,7 +679,7 @@ class HierarchicalConfigHandler(object):
 
     def getEntry(self, key, path, traverseup=True, default=None, doload='new'):
         """
-        If traverseup is set to True, then the HierarchicalConfigHandler is allowed to return a 
+        If traverseup is set to True, then the HierarchicalConfigHandler is allowed to return a
         config value from a config in a parent directory if none is found in the first looked directory.
         doload can be either of 'never', 'new', or 'reload', where
         - 'never' means never try to load from file;
@@ -764,9 +771,9 @@ class PathFinder(object):
         self.Schemedicts = dict()
         self.Defaultscheme = defaultscheme
         self.Npathsdefault = npathsdefault
-        # defautl1 scheme: sysconfig in 'config' folder in current dir; 
+        # defautl1 scheme: sysconfig in 'config' folder in current dir;
         self._schemeSearch = dict()
-        self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml', ('.', 'config', '..', '../config') ), 
+        self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml', ('.', 'config', '..', '../config') ),
                                               user= ('labfluence_user.yml', (os.path.expanduser(os.path.join('~', '.Labfluence')), ) )
                                               )
         self.mkschemedict()
@@ -814,11 +821,11 @@ class PathFinder(object):
 
 
 if __name__ == '__main__':
-    
+
     scriptdir = os.path.dirname(os.path.abspath(__file__))
     configtestdir = os.path.join(scriptdir, '../test/config')
     paths = [ os.path.join(configtestdir, cfg) for cfg in ('system_config.yml', 'user_config.yml', 'exp_config.yml') ]
-    
+
     def test1():
         ch = ExpConfigHandler(*paths)
         print "\nEnd ch confighandler init...\n\n"
@@ -863,7 +870,7 @@ if __name__ == '__main__':
     def test_save1():
         ch = test_makedata()
         ch.saveConfigs()
-    
+
     def test_readdata():
         ch.autoReader()
         for cfg in ('system', 'user', 'exp'):
@@ -927,14 +934,14 @@ if __name__ == '__main__':
         ch.registerEntryChangeCallback('app_recent_experiments', argsAndkwargs, ('word', 'up'), dict(hej='tjubang', der='sjubang', my='cat') )
         ch.ChangedEntriesForCallbacks.add('app_active_experiments')
         ch.ChangedEntriesForCallbacks.add('app_recent_experiments')
-        
+
         print "\nRound one:"
         ch.invokeEntryChangeCallback('app_active_experiments')
         ch.invokeEntryChangeCallback() # invokes printNej and argsAndkwargs
         print "\nRound two:"
         ch.invokeEntryChangeCallback('app_active_experiments') # still invokes printHej
         ch.invokeEntryChangeCallback() # does not invoke anything...
-        
+
         print "\n<<<<<<<<<<<<< completed test_registerEntryChangeCallback(): <<<<<<<<<<<<<<<<<<<<"
 
 

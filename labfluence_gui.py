@@ -25,12 +25,13 @@ import ttk
 
 from model.confighandler import ExpConfigHandler
 from model.experiment_manager import ExperimentManager
+from model.experiment import Experiment
 #from model.confighandler import ExpConfigHandler
 #from model.confighandler import ExpConfigHandler
 #from model.confighandler import ExpConfigHandler
 
-from views.expnotebook import ExpNotebook
-
+from views.expnotebook import ExpNotebook, BackgroundFrame
+from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 
 class LabfluenceGUI(object):
     """
@@ -40,14 +41,18 @@ class LabfluenceGUI(object):
     """
 
 
-    def __init__(self, globalconfig=None):
+    def __init__(self, confighandler=None, VERBOSE=5):
         #self.ActiveExperiments = list() # Probably better to use a property attribute
         #self.RecentExperiments = list()
-        self.Confighandler = globalconfig or ExpConfigHandler(pathscheme='default1')
+        self.VERBOSE = VERBOSE
+        self.Confighandler = confighandler or ExpConfigHandler(pathscheme='default1')
         self.Confighandler.Singletons.setdefault('app', self)
+        if 'experimentmanager' not in self.Confighandler.Singletons:
+            self.Confighandler.Singletons['experimentmanager'] = ExperimentManager(confighandler=self.Confighandler, autoinit=('localexps', ), VERBOSE=self.VERBOSE)
         self.init_ui()
         self.connect_controllers()
         self.Controllers = dict()
+        self.ExpNotebooks = dict()
 
 
     # Properties, http://docs.python.org/2/library/functions.html#property
@@ -126,6 +131,7 @@ class LabfluenceGUI(object):
         self.activeexps_frame.columnconfigure(0, weight=0)
         # Active experiments widgets
         self.activeexps_list = tk.Listbox(self.activeexps_frame, height=16, activestyle='dotbox')
+        #self.activeexps_list.bind('<<ListboxSelect>>', self.show_notebook ) # Will throw the event to the show_notebook
         self.activeexps_select_btn = ttk.Button(self.activeexps_frame, text="Select...", command=self.selectExperiments)
         self.activeexps_new_btn = ttk.Button(self.activeexps_frame, text="Create...", command=self.createNewExperiment)
         # you do not strictly need to be able to reference this from self.
@@ -152,17 +158,24 @@ class LabfluenceGUI(object):
         #####################
         #### RIGHT FRAME ####
         #####################
-        self.rightframe = ttk.Frame(self.mainframe)
+        # Question: Have only _one_ notebook which is updated when a new experiment is selected/loaded?
+        # Or have several, one for each active experiment, which are then shown and hidden when the active experiment is selected?
+        self.rightframe = ttk.Frame(self.mainframe)#, width=800, height=600)
         self.rightframe.grid(column=1, row=1, sticky="nsew")
-        self.add_notebook()
+        self.backgroundframe = BackgroundFrame(self.rightframe)
+        self.backgroundframe.grid(column=0, row=1, sticky="nesw")
+        #self.add_notebook()
 
 
-    def add_notebook(self):
-
+    def add_notebook(self, experiment=None):
         #self.notebook = ttk.Notebook(self.rightframe)
         #self.notebook = expnotebook.ExpNotebook(self.rightframe)
-        self.notebook = ExpNotebook(self.rightframe)
-        self.notebook.grid(column=0, row=1, sticky="nesw")
+        expid, experiment = self.get_expid_and_experiment(experiment)
+        if expid not in self.ExpNotebooks:
+            notebook = ExpNotebook(self.rightframe, experiment=experiment)
+            notebook.grid(column=0, row=1, sticky="nesw")
+            self.ExpNotebooks[expid] = notebook
+        return self.ExpNotebooks[expid], expid, experiment
         # overviewframe = ttk.Frame(self.notebook)
         # filesframe = ttk.Frame(self.notebook)
         # journalframe = ttk.Frame(self.notebook)
@@ -170,6 +183,30 @@ class LabfluenceGUI(object):
         # self.notebook.add(overviewframe, text="Overview")
         # self.notebook.add(filesframe, text="File management")
         # self.notebook.add(journalframe, text="Journal assistent")
+
+    def show_notebook(self, experiment):
+        # http://stackoverflow.com/questions/3819354/in-tkinter-is-there-any-way-to-make-a-widget-not-visible
+        #expid, experiment = self.get_expid_and_experiment(experiment)
+        notebook, expid, experiment = self.add_notebook(experiment)
+        notebook.lift() #http://effbot.org/tkinterbook/widget.htm#Tkinter.Widget.lift-method
+        self.FilemanagerController.FilemanagerFrame = notebook.filemanagerframe
+        # alternative to lift is to use grid_remove to hide and grid() again to show
+        # but lift() makes it easy to close one frame without worrying about showing the next and keeping track of frame z-positions manually.
+
+    def load_experiment(self, experiment, show=True):
+        if show:
+            self.show_notebook(experiment)
+        else:
+            self.add_notebook(experiment)
+
+
+    def get_expid_and_experiment(self, experiment):
+        if isinstance(experiment, basestring):
+            expid = experiment
+            experiment = self.ExperimentManager.ExperimentsById[expid]
+        elif isinstance(experiment, Experiment):
+            expid = experiment.Props.get('expid')
+        return expid, experiment
 
 
 
@@ -224,67 +261,10 @@ class LabfluenceGUI(object):
     def connect_controllers(self):
         self.ActiveExpListController = ActiveExpListBoxController(self.activeexps_list, self.Confighandler)
         self.RecentExpListController = RecentExpListBoxController(self.recentexps_list, self.Confighandler)
+        # Hmm... én filemanager controller per åben ExpNotebook? Eller bare én universal?
+        self.FilemanagerController = ExpFilemanagerController(self.Confighandler)
 
 
-
-class ExpListBoxController(object):
-
-    def __init__(self, listbox, confighandler, app=None):
-        self.Listbox = listbox
-        self.Confighandler = confighandler
-        self.App = app or self.Confighandler.get('app')
-        # You could also just assume the list is immutable and simply rely on the indices.
-        #self.EntryMap = dict() # Maps an entry
-        self.updateList()
-
-    @property
-    def Experiments(self):
-        """
-        Override this in custom classes...
-        """
-        return None
-
-    def populateList(self, experiments):
-        # uhm... maybe just doing repr(e) or even e is okay, even for experiment objects??
-        # must the items be strings? Or should they just have a string representation?
-        self.Listbox.insert(tk.END, *experiments)
-
-    def updateList(self):
-        if self.Experiments:
-            self.clearList()
-            self.Listbox.insert(tk.END, *self.Experiments) # Nope, keyword arguments cannot be used as far as I can tell...
-
-
-    def clearList(self):
-        self.Listbox.delete(0, tk.END)
-
-
-
-class ActiveExpListBoxController(ExpListBoxController):
-
-    def __init__(self, listbox, confighandler, app=None):
-        super(ActiveExpListBoxController, self).__init__(listbox, confighandler, app)
-        self.Confighandler.registerEntryChangeCallback('app_active_experiments', self.updateList)
-
-
-    @property
-    def Experiments(self):
-        em = self.Confighandler.Singletons.get('experimentmanager', None)
-        if em:
-            return em.ActiveExperiments
-        return self.Confighandler.get('app_active_experiments')
-
-
-
-class RecentExpListBoxController(ExpListBoxController):
-
-    def __init__(self, listbox, confighandler, app=None):
-        super(RecentExpListBoxController, self).__init__(listbox, confighandler, app)
-        self.Confighandler.registerEntryChangeCallback('app_recent_experiments', self.updateList)
-
-    @property
-    def Experiments(self):
-        return self.Confighandler.get('app_recent_experiments')
 
 
 
@@ -309,7 +289,14 @@ def find_configs():
 
 
 if __name__ == '__main__':
+
     labfluencegui = LabfluenceGUI()
+    confighandler = labfluencegui.Confighandler
+    em = confighandler.Singletons.get('experimentmanager', None)
+    if em:
+        print "\nem.RecentExperiments:"
+        print em.RecentExperiments
+#    exps self.Confighandler.get('app_recent_experiments')
     print "Recent experiments:"
     print "\n".join( "-> {}".format(e) for e in labfluencegui.RecentExperiments )
     labfluencegui.start_loop()
