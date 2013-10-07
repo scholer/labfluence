@@ -24,11 +24,14 @@ from collections import OrderedDict
 from subentrieslistbox import SubentriesListbox
 
 
-class ExpFilemanagerFrame(tk.Frame):
+class ExpFilemanagerFrame(ttk.Frame):
     """
     """
-    def __init__(self, parent, experiment, confighandler):
-        tk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
+    def __init__(self, parent, experiment, confighandler, **options):
+        classopt = dict(borderwidth=5, relief='solid')
+        classopt.update(options)
+        ttk.Frame.__init__(self, parent, **classopt)
+        #tk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
         # widgets should rarely invoke .grid(...) them selves. Leave it to the widget's parent.
         self.Experiment = experiment
         #self.Confighandler = confighandler # Not sure this will ever be needed, probably better to always go through the experiment object...
@@ -50,31 +53,95 @@ class ExpFilemanagerFrame(tk.Frame):
         self.wikifilelistframe = WikiFilelistFrame(self, experiment, confighandler)
         self.wikifilelistframe.grid(row=3, column=1, sticky="nesw")
 
-        self.columnconfigure(0, weight=0, minsize=150)
-        self.columnconfigure(1, weight=2, minsize=300)
+        self.columnconfigure(0, weight=1, minsize=200)
+        self.columnconfigure(1, weight=3, minsize=300)
         #self.columnconfigure(3, weight=1, minsize=200)
-        self.rowconfigure(1, weight=1)
+        #self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=2)
-        self.rowconfigure(3, weight=2)
+        self.rowconfigure(3, weight=1)
         #self.columnconfigure(2, weight=1, minsize=200)
 
         # Event bindings:
         self.filelistfilterframe.subentries_list.bind('<<ListboxSelect>>', self.on_filter_change) # self.on_subentry_select )
+        #self.filelistfilterframe.fnpattern_entry.bind('<<Modified>>', self.on_filter_change) # The widget is changed.
+        self.filelistfilterframe.fnpattern_entry.bind('<Return>', self.on_filter_change) # User presses 'Return' (enter)
+        #self.filelistfilterframe.fnpattern_entry.bind('<Key>', self.on_filter_change) # User presses any key
 
 
-    def on_filter_change(self):
-        filterdict = self.FilelistFilterFrame.getFilterDict()
+
+    def on_filter_change(self, event):
+        changed_widget = event.widget
+        filterdict = self.filelistfilterframe.getFilterdict()
+        print "Filterdict: {}".format(filterdict)
         self.localfilelistframe.updatelist(filterdict)
         self.wikifilelistframe.updatelist(filterdict, src='cache')
+
+
+class FilelistFilterFrame(ttk.Frame):
+    """
+    """
+    def __init__(self, parent, experiment, confighandler, **options):
+        classopt = dict(borderwidth=5, relief='solid')
+        classopt.update(options)
+        ttk.Frame.__init__(self, parent, **classopt)
+        self.Experiment = experiment
+        self.Confighandler = confighandler
+        app = self.Confighandler.Singletons.get('app')
+        #self.regexfilter_label = ttk.Label(self, text="Use regex:")
+        #self.regexfilter_label.grid(row=3,column=0)
+
+        # VARIABLES:
+        self.Filterdict = dict()
+        self.Filterdict['fn_pattern'] = fn_pat = tk.StringVar(master=parent, value="")
+        self.Filterdict['fn_is_regex'] = fn_isregex = tk.BooleanVar(master=parent, value=False)
+        self.Filterdict['subentries_only'] = subentries_only = tk.BooleanVar(master=parent, value=False)
+        # letting subentries be a regular (complex) python variable... I need to have None, True and list/tuple
+        # (although the first could be "" and the last be a string with comma-separated values.)
+        #self.Filterdict['subentries'] = subentries = tk.
+
+        # Layout:
+        def cb():
+            print "fn_isregex is : {}".format(fn_isregex.get())
+            print "self.Filterdict['fn_is_regex'] is : {}".format(self.Filterdict['fn_is_regex'].get())
+
+        headerfont = app.CustomFonts['header3']
+        self.Header_label = ttk.Label(self, text="Filelist filters:", font=headerfont)
+        self.Header_label.grid(row=1,column=1, sticky="nw")
+        label = ttk.Label(self, text="Filter filenames:")
+        label.grid(row=2,column=1, sticky="w")
+        self.regexfnfilter_checkbox = ttk.Checkbutton(self, text="(check for regex)", variable=fn_isregex, command=cb)
+        #self.regexfnfilter_checkbox.configure(justify=tk.LEFT)
+        self.regexfnfilter_checkbox.grid(row=2, column=2, sticky="e")
+        self.fnpattern_entry = ttk.Entry(self, textvariable=fn_pat)
+        self.fnpattern_entry.grid(row=3, column=1, columnspan=2, sticky="ew")
+
+        label = ttk.Label(self, text="Subentries: (use ctrl+click to deselect)")
+        label.grid(row=6, column=1, columnspan=2, sticky="w")
+        self.subentries_list = SubentriesListbox(self, experiment=experiment, confighandler=confighandler)
+        self.subentries_list.grid(row=7, column=1, columnspan=2, sticky="ew")
+        self.subentries_list.configure(height=8, selectmode=tk.EXTENDED)
+        self.subentries_list.updatelist()
+        self.columnconfigure(1, weight=1) # Remember to add these, otherwise sticky does not help expanding...
+        self.columnconfigure(2, weight=1)
+
+
+    def getSelectedSubentryIdxs(self):
+        return self.subentries_list.getSelectedSubentryIdxs()
+
+    def getFilterdict(self):
+        filterdict = dict( (key,tkvar.get()) for key,tkvar in self.Filterdict.items() )
+        filterdict['subentry_idxs'] = self.getSelectedSubentryIdxs()
+        #self.Filterdict['subentry_idxs'] = self.getSelectedSubentryIdxs()
+        return filterdict
 
 
 class FileOperationsFrame(ttk.Frame):
     """
     """
     def __init__(self, parent, experiment, confighandler, **options):
-        classopt = dict(borderwidth=10, relief='solid')
-        options.update(classopt)
-        ttk.Frame.__init__(self, parent, **options)
+        classopt = dict(borderwidth=5, relief='solid')
+        classopt.update(options)
+        ttk.Frame.__init__(self, parent, **classopt)
         self.Experiment = experiment
         self.Confighandler = confighandler
         app = self.Confighandler.Singletons.get('app')
@@ -84,9 +151,9 @@ class FileInfoFrame(ttk.Frame):
     """
     """
     def __init__(self, parent, experiment, confighandler, **options):
-        classopt = dict(borderwidth=10, relief='solid')
-        options.update(classopt)
-        ttk.Frame.__init__(self, parent, **options)
+        classopt = dict(borderwidth=5, relief='solid')
+        classopt.update(options)
+        ttk.Frame.__init__(self, parent, **classopt)
         self.Experiment = experiment
         self.Confighandler = confighandler
         app = self.Confighandler.Singletons.get('app')
@@ -132,52 +199,6 @@ class FileInfoFrame(ttk.Frame):
         self.columnconfigure(2, weight=1)
 
 
-class FilelistFilterFrame(ttk.Frame):
-    """
-    """
-    def __init__(self, parent, experiment, confighandler):
-        ttk.Frame.__init__(self, parent, borderwidth=10, relief='solid')
-        self.Experiment = experiment
-        self.Confighandler = confighandler
-        app = self.Confighandler.Singletons.get('app')
-        #self.regexfilter_label = ttk.Label(self, text="Use regex:")
-        #self.regexfilter_label.grid(row=3,column=0)
-
-        # VARIABLES:
-        self.Filterdict = dict()
-        self.Filterdict['fn_pattern'] = fn_pat = tk.StringVar(master=parent, value="")
-        self.Filterdict['fn_is_regex'] = fn_isregex = tk.BooleanVar(master=parent, value=False)
-        self.Filterdict['subentries_only'] = fn_isregex = tk.BooleanVar(master=parent, value=False)
-        # letting subentries be a regular (complex) python variable... I need to have None, True and list/tuple
-        # (although the first could be "" and the last be a string with comma-separated values.)
-        #self.Filterdict['subentries'] = subentries = tk.
-
-        # Layout:
-        headerfont = app.CustomFonts['header3']
-        self.Header_label = ttk.Label(self, text="Filelist filters:", font=headerfont)
-        self.Header_label.grid(row=1,column=1, columnspan=1)#, sticky="nw")
-        label = ttk.Label(self, text="Filter filenames:")
-        label.grid(row=2,column=1, sticky="w")
-        self.regexfnfilter_checkbox = ttk.Checkbutton(self, text="(check for regex)", variable=fn_isregex)
-        #self.regexfnfilter_checkbox.configure(justify=tk.LEFT)
-        self.regexfnfilter_checkbox.grid(row=2, column=2, sticky="e")
-        self.fnpattern_entry = ttk.Entry(self, textvariable=fn_pat)
-        self.fnpattern_entry.grid(row=3, column=1, columnspan=2, sticky="ew")
-
-        label = ttk.Label(self, text="Subentries:")
-        label.grid(row=6, column=1)#, sticky="w")
-        self.subentries_list = SubentriesListbox(self, experiment=experiment, confighandler=confighandler)
-        self.subentries_list.grid(row=7, column=1, columnspan=2, sticky="nesw")
-
-
-    def getSelectedSubentryIdxs(self):
-        return self.subentries_list.getSelectedSubentryIdxs()
-
-    def getFilterdict(self):
-        self.Filterdict['subentry_idxs'] = self.getSelectedSubentryIdxs()
-        return self.Filterdict
-
-
 
 class FilelistFrame(ttk.Frame):
     """
@@ -216,9 +237,9 @@ class FilelistFrame(ttk.Frame):
         if filterdict is None:
             filterdict = dict()
         lst = self.getlist(filterdict, src)
+        self.Fileslist = zip(*lst)
+        self.listbox.delete(0, tk.END)
         if lst:
-            self.Fileslist = zip(*lst)
-            self.listbox.delete(0, tk.END)
             self.listbox.insert(tk.END, *self.Fileslist[0])
 
     def getlist(self, filterdict, src=None):
@@ -255,4 +276,5 @@ class WikiFilelistFrame(FilelistFrame):
         # getlist feeds into updatelist() method.
         #return self.Experiment.listAttachments()
         return self.Experiment.getAttachmentList(src=src, **filterdict)
+    def getheader(self):
         return "Wiki page attachments:"

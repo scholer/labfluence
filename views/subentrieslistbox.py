@@ -41,8 +41,12 @@ class SubentriesListbox(tk.Listbox):
     def updatelist(self):
         exp_subentry_dir_fmt = self.Confighandler.get('exp_subentry_dir_fmt')
         def subentryrepr(subentry):
-            return foldername if foldername in subentry else exp_subentry_dir_fmt.format(**subentry)
-        self.Subentrylist = zip(*[ (subentryrepr(subentry),idx,subentry) for idx,subentry in self.Experiment.Subentries])
+            #return foldername if foldername in subentry else exp_subentry_dir_fmt.format(**subentry)
+            return subentry.get('foldername',
+                                exp_subentry_dir_fmt.format(**self.Experiment.makeFormattingParams(subentry['subentry_idx'])) )
+        lst = [ (subentryrepr(subentry),idx,subentry) for idx,subentry in self.Experiment.Subentries.items()]
+        print "lst: {}".format(lst)
+        self.Subentrylist = zip(*lst)
         #self.subentrieslistbox.delete(0,tk.END)
         #self.subentrieslistbox.insert(tk.END, *self.Subentrylist[0])
         self.delete(0,tk.END)
@@ -53,5 +57,5 @@ class SubentriesListbox(tk.Listbox):
         self.delete(0,tk.END)
 
     def getSelectedSubentryIdxs(self):
-        curselection = self.curselection()
+        curselection = [int(i) for i in self.curselection()]
         return [self.Subentrylist[1][i] for i in curselection] # Subentrylist[1] is list of subentry_idxs

@@ -336,8 +336,8 @@ class Experiment(object):
         if subentry_idx:
             fmt_params['subentry_idx'] = subentry_idx
             fmt_params['next_subentry_idx'] = increment_idx(subentry_idx)
-            if self.Subentries and subentry_idx in self.getSubentries():
-                fmt_params.update(self.getSubentries()[subentry_idx])
+            if self.Subentries and subentry_idx in self.Subentries:
+                fmt_params.update(self.Subentries[subentry_idx])
         if props:
             fmt_params.update(props) # doing this after to ensure no override.
         fmt_params['date'] = fmt_params['datetime'].strftime(self.Confighandler.get('journal_date_format', '%Y%m%d'))
@@ -656,6 +656,7 @@ class Experiment(object):
                     for dirpath,dirnames,filenames in os.walk(os.path.join(self.Localdirpath,subentry['foldername'])):
                         for filename in filenames:
                             appendfile(dirpath, filename)
+            print "Experiment.getLocalFilelist() :: Returning list: {}".format(ret)
             return ret
         ignore_pat = self.Confighandler.get('local_exp_ignore_pattern')
         if ignore_pat:
@@ -677,11 +678,12 @@ class Experiment(object):
                     else:
                         print "filename {} matched ignore_pat {}, skipping.".format(filename, ignore_pat)
         else:
-            print "returning complete filelist..."
+            print "Experiment.getLocalFilelist() - no ignore_pat, filtering from complete filelist..."
             #return [(path, os.path.relpath(path) for dirpath,dirnames,filenames in os.walk(self.Localdirpath) for filename in filenames for path in (appendfile(dirpath, filename), ) if path]
             for dirpath,dirnames,filenames in os.walk(self.Localdirpath):
                 for filename in filenames:
                     appendfile(dirpath, filename)
+        print "Experiment.getLocalFilelist() :: Returning list: {}".format(ret)
         return ret
 
 

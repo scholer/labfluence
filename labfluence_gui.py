@@ -129,7 +129,19 @@ class LabfluenceGUI(object):
         except TclError as e:
             print e
 
+    ################
+    ## BINDINGS ####
+    ################
 
+    def tk_window_configured(self):
+        self.Confighandler.setkey('app_window_geometry', self.tkroot.geometry(), 'user')
+        self.Confighandler.setkey('app_window_state', self.tkroot.state(), 'user')
+
+
+
+    #####################
+    ## STARTUP METHODS ##
+    #####################
     def start_loop(self):
         self.tkroot.mainloop()
 
@@ -164,8 +176,6 @@ class LabfluenceGUI(object):
         self.mainframe.columnconfigure(0, weight=1, minsize=180) # sets column "0" to weight "1".
         self.mainframe.columnconfigure(1, weight=5, minsize=500) # rightframe expands 5x more than leftframe
         self.mainframe.rowconfigure(1, weight=1) # expand row 1
-
-
 
         ######################
         #### LEFT FRAME ######
