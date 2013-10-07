@@ -20,18 +20,18 @@
 # python 2.7:
 import Tkinter as tk
 import ttk
+import tkFont
 #try:
 #    import ttk
 
 from model.confighandler import ExpConfigHandler
 from model.experiment_manager import ExperimentManager
 from model.experiment import Experiment
-#from model.confighandler import ExpConfigHandler
-#from model.confighandler import ExpConfigHandler
-#from model.confighandler import ExpConfigHandler
 
 from views.expnotebook import ExpNotebook, BackgroundFrame
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
+from controllers.filemanagercontroller import ExpFilemanagerController
+
 
 class LabfluenceGUI(object):
     """
@@ -50,31 +50,42 @@ class LabfluenceGUI(object):
         if 'experimentmanager' not in self.Confighandler.Singletons:
             self.Confighandler.Singletons['experimentmanager'] = ExperimentManager(confighandler=self.Confighandler, autoinit=('localexps', ), VERBOSE=self.VERBOSE)
         self.init_ui()
+        self.init_fonts()
         self.connect_controllers()
         self.Controllers = dict()
         self.ExpNotebooks = dict()
+        persisted_windowstate = self.Confighandler.get('tk_window_state', None)
+        if persisted_windowstate == 'zoomed':
+            self.tkroot.state('zoomed')
+        persisted_windowgeometry = self.Confighandler.get('tk_window_geometry', None)
+        if persisted_windowgeometry:
+            try:
+                self.tkroot.geometry(persisted_windowgeometry)
+            except tk.TclError as e:
+                print e
+
 
 
     # Properties, http://docs.python.org/2/library/functions.html#property
     # Note: Only works for new-style classes (which inherits from 'object').
     # Tkinter does not use new-style classes under python2.
-    def getActiveExperiments(self):
+    def getActiveExperimentIds(self):
         return self.Confighandler.setdefault('app_active_experiments', list())
-    def setActiveExperiments(self, value):
+    def setActiveExperimentIds(self, value):
         print "Setting (overwriting) the active experiments list is not allowed...  You can empty/clear it using del my_list[:] or mylist[:] = [] "
-    def delActiveExperiments(self):
+    def delActiveExperimentIds(self):
         print "Deleting the active experiments list is not allowed...  You can empty/clear it using del my_list[:] or mylist[:] = [] "
-    ActiveExperiments = property(getActiveExperiments, setActiveExperiments, delActiveExperiments, "List of currently active experiments, obtained from confighandler.")
+    ActiveExperimentIds = property(getActiveExperimentIds, setActiveExperimentIds, delActiveExperimentIds, "List of currently active experiments, obtained from confighandler.")
     # Alternative, using decorators:
     @property
-    def RecentExperiments(self):
+    def RecentExperimentIds(self):
         "List of recently opened experiments, obtained from confighandler."
         return self.Confighandler.setdefault('app_recent_experiments', list())
-    @RecentExperiments.setter
-    def RecentExperiments(self, value):
+    @RecentExperimentIds.setter
+    def RecentExperimentIds(self, value):
         print "Setting (overwriting) the recent experiments list is not allowed... You can empty/clear it using del my_list[:] or mylist[:] = [] "
-    @RecentExperiments.deleter
-    def RecentExperiments(self):
+    @RecentExperimentIds.deleter
+    def RecentExperimentIds(self):
         print "Deleting the recent experiments list is not allowed... You can empty/clear it using del my_list[:] or mylist[:] = [] "
 
     @property
@@ -89,9 +100,51 @@ class LabfluenceGUI(object):
         # Do NOT override existing experimentmanager if set, so using setdefault...
         self.Confighandler.Singletons.setdefault('experimentmanager', value)
 
+    @property
+    def ActiveExperiments(self):
+        "List of recently opened experiments, obtained from confighandler."
+        return self.ExperimentManager.ActiveExperiments
+    @property
+    def RecentExperiments(self):
+        "List of recently opened experiments, obtained from confighandler."
+        return self.ExperimentManager.RecentExperiments
+    @property
+    def WindowState(self):
+        return self.Confighandler.get('app_window_state', None)
+    @WindowState.setter
+    def WindowState(self, value):
+        try:
+            self.tkroot.state(value)
+            self.Confighandler.setkey('app_window_state', value, 'user')
+        except TclError as e:
+            print e
+    @property
+    def WindowGeometry(self):
+        return self.Confighandler.get('app_window_geometry', None)
+    @WindowState.setter
+    def WindowGeometry(self, value):
+        try:
+            self.tkroot.geometry(value)
+            self.Confighandler.setkey('app_window_geometry', value, 'user')
+        except TclError as e:
+            print e
+
 
     def start_loop(self):
         self.tkroot.mainloop()
+
+    def init_fonts(self):
+        """
+        Based on http://stackoverflow.com/questions/4072150/python-tkinter-how-to-change-a-widgets-font-style-without-knowing-the-widgets
+        Valid specs: family, size, weight (bold/normal), slant (italic/roman), underline (bool), overstrike (bool).
+        """
+        fonts = dict()
+        fonts['header1'] = dict(size=16)
+        fonts['header2'] = dict(size=13, weight='bold')
+        fonts['header3'] = dict(size=10, weight='bold')
+        self.CustomFonts = dict()
+        for name,specs in fonts.items():
+            self.CustomFonts[name] = tkFont.Font(**specs)
 
     def init_ui(self):
         self.tkroot = tk.Tk()
@@ -161,19 +214,27 @@ class LabfluenceGUI(object):
         # Question: Have only _one_ notebook which is updated when a new experiment is selected/loaded?
         # Or have several, one for each active experiment, which are then shown and hidden when the active experiment is selected?
         self.rightframe = ttk.Frame(self.mainframe)#, width=800, height=600)
+        # colors: http://www.tcl.tk/man/tcl8.4/TkCmd/colors.htm
+        # note: ttk objects does not support specifying e.g. background colors on a per-widget basis,
+        #self.rightframe.configure(background='cyan')
+        # http://infohost.nmt.edu/tcc/help/pubs/tkinter/web/ttk-Frame.html
+        # options for grid is sticky, column, row, columnspan, rowspan, (i)pad(x/y),
         self.rightframe.grid(column=1, row=1, sticky="nsew")
+        #self.rightframe.configure(relief='ridge', bd=2) # just to see the right frame...
         self.backgroundframe = BackgroundFrame(self.rightframe)
-        self.backgroundframe.grid(column=0, row=1, sticky="nesw")
+        self.backgroundframe.grid(column=1, row=1, sticky="nesw")
+        self.rightframe.columnconfigure(1, weight=1, minsize=700)
+        self.rightframe.rowconfigure(1, weight=1, minsize=600)
         #self.add_notebook()
 
 
-    def add_notebook(self, experiment=None):
+    def add_notebook(self, experiment):
         #self.notebook = ttk.Notebook(self.rightframe)
         #self.notebook = expnotebook.ExpNotebook(self.rightframe)
         expid, experiment = self.get_expid_and_experiment(experiment)
         if expid not in self.ExpNotebooks:
-            notebook = ExpNotebook(self.rightframe, experiment=experiment)
-            notebook.grid(column=0, row=1, sticky="nesw")
+            notebook = ExpNotebook(self.rightframe, experiment, self.Confighandler)
+            notebook.grid(column=1, row=1, sticky="nesw") # how to position notebook in its parent (rightframe)
             self.ExpNotebooks[expid] = notebook
         return self.ExpNotebooks[expid], expid, experiment
         # overviewframe = ttk.Frame(self.notebook)
@@ -189,7 +250,10 @@ class LabfluenceGUI(object):
         #expid, experiment = self.get_expid_and_experiment(experiment)
         notebook, expid, experiment = self.add_notebook(experiment)
         notebook.lift() #http://effbot.org/tkinterbook/widget.htm#Tkinter.Widget.lift-method
-        self.FilemanagerController.FilemanagerFrame = notebook.filemanagerframe
+        return notebook, expid, experiment
+        # I found that it was indeed impossible to have only a single controller, as I would have to
+        # also rebind e.g. ListSelect events etc.
+        #self.FilemanagerController.FilemanagerFrame = notebook.filemanagerframe
         # alternative to lift is to use grid_remove to hide and grid() again to show
         # but lift() makes it easy to close one frame without worrying about showing the next and keeping track of frame z-positions manually.
 
@@ -262,7 +326,9 @@ class LabfluenceGUI(object):
         self.ActiveExpListController = ActiveExpListBoxController(self.activeexps_list, self.Confighandler)
         self.RecentExpListController = RecentExpListBoxController(self.recentexps_list, self.Confighandler)
         # Hmm... én filemanager controller per åben ExpNotebook? Eller bare én universal?
-        self.FilemanagerController = ExpFilemanagerController(self.Confighandler)
+        # Well, med mindre du vil til at re-binde events hver gang et nyt eksperiment vises,
+        # så bør du nok have én controller for hver åben ExpNotebook.
+        #self.FilemanagerController = ExpFilemanagerController(self.Confighandler)
 
 
 
@@ -291,14 +357,36 @@ def find_configs():
 if __name__ == '__main__':
 
     labfluencegui = LabfluenceGUI()
+    # How to maximize / set window size:
+    # http://stackoverflow.com/questions/15981000/tkinter-python-maximize-window
+    # You can use tkroot.(wm_)state('zoomed') on windows to maximize. Does not work on unix.
+    # You can bind tkroot.bind("<Configure>", method_handle)
+    # This will invoke method_handle with event with attributes including width, height.
+
     confighandler = labfluencegui.Confighandler
+    confighandler.VERBOSE = 0
     em = confighandler.Singletons.get('experimentmanager', None)
     if em:
+        print "\nem.ActiveExperiments:"
+        print em.ActiveExperiments
         print "\nem.RecentExperiments:"
         print em.RecentExperiments
 #    exps self.Confighandler.get('app_recent_experiments')
-    print "Recent experiments:"
+    print "\nRecent experiments:"
     print "\n".join( "-> {}".format(e) for e in labfluencegui.RecentExperiments )
+    print "\nActive experiments:"
+    print "\n".join( "-> {}".format(e) for e in labfluencegui.ActiveExperiments )
+
+    exps = labfluencegui.ActiveExperiments
+    print "\n\nGUI init (almost) finished..."
+    if exps:
+        print "\n\nShowing exps: {}".format(exps[0])
+        notebook, expid, experiment = labfluencegui.show_notebook(exps[0])
+        #notebook.tab(1, state="enabled")
+        notebook.select(1)
+    else:
+        print "\n\nNo active experiments? -- {}".format(exps)
+
     labfluencegui.start_loop()
 
 

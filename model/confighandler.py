@@ -566,7 +566,7 @@ class HierarchicalConfigHandler(object):
         return dpath, fpath
 
 
-    def loadConfig(self, path, doloadparent='new', VERBOSE=1, update='file'):
+    def loadConfig(self, path, doloadparent='new', update='file'):
         """
         update can be either of False, 'file', 'memory', 'timestamp', where
         - False = do not update, just load the config overriding config in memory if present.
@@ -590,11 +590,11 @@ class HierarchicalConfigHandler(object):
             else:
                 self.Configs[dpath] = cfg
         except IOError, e:
-            if VERBOSE or True:
+            if self.VERBOSE:
                 print "HierarchicalConfigHandler.loadConfig() :: Could not open path '{}'".format(path)
                 print e
             if os.path.exists(fpath):
-                print "HierarchicalConfigHandler.loadConfig() :: Could not open path '{}', but it does exists (maybe directory or broken link); I cannot just create a new config then.".format(path)
+                print "HierarchicalConfigHandler.loadConfig() :: Critical WARNING -> Could not open path '{}', but it does exists (maybe directory or broken link); I cannot just create a new config then.".format(path)
                 raise IOError(e)
             cfg = self.Configs[dpath] = dict() # Best thing is probably to create a new dict then...
         parentdirpath = os.path.dirname(dpath)

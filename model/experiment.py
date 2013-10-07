@@ -121,6 +121,7 @@ class Experiment(object):
         self.PropsChanged = False # Flag,
         self.Subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
         self.ConfigFn = loadYmlFn
+        self._attachments_cache = None # cached list of wiki attachment_structs. None = <not initialized>
 
         if localdir is None:
             if 'localdir' in props:
@@ -176,7 +177,7 @@ class Experiment(object):
         Fileshistory['RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'] -> list of {datetime:<datetime>, md5:<md5digest>} dicts.
         This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
         """
-        self.loadFileshistory()
+        #self.loadFileshistory()
         if not self.WikiPage:
             wikipage = self.attachWikiPage(dosearch=doserversearch)
         self.JournalAssistant = JournalAssistant(self)
@@ -205,6 +206,22 @@ class Experiment(object):
     @Subentries.setter
     def Subentries(self, subentries):
         self.Props['exp_subentries'] = subentries
+
+    @property
+    def Attachments(self):
+        """
+        Only update if a server is available...
+        """
+        if self.Server and self._attachments_cache is None:
+            self.updateAttachmentsCache()
+        return self._attachments_cache
+
+
+    def updateAttachmentsCache(self):
+        structs = self.listAttachments()
+        if not structs:
+            print "Experiment.updateAttachmentsCache() :: listAttachments() returned '{}', aborting".format(structs)
+        self._attachments_cache = structs
 
 
     """ Macro methods: """
@@ -407,7 +424,7 @@ class Experiment(object):
         if regex_prog:
             return regex_prog
         else:
-            regex_str = self.getConfigEntry('exp_subentry_regex', directory) #getExpSubentryRegex()
+            regex_str = self.getConfigEntry('exp_subentry_regex') #getExpSubentryRegex()
             if not regex_str:
                 print "Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default."
                 regex_str = "(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
@@ -437,13 +454,13 @@ class Experiment(object):
         subentries = self.Props.setdefault('exp_subentries', OrderedDict())
         if self.VERBOSE:
             print "Experiment.parseLocaldirSubentries() :: searching in directory '{}'".format(directory)
-            print "Experiment.parseLocaldirSubentries() :: regex = '{}'".format(regex_str)
+            print "Experiment.parseLocaldirSubentries() :: regex = '{}'".format(regex_prog.pattern)
             print "Experiment.parseLocaldirSubentries() :: localdirs = {}".format(localdirs)
             print "Experiment.parseLocaldirSubentries() :: subentries (before read:) = \n{}\n".format(subentries)
-        for localdir in localdirs:
-            res = regex_prog.match(localdir)
+        for foldername in localdirs:
+            res = regex_prog.match(foldername)
             if self.VERBOSE:
-                print "{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", localdir, regex_str)
+                print "{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", foldername, regex_prog.pattern)
             if res:
                 props = res.groupdict()
                 # I allow for regex with multiple date entries, i.e. both first and last.
@@ -452,7 +469,7 @@ class Experiment(object):
                     val = props.pop(k)
                     if val:
                         props['date']=val
-                props['foldername'] = localdir
+                props['foldername'] = foldername
                 #if 'subentry_idx' in props:
                 current_idx = props['subentry_idx']
                 # edit: how could subentry_idx possibly not be in res.groupdict? only if not included in regex?
@@ -596,7 +613,7 @@ class Experiment(object):
 
 
 
-    def getLocalFilelist(self, fn_pattern=None, fn_is_regex=False, relative=None, subentries=True):
+    def getLocalFilelist(self, fn_pattern=None, fn_is_regex=False, relative=None, subentries_only=True, subentry_idxs=list()):
         # oneliner for listing files with os.walk:
         #print "\n".join("{}:\n{}".format(dirpath,
         #        "\n".join(os.path.join(dirpath, filename) for filename in filenames))for dirpath,dirnames,filenames in os.walk('.') )
@@ -611,7 +628,7 @@ class Experiment(object):
                 fn_pattern = fnmatch.translate(fn_pattern)
             include_prog = re.compile(fn_pattern)
             def appendfile(dirpath, filename):
-                if include_prog.search(filename):
+                if include_prog.match(filename):
                     path = os.path.join(dirpath, filename)
                     if relative == 'filename-only':
                         tup = (filename, path)
@@ -628,13 +645,14 @@ class Experiment(object):
                         tup = ( os.path.relpath(path, relstart), path )
                     ret.append( tup )
                     return tup
-        if subentries:
+        if subentry_idxs or subentries_only:
             print "returning filelist using subentries..."
             if not self.Subentries:
                 print "getLocalFilelist() :: subentries requested, but no subentries loaded, aborting."
                 return ret
             for idx,subentry in self.Subentries.items():
-                if (subentries is True or idx in subentries) and 'foldername' in subentry:
+                if (subentries_only or idx in subentry_idxs) and 'foldername' in subentry:
+                    # perhaps in a try-except clause...
                     for dirpath,dirnames,filenames in os.walk(os.path.join(self.Localdirpath,subentry['foldername'])):
                         for filename in filenames:
                             appendfile(dirpath, filename)
@@ -687,7 +705,7 @@ class Experiment(object):
                     self.saveProps()
         print "\nExperiment.attachWikiPage() :: pageId: {}    server: {}     dosearch: {}".format(pageId, self.Server, dosearch)
         if not pageId:
-            print "\nExperiment.attachWikiPage() :: ERROR, no pageId found (dosearch={}, self.Server={})...\n".format(dosearch, self.Server)
+            print "Experiment.attachWikiPage() :: Notice - no pageId found (dosearch={}, self.Server={})...\n".format(dosearch, self.Server)
             return pagestruct
         self.WikiPage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
         return self.WikiPage
@@ -839,9 +857,21 @@ class Experiment(object):
     def listAttachments(self):
         """
         Lists attachments on the wiki page.
-        Returns a list of attachments if succeeded,
+        Returns a list of attachments (structs) if succeeded,
         False if failed and None if no attemt was made to upload due to a local Error.
-
+        Use the Attachments property for a cached version.
+        https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects#RemoteConfluenceDataObjects-attachmentAttachment
+        attachment-struct has:
+        - comment (string, required)
+        - contentType (string, required)
+        - created (date)
+        - creator (string username)
+        - fileName (string, required)
+        - fileSize (string, number of bytes)
+        - id (string, attachmentId)
+        - pageId (string)
+        - title (string)
+        - url (string)
         """
         if not getattr(self, 'WikiPage', None):
             print "Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self)
@@ -850,6 +880,37 @@ class Experiment(object):
         attachment_structs = self.WikiPage.getAttachments()
 
 
+    def getAttachmentList(self, src=None, fn_pattern=None, fn_is_regex=False, **filterdict):
+        """
+        Similar to getLocalFileslist(), incorporates a filterdict.
+        However, this uses self.
+        - comment (string, required)
+        - contentType (string, required)
+        - created (date)
+        - creator (string username)
+        - fileName (string, required)
+        - fileSize (string, number of bytes)
+        - id (string, attachmentId)
+        """
+        if src is None:
+            struct_list = self.Attachments
+        else:
+            if src == 'server':
+                struct_list = self.updateAttachmentsCache()
+            struct_list = self._attachments_cache
+        # Returned tuple of (<display>, <identifier>, <complete struct>)
+        # I think either filename or id would work as identifier.
+        if fn_pattern:
+            if not fn_is_regex:
+                fn_pattern = fnmatch.translate(fn_pattern)
+            regex_prog = re.compile(fn_pattern)
+        else:
+            regex_prog = None
+        # attachment struct_list might be None or False, so must check before trying to iterate:
+        if not struct_list:
+            return list()
+        return [ (struct['fileName'], struct['id'], struct) for struct in struct_list \
+                    if regex_prog is None or regex_prog.match(struct['fileName']) ]
 
 
 
@@ -994,23 +1055,23 @@ if __name__ == '__main__':
         # oneliner for listing files with os.walk:
         print "\n".join("{}:\n{}".format(dirpath,
                 "\n".join(os.path.join(dirpath, filename) for filename in filenames))for dirpath,dirnames,filenames in os.walk(e.Localdirpath) )
-        print "\nGetting all local files: e.getLocalFilelist(subentries=False)"
-        flist = e.getLocalFilelist(subentries=False)
+        print "\nGetting all local files: e.getLocalFilelist(subentries_only=False)"
+        flist = e.getLocalFilelist(subentries_only=False)
         print "\n".join("{}: {}".format(*itm) for itm in flist)
-        print "\nGetting all local files matching *.png: e.getLocalFilelist(subentries=False, fn_pattern='*.png')"
-        flist = e.getLocalFilelist(subentries=False, fn_pattern='*.png')
+        print "\nGetting all local files matching *.png: e.getLocalFilelist(subentries_only=False, fn_pattern='*.png')"
+        flist = e.getLocalFilelist(subentries_only=False, fn_pattern='*.png')
         print "\n".join("{}: {}".format(*itm) for itm in flist)
-        print "\nGetting all local files matching r'.*\.dxml': e.getLocalFilelist(subentries=False, fn_pattern=r'.*\.dxml', fn_is_regex='regex')"
-        flist = e.getLocalFilelist(subentries=False, fn_pattern=r'.*\.dxml', fn_is_regex='regex')
+        print "\nGetting all local files matching r'.*\.dxml': e.getLocalFilelist(subentries_only=False, fn_pattern=r'.*\.dxml', fn_is_regex='regex')"
+        flist = e.getLocalFilelist(subentries_only=False, fn_pattern=r'.*\.dxml', fn_is_regex='regex')
         print "\n".join("{}: {}".format(*itm) for itm in flist)
-        print "\nGetting subentry files: e.getLocalFilelist(subentries=True, relative='filename-only')"
-        flist = e.getLocalFilelist(subentries=True, relative='filename-only')
+        print "\nGetting subentry files: e.getLocalFilelist(subentries_only=True, relative='filename-only')"
+        flist = e.getLocalFilelist(subentries_only=True, relative='filename-only')
         print "\n".join("{}: {}".format(*itm) for itm in flist)
-        print "\nGetting files for subentry 'f': e.getLocalFilelist(subentries=('f',))"
-        flist = e.getLocalFilelist(subentries=('f',))
+        print "\nGetting files for subentry 'f': e.getLocalFilelist(subentry_idxs=('f',))"
+        flist = e.getLocalFilelist(subentry_idxs=('f',))
         print "\n".join("{}: {}".format(*itm) for itm in flist)
-        print "\nGetting subentry files matching *.png: e.getLocalFilelist(subentries=True, fn_pattern='*.png')"
-        flist = e.getLocalFilelist(subentries=True, fn_pattern='*.png')
+        print "\nGetting subentry files matching *.png: e.getLocalFilelist(subentries_only=True, fn_pattern='*.png')"
+        flist = e.getLocalFilelist(subentries_only=True, fn_pattern='*.png')
         print "\n".join("{}: {}".format(*itm) for itm in flist)
         print "<<<<<<<<<<<<<< test_getLocalFilelist() finished <<<<<<<<<<<<"
         return e
