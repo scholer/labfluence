@@ -26,7 +26,15 @@ from Crypto.Cipher import AES
 from Crypto.Random import random as crypt_random
 from confighandler import ConfigHandler, ExpConfigHandler
 
+"""
+Edits:
+-   Well, the whole ConfigEntries and automatic attribute creation was a bit overly complicated.
+    Especially considering that it was only used once, to make the URL from which the RpcServer
+    is initialized. Then, the RpcServer object is used the rest of the time.
+    Also, the whole "uh, I gotta make sure the base class does not override any attributes in the
+    child class is unnessecary.
 
+"""
 
 def error_out(error_message):
     print("Error: ")
@@ -34,76 +42,83 @@ def error_out(error_message):
     exit()
 
 class AbstractServer(object):
-    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None,
-                 protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None,
+                 confighandler=None, VERBOSE=0):
         """
         Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
         However, this could also be simplified using getattr...
         """
-        local_vars = locals()
-        self.VERBOSE = local_vars.get('VERBOSE', 0)
-
-        ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
+        self.VERBOSE = VERBOSE
+        #dict(host=None, url=None, port=None, protocol=None, urlpostfix=None)
+        self._defaultparams = dict(host="localhost", port='80', protocol='http', urlpostfix='', username='', logintoken='')
+        self._serverparams = serverparams
+        self._username = username
+        self._password = password
+        self._logintoken = logintoken
+        self.Confighandler = confighandler
+       ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
         ## It is nice, but not sure why this was so important, though...
         if not hasattr(self, 'CONFIG_FORMAT'):
             self.CONFIG_FORMAT = 'server_{}'
-        if not hasattr(self, 'ConfigEntries'):
-            self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
-        self.Confighandler = confighandler or getattr(self, 'Confighandler', dict())
-        self.Confighandler = self.Confighandler
-        if not hasattr(self, '_defaultopts'):
-            self._defaultopts = dict(host="localhost", port='80', protocol='http', urlpostfix='', username='', logintoken='')
 
-        for key, cfgkey in self.ConfigEntries.items():
-            # first try locals, then try self, then try Confighandler, then try _defaultopts...
-            # key is uppercase (attribute name), but _defaultopts is lower.
-            cfgentry = self.ConfigEntries[key]
-            val = local_vars.get(key.lower(), None)
-            if val is None:
-                if self.VERBOSE > 5:
-                    print "\nAbstractServer init params:"
-                    print "getattr(self, {})                returns: {}".format(key, getattr(self, key, 'not-found-default'))
-                    print "Confighandler.get({}) returns: {}".format(cfgentry, self.Confighandler.get(cfgentry, 'not-found-default'))
-                    print "self._defaultopts.get({})        returns: {}".format(key.lower(), self._defaultopts.get(key.lower(), 'not-found-default'))
-                val = getattr(self, key, self.Confighandler.get(cfgentry, self._defaultopts.get(key.lower(), None) ) )
-            if self.VERBOSE:
-                print "--AbstractServer.__init__() :: setting attr '{}' to '{}' ({})".format(key, val, cfgentry)
-            setattr(self, key, val)
-
-        if not self.Url:
-            self.Url = self.makeUrl()
-
-
-#        if host:
-#            self.Host = host
-#        elif not hasattr(self, 'Host'):
-#            # if host is already set (e.g. by child class), do not overwrite it.
-#            self.Host = self.Confighandler.get('server_host', self._defaultopts.get('host'))
-#        if port is not None:
-#            self.Port = port # do not use the " = port or <default value" trick; input might be something that is interpreted as boolean False e.g. ""
-#        elif not hasattr(self, 'Port'):
-#            # if port is already set (e.g. by child class), do not overwrite it.
-#            self.Port = self.Confighandler.get('server_port', self._defaultopts.get('port', '80'))
-#        if protocol is not None:
-#            self.Protocol = protocol # do not use the " = port or <default value" trick; input might be boolean False e.g. ""
-#        elif not hasattr(self, 'Protocol'):
-#            # if port is already set (e.g. by child class), do not overwrite it.
-#            self.Protocol = self.Confighandler.get('server_urlpostfix', self._defaultopts.get('protocol', 'http'))
-#        if urlpostfix is not None:
-#            self.Urlpostfix = urlpostfix # do not use the " = port or <default value" trick; input might be boolean False e.g. ""
-#        elif not hasattr(self, 'Urlpostfix'):
-#            # if port is already set (e.g. by child class), do not overwrite it.
-#            self.Urlpostfix = self.Confighandler.get('server_urlpostfix', self._defaultopts.get('urlpostfix', ''))
-#        self.Url = url or self.makeUrl()
-#        self.Username = username or self.Confighandler.get('server_username', self._defaultopts.get('username', ''))
-#        self.Password = password
-#        self.Logintoken = logintoken or self.Confighandler.get('server_logintoken', self._defaultopts.get('logintoken', ''))
-
-
-    def makeUrl(self):#host, port, protocol='http', urlpostfix=None)
-        urlfmtstr = "{protocol}://{host}:{port}{postfix}" if self.Port else "{protocol}://{host}{postfix}"
-        if self.Host and self.Protocol and self.Urlpostfix:
-            return urlfmtstr.format(host=self.Host, port=self.Port, protocol=self.Protocol, postfix=self.Urlpostfix)
+    # Properties
+    @property
+    def Username(self):
+        return  self._username or \
+                self.Confighandler.get(self.CONFIG_FORMAT.format('username'), None) or \
+                self.Confighandler.get('username', None)
+    @property
+    def Password(self):
+        return  self._password or \
+                self.Confighandler.get(self.CONFIG_FORMAT.format('password'), None) or \
+                self.Confighandler.get('password', None)
+    @property
+    def Serverparams(self):
+        params = self._defaultparams or dict()
+        runtime_params =  self._serverparams or dict()
+        config_params = self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
+                        or self.Confighandler.get('serverparams', dict())
+        print "config_params: {}".format(config_params)
+        params.update(config_params)
+        params.update(runtime_params)
+        return params
+    @property
+    def Hostname(self):
+        return self.Serverparams.get('hostname')
+    @property
+    def Port(self):
+        return self.Serverparams.get('port')
+    @property
+    def Protocol(self):
+        return self.Serverparams.get('protocol')
+    @property
+    def UrlPostfix(self):
+        return self.Serverparams.get('urlpostfix', "")
+    @property
+    def BaseUrl(self):
+        serverparams = self.Serverparams
+        print "serverparams: {}".format(serverparams)
+        if 'baseurl' in serverparams:
+            return serverparams['baseurl']
+        try:
+            url = "://".join( serverparams[itm] for itm in ("protocol", "hostname") )
+        except KeyError:
+            return None
+        port = serverparams.get('port', None)
+        if port:
+            url += ":{}".format(port)
+        return url
+    @property
+    def AppUrl(self):
+        params = self.Serverparams
+        url = params.get('appurl', None)
+        if url:
+            return url
+        baseurl = self.BaseUrl
+        if baseurl:
+            return baseurl + self.UrlPostfix
+        else:
+            return None
 
 
     def getToken(self, token_crypt=None):
@@ -203,24 +218,29 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
 https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
     """
 
-    def __init__(self, host=None, url=None, port=None, username=None, password=None, logintoken=None,
-                 protocol=None, urlpostfix=None, confighandler=None, autologin=True, prompt='auto', VERBOSE=0):
+    def __init__(self, autologin=True, prompt='auto', ui=None, **kwargs):
+                 #serverparams=None, username=None, password=None, logintoken=None,
+                 #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
         self._defaultopts = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
-#        super(AbstractServer, self).__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, confighandler=confighandler)
         self.CONFIG_FORMAT = 'wiki_{}'
+        self.UI = ui
         #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
-        AbstractServer.__init__(self, host=host, url=url, port=port, username=username, password=password, logintoken=logintoken, confighandler=confighandler, VERBOSE=VERBOSE)
-        print "Making server with url: {}".format(self.Url)
-        if self.Url is None:
+        super(ConfluenceXmlRpcServer, self).__init__(**kwargs) # Remember, super takes current class as first argument.
+        #AbstractServer.__init__(self, **kwargs)
+        #AbstractServer.__init__(self, serverparams=serverparams, username=username, password=password, logintoken=logintoken, confighandler=confighandler, VERBOSE=VERBOSE)
+        print "Making server with url: {}".format(self.AppUrl)
+        appurl = self.AppUrl
+        if not appurl:
+            print "WARNING: Server's AppUrl is '{}'".format(appurl)
             return None
-        self.RpcServer = xmlrpclib.Server(self.Url)
+        self.RpcServer = xmlrpclib.Server(appurl)
         # I intend to do something like if prompt='never'/'auto'/'force'
-        if prompt in ('force'):
+        if prompt in ('force', ):
             self.login(prompt=True)
         elif autologin:
-            if self.Logintoken and self.test_token(self.Logintoken, doset=True):
+            if self._logintoken and self.test_token(self._logintoken, doset=True):
                 print 'Connected to server using provided login token...'
             elif self.Username and self.Password and self.login(doset=True):
                 # Providing a plain-text password should generally not be used;
@@ -273,11 +293,15 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
             print "ConfluenceXmlRpcServer.test_token() : tested token did not work; {}: {}".format( err.faultCode, err.faultString)
             return False
 
-    def login(self, username=None, password=None, logintoken=None, doset=True, prompt=False, retry=3, dopersist=True):
+    def login(self, username=None, password=None, logintoken=None, doset=True,
+              prompt=False, retry=3, dopersist=True, msg=None):
         if username is None: username=self.Username
         if password is None: password=self.Password
         if prompt is True:
-            username, password = login_prompt(username)
+            if self.UI and hasattr(self.UI, 'login_prompt'):
+                username, password = self.UI.login_prompt(username=username, msg=msg)
+            else:
+                username, password = login_prompt(username)
         if not (username and password):
             print "ConfluenceXmlRpcServer.login() :: Username and password are boolean False; aborting..."
             return
@@ -291,10 +315,11 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
             if self.VERBOSE > 3:
                 print "Logged in as '{}', received token '{}'".format(username, token)
         except xmlrpclib.Fault as err:
-            print "Login error: "
-            print "%d: %s" % ( err.faultCode, err.faultString)
+            err_msg = "Login error: {}: {}".format( err.faultCode, err.faultString)
+            #print "%d: %s" % ( err.faultCode, err.faultString)
+            print err_msg
             if prompt and retry:
-                token = self.login(username, doset=doset, prompt=prompt, retry=retry-1)
+                token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=err_msg)
             else:
                 return None
         return token
@@ -524,16 +549,18 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         Add a new attachment to a content entity object.
         Note that this uses a lot of memory - about 4 times the size of the attachment.
         The 'long contentId' is actually a String pageId for XML-RPC.
+
+        Note: The Experiment class' uploadAttachment() method can take a filpath.
         """
         # Uh, how to determine if attachmentData is actually a filename?
         # If attachmentData is read from a text file, it will still be a basestring...
         # Perhaps real attachmentData must be base64 encoded or something?
-        if isinstance(attachmentData, basestring):
-            try:
-                data = open(attachmentData, 'rb').read()
-                attachmentData = data
-            except IOError:
-                pass
+        #if isinstance(attachmentData, basestring):
+        #    try:
+        #        data = open(attachmentData, 'rb').read()
+        #        attachmentData = data
+        #    except IOError:
+        #        pass
         return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, contentId, attachment_struct, attachmentData)
 
     def removeAttachment(self, contentId, fileName):
@@ -667,12 +694,11 @@ contributor:
 
 
 
-def login_prompt(username=None):
+def login_prompt(username=None, msg=None):
     import getpass
     if username is None:
-        username = getpass.getuser()
-    username = raw_input('Username (enter={}):'.format(username)) or username
-    #username = username_input if username_input
+        username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
+    username = raw_input('Username (enter={}):'.format(username)) or username # use 'username' if input is empty.
     password = getpass.getpass()
     return username, password
 
@@ -693,22 +719,19 @@ if __name__ == "__main__":
         username = 'scholer'
         url = 'http://10.14.40.245:8090/rpc/xmlrpc'
         server = ConfluenceXmlRpcServer(url=url, username=username)
-        #server.login(username, prompt=True, retry=4)
+
 
     def test_config1():
         paths = [ os.path.join(os.path.dirname(os.path.abspath(__file__)), '../test/config', cfg) for cfg in ('system_config.yml', 'user_config.yml', 'exp_config.yml') ]
         ch = ExpConfigHandler(*paths, VERBOSE=5)
         ch.setdefault('user', 'scholer') # set defaults only sets if not already set.
-        ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc') # setkey overrides.
+        #ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc') # setkey overrides.
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
         server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
         if server.test_token():
             print "Succesfully connected to server (retrieved serverinfo)!"
         else:
             print "Failed to obtain valid token from server !!"
-        if server.Logintoken:
-            ch.setkey('wiki_logintoken', server.Logintoken)
-        ch.saveConfigs()
 
     def test2():
         confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
@@ -820,13 +843,13 @@ if __name__ == "__main__":
 
 
     #test_login()
-    #server = test_config1()
+    server = test_config1()
     #test_loginAndSetToken(persist=True)
-    #test_getServerInfo()
+    test_getServerInfo()
     #test_loadToken()
     #test_movePage1()
-    test_getPageById()
-    test_getPageByName()
+    #test_getPageById()
+    #test_getPageByName()
 
 
 

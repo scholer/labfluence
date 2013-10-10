@@ -31,7 +31,7 @@ from model.experiment import Experiment
 from views.expnotebook import ExpNotebook, BackgroundFrame
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 from controllers.filemanagercontroller import ExpFilemanagerController
-
+from ui.fontmanager import FontManager
 
 class LabfluenceGUI(object):
     """
@@ -150,13 +150,8 @@ class LabfluenceGUI(object):
         Based on http://stackoverflow.com/questions/4072150/python-tkinter-how-to-change-a-widgets-font-style-without-knowing-the-widgets
         Valid specs: family, size, weight (bold/normal), slant (italic/roman), underline (bool), overstrike (bool).
         """
-        fonts = dict()
-        fonts['header1'] = dict(size=16)
-        fonts['header2'] = dict(size=13, weight='bold')
-        fonts['header3'] = dict(size=10, weight='bold')
-        self.CustomFonts = dict()
-        for name,specs in fonts.items():
-            self.CustomFonts[name] = tkFont.Font(**specs)
+        self.Fontmanager = FontManager()
+        self.CustomFonts = self.Fontmanager.CustomFonts
 
     def init_ui(self):
         self.tkroot = tk.Tk()
@@ -171,6 +166,24 @@ class LabfluenceGUI(object):
         #win = tk.Toplevel(self.tkroot) # uh... I guess this will create a new toplevel window?
 
         self.mainframe = ttk.Frame(self.tkroot, padding="3 3 3 3") #"3 3 12 12"
+        self.leftframe = ttk.Frame(self.mainframe)
+        self.activeexps_frame = ttk.Frame(self.leftframe)
+        self.activeexps_list = tk.Listbox(self.activeexps_frame, height=16, activestyle='dotbox')
+        self.activeexps_select_btn = ttk.Button(self.activeexps_frame, text="Select...", command=self.selectExperiments)
+        self.activeexps_new_btn = ttk.Button(self.activeexps_frame, text="Create...", command=self.createNewExperiment)
+        # you do not strictly need to be able to reference this from self.
+        self.activeexps_label = ttk.Label(self.activeexps_frame, text="Active experiments:")
+        self.recentexps_frame = ttk.Frame(self.leftframe)
+        # Recent experiments widgets
+        self.recentexps_list = tk.Listbox(self.recentexps_frame, height=10, width=30)
+        self.recentexps_label = ttk.Label(self.recentexps_frame, text="Recent experiments:")
+        # Question: Have only _one_ notebook which is updated when a new experiment is selected/loaded?
+        # Or have several, one for each active experiment, which are then shown and hidden when the active experiment is selected?
+        # I decided to go for one for each active experiment, and that was a really good decision!
+        self.rightframe = ttk.Frame(self.mainframe)#, width=800, height=600)
+        self.backgroundframe = BackgroundFrame(self.rightframe)
+
+
         # Making sure main frame expands and fills everything, using the grid geometry manager:
         self.mainframe.grid(column=0, row=0, sticky="nsew") # position mainframe using grid gm.
         self.mainframe.columnconfigure(0, weight=1, minsize=180) # sets column "0" to weight "1".
@@ -180,25 +193,18 @@ class LabfluenceGUI(object):
         ######################
         #### LEFT FRAME ######
         ######################
-        self.leftframe = ttk.Frame(self.mainframe)
         self.leftframe.grid(column=0, row=1, sticky="nsew") # position leftframe in column 0, row 1 in the outer (mainframe) widget.
         self.leftframe.columnconfigure(0, weight=1)
         self.leftframe.rowconfigure(0, weight=1) # distribute space evently between row 0 and row 1
         self.leftframe.rowconfigure(1, weight=1)
 
         # Active experiments frame
-        self.activeexps_frame = ttk.Frame(self.leftframe)
         self.activeexps_frame.grid(column=0, row=0, sticky="nesw")
         self.activeexps_frame.rowconfigure(5, weight=1) # make the 5th row expand.
         self.activeexps_frame.columnconfigure(3, weight=2)
         self.activeexps_frame.columnconfigure(0, weight=0)
         # Active experiments widgets
-        self.activeexps_list = tk.Listbox(self.activeexps_frame, height=16, activestyle='dotbox')
         #self.activeexps_list.bind('<<ListboxSelect>>', self.show_notebook ) # Will throw the event to the show_notebook
-        self.activeexps_select_btn = ttk.Button(self.activeexps_frame, text="Select...", command=self.selectExperiments)
-        self.activeexps_new_btn = ttk.Button(self.activeexps_frame, text="Create...", command=self.createNewExperiment)
-        # you do not strictly need to be able to reference this from self.
-        self.activeexps_label = ttk.Label(self.activeexps_frame, text="Active experiments:")
         # Active experiments widgets layout:
         self.activeexps_label.grid(column=1, row=0, columnspan=3, sticky="nw")
         self.activeexps_select_btn.grid(column=1, row=2)
@@ -206,24 +212,16 @@ class LabfluenceGUI(object):
         self.activeexps_list.grid(column=0, row=5, columnspan=4, sticky="nesw")
 
         # Recent experiment frame
-        self.recentexps_frame = ttk.Frame(self.leftframe)
         self.recentexps_frame.grid(column=0, row=1, sticky="nesw")
         self.recentexps_frame.rowconfigure(5, weight=1) # make the 5th row expand.
         self.recentexps_frame.columnconfigure(1, weight=1) # make the 5th row expand.
-        # Recent experiments widgets
-        self.recentexps_list = tk.Listbox(self.recentexps_frame, height=10, width=30)
-        self.recentexps_label = ttk.Label(self.recentexps_frame, text="Recent experiments:")
         # Recent experiments widgets layout:
         self.recentexps_label.grid(column=0, row=0, columnspan=3, sticky="nw")
         self.recentexps_list.grid(column=0, row=5, columnspan=3, sticky="nesw")
 
-
         #####################
         #### RIGHT FRAME ####
         #####################
-        # Question: Have only _one_ notebook which is updated when a new experiment is selected/loaded?
-        # Or have several, one for each active experiment, which are then shown and hidden when the active experiment is selected?
-        self.rightframe = ttk.Frame(self.mainframe)#, width=800, height=600)
         # colors: http://www.tcl.tk/man/tcl8.4/TkCmd/colors.htm
         # note: ttk objects does not support specifying e.g. background colors on a per-widget basis,
         #self.rightframe.configure(background='cyan')
@@ -231,7 +229,6 @@ class LabfluenceGUI(object):
         # options for grid is sticky, column, row, columnspan, rowspan, (i)pad(x/y),
         self.rightframe.grid(column=1, row=1, sticky="nsew")
         #self.rightframe.configure(relief='ridge', bd=2) # just to see the right frame...
-        self.backgroundframe = BackgroundFrame(self.rightframe)
         self.backgroundframe.grid(column=1, row=1, sticky="nesw")
         self.rightframe.columnconfigure(1, weight=1, minsize=700)
         self.rightframe.rowconfigure(1, weight=1, minsize=600)
@@ -393,7 +390,7 @@ if __name__ == '__main__':
         print "\n\nShowing exps: {}".format(exps[0])
         notebook, expid, experiment = labfluencegui.show_notebook(exps[0])
         #notebook.tab(1, state="enabled")
-        notebook.select(1)
+        notebook.select(2)
     else:
         print "\n\nNo active experiments? -- {}".format(exps)
 

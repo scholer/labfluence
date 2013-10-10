@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
-## 
+##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
 ##    the Free Software Foundation, either version 3 of the License, or
@@ -52,17 +52,12 @@ class JournalAssistant(object):
 
 
 
-    def flushAll(self):
-        for subentry_idx in self.Experiment.getSubentries().keys():
-            self.flush(subentry_idx)
-
-
 
     def addEntry(self, text, entry_datetime=None, subentry_idx=None):
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
             if subentry_idx is None:
-                print "JournalAssistant.flush() :: ERROR, no subentry available."
+                print "JournalAssistant.addEntry() :: ERROR, no subentry available."
                 return False
         # Make sure this is not overwritten by the default from the exp_subentry (which contains just a date)
         if entry_datetime is None:
@@ -78,11 +73,13 @@ class JournalAssistant(object):
                 os.makedirs(journal_folderpath)
             except OSError as e:
                 print "\n{}\nJournalAssistant.addEntry() :: Aborting due to OSError...".format(e)
+                return False
         with open(journal_path, 'a') as f:
             try:
                 f.write("\n"+entry_text)
             except IOError as e:
                 print "\n{}\nJournalAssistant.addEntry() :: Aborting due to IOError...".format(e)
+                return False
         return entry_text
 
 
@@ -103,6 +100,11 @@ class JournalAssistant(object):
             return journal_content
         except IOError as e:
             print e
+
+
+    def flushAll(self):
+        for subentry_idx in self.Experiment.Subentries.keys():
+            self.flush(subentry_idx)
 
 
     def flush(self, subentry_idx=None):
@@ -139,7 +141,7 @@ class JournalAssistant(object):
         new_xhtml = "\n<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
         print "new_xhtml:"
         print new_xhtml
-        
+
         """ old logic, using token-based insertion """
 #        token = self.subentryToken(subentry_idx)
 #        if page.count(token) < 0:
@@ -152,8 +154,8 @@ class JournalAssistant(object):
 #                return None
 #            new_xhtml = new_xhtml+"\n"+token
 #            token = alt_token
-#        success = page.appendAtToken(new_xhtml, token, appendBefore=True, replaceLastOccurence=True, 
-#                                updateFromServer=True, persistToServer=True, 
+#        success = page.appendAtToken(new_xhtml, token, appendBefore=True, replaceLastOccurence=True,
+#                                updateFromServer=True, persistToServer=True,
 #                                versionComment="Labfluence JournalAssistant.flush()", minorEdit=True)
 
         """ new logic, using regex-based insertion """
@@ -165,7 +167,7 @@ class JournalAssistant(object):
             print "Experiment.makeWikiSubentry() :: ERROR, no wikipage, aborting...\n - {}".format(self)
             return
         res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
-        
+
         """ clean-up and write to local backup/log files """
         if not res:
             print "\n\nJournalAssistant.flush() An error occured in page.insertAtRegex! Reverting..."
@@ -200,7 +202,7 @@ class JournalAssistant(object):
 
     def newExpSubentry(self, subentry_idx, subentry_titledesc=None, updateFromServer=True, persistToServer=True):
         """
-        This has currently been delegated to this class, which specializes in inserting 
+        This has currently been delegated to this class, which specializes in inserting
         content at the right location using regex'es.
         """
         wikipage = self.WikiPage
@@ -240,7 +242,7 @@ class JournalAssistant(object):
         # Do page substitution:
         versionComment = "JournalAssistant: Adding new subentry {expid}{subentry_idx}".format(**fmtparams)
         res = wikipage.insertAtRegex(subentry_xhtml, regex_pat, versionComment=versionComment, updateFromServer=updateFromServer, persistToServer=persistToServer)
-        
+
         return res
 
 
@@ -339,6 +341,3 @@ Washing retentate 4 more times with 400 ul buffer, collecting filt2-3 and filt4-
     print " ------test flush() ----------------- "
     test_flush()
     print " ------journalassistant testing finished ------- "
-
-
-

@@ -59,3 +59,7 @@ class SubentriesListbox(tk.Listbox):
     def getSelectedSubentryIdxs(self):
         curselection = [int(i) for i in self.curselection()]
         return [self.Subentrylist[1][i] for i in curselection] # Subentrylist[1] is list of subentry_idxs
+
+    def getSelectedSubentries(self):
+        curselection = [int(i) for i in self.curselection()]
+        return [self.Subentrylist[2][i] for i in curselection] # Subentrylist[1] is list of subentry_idxs

@@ -30,14 +30,6 @@ from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
 from utils import *
 
-try:
-    import magic
-    magic_available = True
-    magicmime = magic.Magic(mime=True)
-except ImportError:
-    magic_available = False
-    magicmime = None
-    import mimetypes
 
 
 
@@ -199,6 +191,17 @@ class Experiment(object):
             if not hasattr(self, '_props'):
                 self._props = dict()
             return self._props
+
+    def getUrl(self, ):
+        url = self.Props.get('url', None)
+        if not url:
+            if self.WikiPage and self.WikiPage.PageStruct:
+                url = self.WikiPage.PageStruct.get('url', None)
+        if not url:
+            # perhaps use the pageId to generate a url (via the server and the wiki_url or perhaps wiki_url_bypageId_fmt).
+            pass
+        return url
+
 
     @property
     def Subentries(self):
@@ -405,10 +408,19 @@ class Experiment(object):
         return subentry_foldername
 
 
-    def getSubentry(self, subentry_idx, ensureExisting=True):
-        if subentry_idx not in self.Subentries:
+    def getSubentry(self, subentry_idx, default='getSubentry-not-set', ensureExisting=False):
+        """
+        I want to raise KeyError if default is not given (like dict does).
+        However, how to set default to allow it to be optional, but allowing the
+        user to set it to e.g. None. It is very likely that the user would want to get
+        'None' returned instead of having a KeyError value raised.
+        """
+        if subentry_idx not in self.Subentries and ensureExisting:
             self.initSubentriesUpTo(subentry_idx)
-        return self.Subentries[subentry_idx]
+        if default != 'getSubentry-not-set':
+            return self.Subentries.get(subentry_idx, default)
+        else:
+            return self.Subentries[subentry_idx]
 
     def initSubentriesUpTo(self, subentry_idx):
         if not self.Subentries:
@@ -417,6 +429,40 @@ class Experiment(object):
             if idx not in self.Subentries:
                 self.Subentries[idx] = dict()
 
+    def getExpRepr(self, default=None):
+        if 'foldername' in self.Props:
+            return self.Props['foldername']
+        else:
+            fmt = self.Confighandler.get('exp_series_dir_fmt')
+            fmt_params = self.makeFormattingParams()
+            try:
+                return fmt.format(**fmt_params)
+            except KeyError:
+                if default:
+                    return default
+                else:
+                    return "{} {}".format(self.Props.get('expid', None), self.Props.get('exp_titledesc', None))
+
+    def getSubentryRepr(self, subentry_idx=None, default=None):
+        if subentry_idx:
+            subentry = self.getSubentry(subentry_idx, default=None)
+            if subentry:
+                if 'foldername' in subentry:
+                    return subentry['foldername']
+                else:
+                    fmt = self.Confighandler.get('exp_subentry_dir_fmt')
+                    fmt_params = self.makeFormattingParams(subentry_idx=subentry_idx)
+                    try:
+                        return fmt.format(**fmt_params)
+                    except KeyError:
+                        if default:
+                            return default
+                        else:
+                            return "{}{} {}".format(self.Props.get('expid', None), subentry.get('subentry_idx', None), self.Props.get('subentry_titledesc', None))
+        if default=='exp':
+            return self.getExpRepr()
+        else:
+            return default
 
     @property
     def Subentries_regex_prog(self):
@@ -622,29 +668,32 @@ class Experiment(object):
             return ret
         relstart = self.getRelativeStartPath(relative)
         # I am not actually sure what is fastest, repeatedly checking "if include_prog and include_prog.match()
+        if relative == 'filename-only':
+            def file_repr(path, filename, relstart):
+                return filename
+            def make_tuple(path, filename):
+                return ( filename, path, dict(fileName=filename, filepath=path) )
+        else:
+            def file_repr(dirpath, filename, relstart):
+                path = os.path.join(dirpath, filename)
+                return os.path.join(os.path.relpath(path, relstart))
+            def make_tuple(dirpath, filename):
+                path = os.path.join(dirpath, filename)
+                return ( os.path.join(os.path.relpath(path, relstart)), path, dict(fileName=filename, filepath=path) )
         if fn_pattern:
             if not fn_is_regex:
                 # fnmatch translates into equivalent regex, offers the methods fnmatch, fnmatchcase, filter, re and translate
                 fn_pattern = fnmatch.translate(fn_pattern)
             include_prog = re.compile(fn_pattern)
             def appendfile(dirpath, filename):
+                # tuple format is (<list_repr>, <identifier>, <metadata>)
                 if include_prog.match(filename):
-                    path = os.path.join(dirpath, filename)
-                    if relative == 'filename-only':
-                        tup = (filename, path)
-                    else:
-                        tup = ( os.path.relpath(path, relstart), path )
-                    ret.append( tup )
-                    return tup
+                    ret.append( make_tuple(dirpath, filename ) )
         else:
+            # alternative, just do if include_prog is None or include_prog.match(...)
             def appendfile(dirpath, filename):
-                    path = os.path.join(dirpath, filename)
-                    if relative == 'filename-only':
-                        tup = (filename, path)
-                    else:
-                        tup = ( os.path.relpath(path, relstart), path )
-                    ret.append( tup )
-                    return tup
+                ret.append( make_tuple(dirpath, filename ) )
+
         if subentry_idxs or subentries_only:
             print "returning filelist using subentries..."
             if not self.Subentries:
@@ -835,10 +884,7 @@ class Experiment(object):
             filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
         # path relative to this experiment, e.g. 'RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'
         relpath = os.path.relpath(filepath, self.Localdirpath)
-        if magic_available:
-            mimetype = magicmime.from_file(filepath)
-        else:
-            mimetype = mimetypes.guess_type(filepath)
+        mimetype = getmimetype(filepath)
         attachmentInfo['contentType'] = mimetype
         attachmentInfo.setdefault('comment', os.path.basename(filepath) )
         attachmentInfo.setdefault('fileName', os.path.basename(filepath) )
@@ -1078,6 +1124,38 @@ if __name__ == '__main__':
         print "<<<<<<<<<<<<<< test_getLocalFilelist() finished <<<<<<<<<<<<"
         return e
 
+    def test_getRepr(e=None):
+        print "\n>>>>>>>>>>>>>> test_getRept() started >>>>>>>>>>>>>"
+        if not e:
+            e = setup1(useserver=False)
+        print "e.getExpRepr():"
+        print e.getExpRepr()
+        print "e.getExpRepr(default='WOOORD'):"
+        print e.getExpRepr(default='WOOORD')
+        print "e.getSubentryRepr():"
+        print e.getSubentryRepr()
+        print "e.getSubentryRepr(subentry_idx='a'):"
+        print e.getSubentryRepr(subentry_idx='a')
+        print "e.getSubentryRepr(subentry_idx='a', default='exp'):"
+        print e.getSubentryRepr(subentry_idx='a', default='exp')
+        print "e.getSubentryRepr(subentry_idx='a', default='What, no a?'):"
+        print e.getSubentryRepr(subentry_idx='a', default='What, no a?')
+        print "e.getSubentryRepr(subentry_idx='z', default='What, no z?'):"
+        print e.getSubentryRepr(subentry_idx='z', default='What, no z?')
+        print "e.getSubentryRepr(subentry_idx='z', default='exp'):"
+        print e.getSubentryRepr(subentry_idx='z', default='exp')
+
+        print "e.getSubentryRepr(subentry_idx=None, default='exp'):"
+        print e.getSubentryRepr(subentry_idx=None, default='exp')
+        print "e.getSubentryRepr(default='exp'):"
+        print e.getSubentryRepr(default='exp')
+        print "e.getSubentryRepr(default='WWWRRR Default'):"
+        print e.getSubentryRepr(default='WWWRRR Default')
+        print "e.getSubentryRepr():"
+        print e.getSubentryRepr()
+        print "<<<<<<<<<<<<<< test_getRepr() finished <<<<<<<<<<<<"
+
+
 
 
     print "\n\n---------------- STARTING EXPERIMENT.PY MAIN TESTS --------------\n\n"
@@ -1108,8 +1186,8 @@ if __name__ == '__main__':
 #    e=test_makeNewWikiSubentry(e, 'c')
 #    print "\n------------finished test_makeNewWikiSubentry() ----------------------\n"
 
-    e = None
-    e = test_getLocalFilelist(e)
+    #e = None
+    e = test_getRepr()
     print "\n\n"
     print e
 

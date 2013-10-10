@@ -433,6 +433,7 @@ class ExpConfigHandler(ConfigHandler):
                 elif pathsrelativetoexp and key in ('local_exp_ignoreDirs'):
                     return [os.path.join(exp_path, ignoreDir) for ignoreDir in cfg[key] ]
                 return cfg[key]
+        return default
 
     def getExpConfig(self, path):
         return self.HierarchicalConfigHandler.getConfig(path)

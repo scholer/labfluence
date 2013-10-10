@@ -69,15 +69,16 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         These are mostly intended to provide local-dir-aware config items, e.g. string formats and regexs.
         However, it might also be better to keep this logic at the Experiment(Manager) and Factory levels.
         """
+        # The current approach is that this should be immutable; changing the pageId could result
+        # in undefined bahaviour, e.g. overwriting a page with another page's content.
         self.PageId = pageId
         self.Server = server
         self.VERBOSE = VERBOSE
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
+        self.Struct = pageStruct # Cached struct.
         if pageStruct is None:
             self.reloadFromServer()
-        else:
-            self.Struct = pageStruct # Cached struct.
 
 
     def reloadFromServer(self):
@@ -335,6 +336,19 @@ below        source and target become/remain sibling pages and the source is mov
             html = self.Server.renderContent(self.PageId)
 
     def getAttachmentInfo(self, fileName, versionNumber=0):
+        """
+        Returns metadata for an attachment. Each attachment-struct has fields:
+        - comment (string, required)
+        - contentType (string, required)
+        - created (date)
+        - creator (string username)
+        - fileName (string, required)
+        - fileSize (string, number of bytes)
+        - id (string, attachmentId)
+        - pageId (string)
+        - title (string)
+        - url (string)
+        """
         if not self.Server:
             print "Page {} has no server object attached; aborting {} operation...".format(self, 'getMethodData')
             return
@@ -349,6 +363,9 @@ below        source and target become/remain sibling pages and the source is mov
         return data
 
     def addAttachment(self, attachmentInfo, attachmentData):
+        """
+        attachmentInfo dict must include fields 'comment', 'contentType', 'fileName'
+        """
         if not self.Server:
             print "Page {} has no server object attached; aborting {} operation...".format(self, 'getMethodData')
             return

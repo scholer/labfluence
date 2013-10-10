@@ -20,6 +20,8 @@ import Tkinter as tk
 import ttk
 import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 from collections import OrderedDict
+import os
+import time
 
 from subentrieslistbox import SubentriesListbox
 
@@ -44,21 +46,24 @@ class ExpFilemanagerFrame(ttk.Frame):
         self.subentriesfilterlist = subentrieslist = filterframe.subentries_list
         self.filelistfilterframe.grid(row=1, column=0, rowspan=1, sticky="nesw")
 
+        self.fileoperationsframe = FileOperationsFrame(self, experiment, confighandler)
+        self.fileoperationsframe.grid(row=2, column=0, rowspan=1, sticky="nesw")
+
         self.fileinfoframe = FileInfoFrame(self, experiment, confighandler)
-        self.fileinfoframe.grid(row=2, column=0, rowspan=2, sticky="nesw")
+        self.fileinfoframe.grid(row=3, column=0, rowspan=2, sticky="nesw")
 
         self.localfilelistframe = LocalFilelistFrame(self, experiment, confighandler)
-        self.localfilelistframe.grid(row=1, column=1, sticky="nesw", rowspan=2)
+        self.localfilelistframe.grid(row=1, column=1, sticky="nesw", rowspan=3)
 
         self.wikifilelistframe = WikiFilelistFrame(self, experiment, confighandler)
-        self.wikifilelistframe.grid(row=3, column=1, sticky="nesw")
+        self.wikifilelistframe.grid(row=4, column=1, sticky="nesw")
 
         self.columnconfigure(0, weight=1, minsize=200)
         self.columnconfigure(1, weight=3, minsize=300)
         #self.columnconfigure(3, weight=1, minsize=200)
         #self.rowconfigure(1, weight=1)
-        self.rowconfigure(2, weight=2)
-        self.rowconfigure(3, weight=1)
+        self.rowconfigure(3, weight=2)
+        self.rowconfigure(4, weight=1)
         #self.columnconfigure(2, weight=1, minsize=200)
 
         # Event bindings:
@@ -67,6 +72,9 @@ class ExpFilemanagerFrame(ttk.Frame):
         self.filelistfilterframe.fnpattern_entry.bind('<Return>', self.on_filter_change) # User presses 'Return' (enter)
         #self.filelistfilterframe.fnpattern_entry.bind('<Key>', self.on_filter_change) # User presses any key
 
+        # Filelists:
+        self.localfilelistframe.listbox.bind('<<ListboxSelect>>', self.on_file_select)
+        self.wikifilelistframe.listbox.bind('<<ListboxSelect>>', self.on_file_select)
 
 
     def on_filter_change(self, event):
@@ -75,6 +83,15 @@ class ExpFilemanagerFrame(ttk.Frame):
         print "Filterdict: {}".format(filterdict)
         self.localfilelistframe.updatelist(filterdict)
         self.wikifilelistframe.updatelist(filterdict, src='cache')
+
+    def on_file_select(self, event):
+        listbox = event.widget
+        print listbox.curselection()
+        # file_repr, file_identifier, info_struct
+        file_tuples = listbox.getSelection()
+        # easy way to check if selection is local or wiki file: if 'pageId' in info_struct
+        self.fileinfoframe.update_info_tuples(file_tuples)
+
 
 
 class FilelistFilterFrame(ttk.Frame):
@@ -146,6 +163,23 @@ class FileOperationsFrame(ttk.Frame):
         self.Confighandler = confighandler
         app = self.Confighandler.Singletons.get('app')
 
+        #self.transferbtntext = tk.StringVar(value="Upload to wiki")
+
+        self.rename_btn = ttk.Button(self, text="Rename file...", command=self.renamefile)#, width=12)
+        self.rename_btn.grid(row=1,column=1, sticky="we")
+        self.other_btn = ttk.Button(self, text="Something else", command=self.renamefile)#, width=12)
+        self.other_btn.grid(row=1,column=2, sticky="we")
+        self.upload_btn = ttk.Button(self, text="Upload to wiki", command=self.renamefile)#, width=12)
+        self.upload_btn.grid(row=1,column=3, sticky="we")
+        self.download_btn = ttk.Button(self, text="Download", command=self.renamefile)#, width=12)
+        self.download_btn.grid(row=1,column=3, sticky="we")
+        self.columnconfigure((1,2,3), weight=1)
+
+
+
+    def renamefile(self):
+        print "How?"
+
 
 class FileInfoFrame(ttk.Frame):
     """
@@ -162,24 +196,25 @@ class FileInfoFrame(ttk.Frame):
         self.headerlabel.grid(row=1, column=1, columnspan=2, sticky="w")
 
         self.FileinfoTkvars = OrderedDict()
-        self.FileinfoTkvars['filename'] = filename = tk.StringVar(master=parent, value="No file selected")
-        self.FileinfoTkvars['filesize'] = filesize = tk.StringVar(master=parent, value="")
+        self.FileinfoTkvars['fileName'] = filename = tk.StringVar(master=parent, value="No file selected")
+        self.FileinfoTkvars['fileSize'] = filesize = tk.StringVar(master=parent, value="")
         self.FileinfoTkvars['contentType'] = contentType = tk.StringVar(master=parent)
-        self.FileinfoTkvars['date_modified'] = date_modified = tk.StringVar(master=parent)
-        self.FileinfoTkvars['date_created'] = date_created = tk.StringVar(master=parent)
+        self.FileinfoTkvars['modified'] = date_modified = tk.StringVar(master=parent)
+        self.FileinfoTkvars['created'] = date_created = tk.StringVar(master=parent)
         self.FileinfoTkvars['creator'] = creator = tk.StringVar(master=parent)
-        self.FileinfoTkvars['wiki_attachmentId'] = wiki_attachmentId = tk.StringVar(master=parent)
-        self.FileinfoTkvars['wiki_comment'] = wiki_comment = tk.StringVar(master=parent)
+        self.FileinfoTkvars['id'] = wiki_attachmentId = tk.StringVar(master=parent)
+        self.FileinfoTkvars['title'] = wiki_attachmentId = tk.StringVar(master=parent)
+        self.FileinfoTkvars['comment'] = wiki_comment = tk.StringVar(master=parent)
 
         self.FileinfoEntries = dict()
 
         row = 2
         expandrow = None
         for name,tkvar in self.FileinfoTkvars.items():
-            if name in ('filename'):
+            if name in ('fileName', ):
                 label = ttk.Label(self, textvariable=tkvar)
                 label.grid(row=row, column=1, columnspan=2, sticky="w")
-            elif name in ('wiki_comment'):
+            elif name in ('comment', ):
                 label = ttk.Label(self, text="{}:".format(name))
                 label.grid(row=row, column=1, sticky="w")
                 row += 1
@@ -195,30 +230,129 @@ class FileInfoFrame(ttk.Frame):
                 entry.grid(row=row, column=2, sticky="we")
             row += 1
         #self.rowconfigure(expandrow, weight=1)
-        self.columnconfigure(1, weight=1)
+        self.columnconfigure(1, weight=0, pad=5)
         self.columnconfigure(2, weight=1)
+
+    #self.fileinfoframe.update_info_tuples(file_tuples)
+    def update_info_tuples(self, file_tuples):
+        """
+        Receives a list of file_tuples (file_repr, file_identifier, metadata_struct)
+        Wiki attachment-struct has fields:
+        - comment (string, required)
+        - contentType (string, required)
+        - created (date)
+        - creator (string username)
+        - fileName (string, required)
+        - fileSize (string, number of bytes)
+        - id (string, attachmentId)
+        - pageId (string)
+        - title (string)
+        - url (string)
+        LocalFile starts out only having field 'filename' and 'filepath'
+        """
+        if file_tuples:
+            file_repr, file_identifier, metadata = file_tuples[0]
+            # most fields does not require mapping, e.g. fileName, fileSize, contentType, created, creator, title, url, id and comment.
+            # However, for the fields that might require something, insert here:
+            if 'pageId' not in metadata: # Assume local file
+                if 'date_modified' not in metadata:
+                    try:
+                        metadata['modified'] = time.ctime(os.path.getmtime(file_identifier))
+                    except WindowsError as e:
+                        print e
+                if 'fileSize' not in metadata:
+                    try:
+                        metadata['fileSize'] = os.path.getsize(file_identifier)
+                    except WindowsError as e:
+                        print e
+                if 'fileName' not in metadata:
+                    metadata['fileName'] = os.path.basename(file_repr)
+        else:
+            metadata = dict()
+
+        print "metadata: {}".format(metadata)
+        for key,tkvar in self.FileinfoTkvars.items():
+            print "Setting '{}' to value: '{}'".format(key, metadata.get(key, ""))
+            tkvar.set(metadata.get(key, ""))
+
+
+
+class FilelistListbox(tk.Listbox):
+    """
+    """
+    def __init__(self, parent, experiment, confighandler=None, **options):
+        tk.Listbox.__init__(self, parent, **options)
+        self.Experiment = experiment
+        self.Confighandler = confighandler
+        self.Filetuples = list()
+        self.Fileslist = list()
+
+    # I should make a convention as to what is display and what is reference
+    # in tuples used in list, e.g. (<filename-displayed>, <real-file-path>)
+    # same goes for (subentry-display-format, subentry_idx)
+    def updatelist(self, filterdict=None, src=None):
+        if filterdict is None:
+            filterdict = dict()
+        lst = self.getlist(filterdict, src)
+        self.Filetuples = lst
+        self.Fileslist = zip(*lst)
+        self.delete(0, tk.END)
+        if lst:
+            self.insert(tk.END, *self.Fileslist[0])
+
+    def getlist(self, filterdict, src=None):
+        # override this method; must return a list of two-tuple items.
+        return list()
+
+    def getSelection(self):
+        # Returning the complete file tuple with metadata -- makes it more useful.
+        indices = map(int, self.curselection())
+        return [self.Filetuples[ind] for ind in indices]
+
+
+class LocalFilelistListbox(FilelistListbox):
+
+    def getlist(self, filterdict, src=None):
+        return self.Experiment.getLocalFilelist(**filterdict)
+
+
+class WikiFilelistListbox(FilelistListbox):
+
+    def getlist(self, filterdict, src=None):
+        return self.Experiment.getAttachmentList(src=src, **filterdict)
 
 
 
 class FilelistFrame(ttk.Frame):
     """
+    # alternatively, there is also the Tkinter.tix.DirList / DirTree
+    # http://docs.python.org/3/library/tkinter.tix.html
+    # or maybe ttk.Treeview
+    # I should make a convention as to what is display and what is reference
+    # in tuples used in list, e.g. (<filename-displayed>, <real-file-path>)
+    # same goes for (subentry-display-format, subentry_idx)
     """
-    def __init__(self, parent, experiment, confighandler=None):
-        ttk.Frame.__init__(self, parent, borderwidth=10, relief='solid')
+    def __init__(self, parent, experiment, confighandler=None, **options):
+        frameopt = dict(borderwidth=5, relief='solid')
+        frameopt.update(options)
+        ttk.Frame.__init__(self, parent, **frameopt)
         self.Experiment = experiment
-        self.Fileslist = list()
-        self.init_layout()
+        self.Confighandler = confighandler
+        self.init_widgets()
+        self.init_grid()
         self.updatelist()
 
-
-    def init_layout(self):
+    def init_widgets(self):
         self.headerlabel = ttk.Label(self, text=self.getheader())
-        self.headerlabel.grid(row=1, column=1)#, sticky="nw")
-        self.listbox = tk.Listbox(self)
+        self.listbox = FilelistListbox(self, self.Experiment, self.Confighandler)
         #self.listbox.configure(height=self.getheight()) # No reason to hardcode; should be dynamic.
+
+    def init_grid(self):
+        self.headerlabel.grid(row=1, column=1)
         self.listbox.grid(row=10, column=1, columnspan=2, sticky="news")
         self.rowconfigure(10, weight=1)
         self.columnconfigure(1, weight=1)
+
 
     # ttk.Frame is old-style object in python2, so I use a getter method rather than a property idiom.
     def getheight(self):
@@ -227,16 +361,12 @@ class FilelistFrame(ttk.Frame):
     def getheader(self):
         return "Local files:"
 
-    # alternatively, there is also the Tkinter.tix.DirList / DirTree
-    # http://docs.python.org/3/library/tkinter.tix.html
-    # or maybe ttk.Treeview
-    # I should make a convention as to what is display and what is reference
-    # in tuples used in list, e.g. (<filename-displayed>, <real-file-path>)
-    # same goes for (subentry-display-format, subentry_idx)
     def updatelist(self, filterdict=None, src=None):
+        self.listbox.updatelist()
         if filterdict is None:
             filterdict = dict()
         lst = self.getlist(filterdict, src)
+        self.Filetuples = lst
         self.Fileslist = zip(*lst)
         self.listbox.delete(0, tk.END)
         if lst:
@@ -244,22 +374,41 @@ class FilelistFrame(ttk.Frame):
 
     def getlist(self, filterdict, src=None):
         # override this method; must return a list of two-tuple items.
-        return list()
+        return self.listbox.getlist(filterdict, src)
+
+    def getSelection(self):
+        # Returning the complete file tuple with metadata -- makes it more useful.
+        return self.listbox.getSelection()
 
 
 class LocalFilelistFrame(FilelistFrame):
     """
     """
-    def getlist(self, filterdict, src=None):
-        return self.Experiment.getLocalFilelist(**filterdict)
+    def init_widgets(self):
+        self.headerlabel = ttk.Label(self, text="Local experiment files:")
+        self.listbox = LocalFilelistListbox(self, self.Experiment, self.Confighandler)
 
-    def getheight(self):
-        return 18
+
+
+class WikiFilelistFrame(FilelistFrame):
+
+    def init_widgets(self):
+        self.headerlabel = ttk.Label(self, text="Wiki attachments:")
+        self.listbox = WikiFilelistListbox(self, self.Experiment, self.Confighandler)
+
+
+
+
+
+"""
+Cut out parts:
+
+
 
 #class LocalFileTreeFrame(ttk.Frame):
-#    """
-#    Only works if using Tix.Tk as root, not standard Tk, I believe.
-#    """
+#
+#    #Only works if using Tix.Tk as root, not standard Tk, I believe.
+#
 #    def __init__(self, parent, experiment, confighandler=None):
 #        ttk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
 #        self.Experiment = experiment
@@ -270,11 +419,6 @@ class LocalFilelistFrame(FilelistFrame):
 #        if localdir:
 #            self.DirTree.chdir(localdir)
 
-class WikiFilelistFrame(FilelistFrame):
-
-    def getlist(self, filterdict, src=None):
-        # getlist feeds into updatelist() method.
-        #return self.Experiment.listAttachments()
-        return self.Experiment.getAttachmentList(src=src, **filterdict)
-    def getheader(self):
-        return "Wiki page attachments:"
+"""
+if __name__ == '__main__':
+    pass
