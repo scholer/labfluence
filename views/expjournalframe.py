@@ -20,9 +20,11 @@ import Tkinter as tk
 import ttk
 import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
+import htmllib, formatter
+
 from subentrieslistbox import SubentriesListbox
 from shared_ui_utils import HyperLink
-from rspysol import rstkhtml
+from rspysol.rstkhtml import tkHTMLParser, tkHTMLWriter
 
 class ExpJournalFrame(ttk.Frame):
     """
@@ -167,6 +169,7 @@ class ExpJournalFrame(ttk.Frame):
         self.subentries_listbox.updatelist()
         self.update_cacheview()
         self.update_wikititledesc()
+        self.update_wikiview()
 
     def update_wikiview(self):
         print "Not implemented"
@@ -249,16 +252,40 @@ class JournalViewer(tk.Text):
         tk.Text.__init__(self, parent, **opts)
         self.Experiment = experiment
         self.JA = experiment.JournalAssistant
-
+        self.Parent = parent
 
 
     def update_cache(self):
+        """
+        Sets the value of the text widget to the journal-assistant cache for the currently selected subentry:
+        """
         cache = self.JA.getCacheContent()
         self.set_value(cache)
 
     def update_wiki(self):
+        """
+        Sets the value of the text widget to the journal-assistant cache for the currently selected subentry:
+        """
         print "JournalViewer.update_wiki() - Not implemented..."
-        self.Experiment.getWikiSubentryXhtml(self)
+        #html = self.Experiment.getWikiSubentryXhtml(self)
+        html = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
+        print 'self["font"] is: {}'.format(self["font"])
+        print "html is:"
+        print html
+
+        # prepare the text widget:
+        self.config(state="normal")
+        self.delete("1.0", "end")
+        self.update_idletasks()
+
+        # Write the html to the text widget:
+        writer = tkHTMLWriter(self)
+        fmt = formatter.AbstractFormatter(writer)
+        parser = tkHTMLParser(fmt)
+        parser.feed(html)
+        parser.close()
+
+        self.config(state="disabled")
 
 
     def set_value(self, value):

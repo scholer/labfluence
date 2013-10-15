@@ -50,7 +50,7 @@ class AbstractServer(object):
         """
         self.VERBOSE = VERBOSE
         #dict(host=None, url=None, port=None, protocol=None, urlpostfix=None)
-        self._defaultparams = dict(host="localhost", port='80', protocol='http', urlpostfix='', username='', logintoken='')
+        self._defaultparams = dict(host="localhost", port='80', protocol='http', urlpostfix='/rpc/xmlrpc', username='', logintoken='')
         self._serverparams = serverparams
         self._username = username
         self._password = password
@@ -82,15 +82,19 @@ class AbstractServer(object):
         params.update(config_params)
         params.update(runtime_params)
         return params
+    def configs_iterator(self):
+        yield ('runtime params', self._serverparams)
+        yield ('config params', self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
+                    or self.Confighandler.get('serverparams', dict()) )
+        yield ('hardcoded defaults', self._defaultparams)
+
     def getServerParam(self, key):
-        if self._serverparams and key in self._serverparams: # runtime-params
-            return self._serverparams[key]
-        config_params = self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
-                        or self.Confighandler.get('serverparams', dict())
-        if config_params and key in config_params: # runtime-params
-            return config_params[key]
-        if self._defaultparams and key in self._defaultparams: # runtime-params
-            return self._defaultparams[key]
+        configs = self.configs_iterator()
+        for desc, cfg in configs:
+            if cfg and key in cfg: # runtime-params
+                print "Returning {} from {}[{}]".format(cfg[key], desc, key)
+                return cfg[key]
+        print "param '{}' not found, returning None.".format(key)
         return None
 
     @property
@@ -235,14 +239,12 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
                  #serverparams=None, username=None, password=None, logintoken=None,
                  #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
-        self._defaultopts = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
         self.CONFIG_FORMAT = 'wiki_{}'
-        self.UI = ui
         #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
         super(ConfluenceXmlRpcServer, self).__init__(**kwargs) # Remember, super takes current class as first argument.
-        #AbstractServer.__init__(self, **kwargs)
-        #AbstractServer.__init__(self, serverparams=serverparams, username=username, password=password, logintoken=logintoken, confighandler=confighandler, VERBOSE=VERBOSE)
+        self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
+        self.UI = ui
         print "Making server with url: {}".format(self.AppUrl)
         appurl = self.AppUrl
         print "\n\n\nserver.AppUrl: {}\n\n\n".format(appurl)
@@ -314,7 +316,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         if prompt is True:
             if self.UI and hasattr(self.UI, 'login_prompt'):
                 username, password = self.UI.login_prompt(username=username, msg=msg)
-            else:
+            else: # use command line login prompt:
                 username, password = login_prompt(username)
         if not (username and password):
             print "ConfluenceXmlRpcServer.login() :: Username and password are boolean False; aborting..."

@@ -153,21 +153,26 @@ class MfxReadonlyScrolledText(MfxScrolledText):
 # ************************************************************************/
 
 class tkHTMLWriter(formatter.DumbWriter):
-    def __init__(self, text, viewer):
+    """
+    Dummed down by RS to make it independent of the tkHTMLviewer class:
+    """
+
+    def __init__(self, text, viewer=None):
         formatter.DumbWriter.__init__(self, self, maxcol=9999)
 
         self.text = text
-        self.viewer = viewer
+        #self.viewer = viewer
 
         font, size = "Helvetica", 12
-        f = self.text["font"]
-        if f[0] == "{":
-            m = re.search(r"^\{([^\}]+)\}\s*(-?\d+)", f)
-            if m:
-                font, size = m.group(1), int(m.group(2))
-        else:
-            f = string.split(f)
-            font, size = f[0], int(f[1])
+        # Not really sure what the pysol devs were trying to accomplish here...:
+        #f = self.text["font"]
+        #if f[0] == "{":
+        #    m = re.search(r"^\{([^\}]+)\}\s*(-?\d+)", f)
+        #    if m:
+        #        font, size = m.group(1), int(m.group(2))
+        #else:
+        #    f = string.split(f)
+        #    font, size = f[0], int(f[1])
 
         font, size = "Helvetica", -14
         fixed = ("Courier", -14)
@@ -190,7 +195,7 @@ class tkHTMLWriter(formatter.DumbWriter):
             "pre"     : (fixed),
         }
 
-        self.text.config(cursor=self.viewer.defcursor)
+        #self.text.config(cursor=self.viewer.defcursor)
         for f in self.fontmap.keys():
             self.text.tag_config(f, font=self.fontmap[f])
 
@@ -200,15 +205,16 @@ class tkHTMLWriter(formatter.DumbWriter):
         self.font_mark = None
         self.indent = ""
 
-    def createCallback(self, href):
-        class Functor:
-            def __init__(self, viewer, arg):
-                self.viewer = viewer
-                self.arg = arg
-            def __call__(self, *args):
-                self.viewer.updateHistoryXYView()
-                return self.viewer.display(self.arg)
-        return Functor(self.viewer, href)
+    # htmlviewer specific...
+    #def createCallback(self, href):
+    #    class Functor:
+    #        def __init__(self, viewer, arg):
+    #            self.viewer = viewer
+    #            self.arg = arg
+    #        def __call__(self, *args):
+    #            self.viewer.updateHistoryXYView()
+    #            return self.viewer.display(self.arg)
+    #    return Functor(self.viewer, href)
 
     def write(self, data):
         ## FIXME
@@ -230,17 +236,19 @@ class tkHTMLWriter(formatter.DumbWriter):
             url = self.anchor[0]
             tag = "href_" + url
             self.text.tag_add(tag, self.anchor_mark, "insert")
-            self.text.tag_bind(tag, "<ButtonPress>", self.createCallback(url))
+            #self.text.tag_bind(tag, "<ButtonPress>", self.createCallback(url))
             self.text.tag_bind(tag, "<Enter>", self.anchor_enter)
             self.text.tag_bind(tag, "<Leave>", self.anchor_leave)
             self.text.tag_config(tag, foreground="blue", underline=1)
             self.anchor = None
 
     def anchor_enter(self, *args):
-        self.text.config(cursor = self.viewer.handcursor)
+        pass
+        #self.text.config(cursor = self.viewer.handcursor)
 
     def anchor_leave(self, *args):
-        self.text.config(cursor = self.viewer.defcursor)
+        pass
+        #self.text.config(cursor = self.viewer.defcursor)
 
     def new_font(self, font):
         # end the current font
@@ -373,7 +381,8 @@ class tkHTMLViewer(object):
             ##basefont = ("comic sans ms", -14, "bold", "italic")
             ##basefont = ("Arial", 14)
             basefont = ("Times New Roman", 12)
-        self.text = MfxReadonlyScrolledText(parent,
+        self.text = Tkinter.Text(parent)
+        self.text2 = MfxReadonlyScrolledText(parent,
                                     fg="#000000", bg="#f7f3ff",
                                     cursor=self.defcursor,
                                     font=basefont, wrap="word",
@@ -487,7 +496,7 @@ class tkHTMLViewer(object):
         self.images = []
 
         # Write the html to the text widget:
-        writer = tkHTMLWriter(self.text, self)
+        writer = tkHTMLWriter(self.text)#, self)
         fmt = formatter.AbstractFormatter(writer)
         parser = tkHTMLParser(fmt)
         parser.feed(data)
