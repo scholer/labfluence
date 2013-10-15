@@ -82,22 +82,33 @@ class AbstractServer(object):
         params.update(config_params)
         params.update(runtime_params)
         return params
+    def getServerParam(self, key):
+        if self._serverparams and key in self._serverparams: # runtime-params
+            return self._serverparams[key]
+        config_params = self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
+                        or self.Confighandler.get('serverparams', dict())
+        if config_params and key in config_params: # runtime-params
+            return config_params[key]
+        if self._defaultparams and key in self._defaultparams: # runtime-params
+            return self._defaultparams[key]
+        return None
+
     @property
     def Hostname(self):
-        return self.Serverparams.get('hostname')
+        return self.getServerParam('hostname')
     @property
     def Port(self):
-        return self.Serverparams.get('port')
+        return self.getServerParam('port')
     @property
     def Protocol(self):
-        return self.Serverparams.get('protocol')
+        return self.getServerParam('protocol')
     @property
     def UrlPostfix(self):
-        return self.Serverparams.get('urlpostfix', "")
+        return self.getServerParam('urlpostfix') or ""
     @property
     def BaseUrl(self):
         serverparams = self.Serverparams
-        print "serverparams: {}".format(serverparams)
+        #print "serverparams: {}".format(serverparams)
         if 'baseurl' in serverparams:
             return serverparams['baseurl']
         try:
@@ -115,6 +126,8 @@ class AbstractServer(object):
         if url:
             return url
         baseurl = self.BaseUrl
+        urlpostfix = self.UrlPostfix
+        print "baseurl: {}     urlpostfix: {}".format(baseurl, urlpostfix)
         if baseurl:
             return baseurl + self.UrlPostfix
         else:
@@ -232,6 +245,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         #AbstractServer.__init__(self, serverparams=serverparams, username=username, password=password, logintoken=logintoken, confighandler=confighandler, VERBOSE=VERBOSE)
         print "Making server with url: {}".format(self.AppUrl)
         appurl = self.AppUrl
+        print "\n\n\nserver.AppUrl: {}\n\n\n".format(appurl)
         if not appurl:
             print "WARNING: Server's AppUrl is '{}'".format(appurl)
             return None

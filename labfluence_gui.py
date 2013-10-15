@@ -27,6 +27,7 @@ import tkFont
 from model.confighandler import ExpConfigHandler
 from model.experiment_manager import ExperimentManager
 from model.experiment import Experiment
+from model.server import ConfluenceXmlRpcServer
 
 from views.expnotebook import ExpNotebook, BackgroundFrame
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
@@ -44,10 +45,13 @@ class LabfluenceGUI(object):
     def __init__(self, confighandler=None, VERBOSE=5):
         #self.ActiveExperiments = list() # Probably better to use a property attribute
         #self.RecentExperiments = list()
+        print "\n\n\n>>>>>>>>>>>>>>  Starting init of LabfluenceGUI  >>>>>>>>>>>>>>>>\n"
+
         self.VERBOSE = VERBOSE
         self.Confighandler = confighandler or ExpConfigHandler(pathscheme='default1')
         self.Confighandler.Singletons.setdefault('app', self)
         if 'experimentmanager' not in self.Confighandler.Singletons:
+            print "LabfluenceGUI.__init__ >> Instantiating new ExperimentManager!"
             self.Confighandler.Singletons['experimentmanager'] = ExperimentManager(confighandler=self.Confighandler, autoinit=('localexps', ), VERBOSE=self.VERBOSE)
         self.init_ui()
         self.init_fonts()
@@ -363,15 +367,21 @@ def find_configs():
 
 if __name__ == '__main__':
 
-    labfluencegui = LabfluenceGUI()
+    confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=0)
+    server = ConfluenceXmlRpcServer(autologin=True, prompt='auto', ui=None, confighandler=confighandler, VERBOSE=0)
+    confighandler.Singletons['server'] = server
+    manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ), VERBOSE=0)
+    confighandler.Singletons['experimentmanager'] = manager
+
+    labfluencegui = LabfluenceGUI(confighandler=confighandler)
     # How to maximize / set window size:
     # http://stackoverflow.com/questions/15981000/tkinter-python-maximize-window
     # You can use tkroot.(wm_)state('zoomed') on windows to maximize. Does not work on unix.
     # You can bind tkroot.bind("<Configure>", method_handle)
     # This will invoke method_handle with event with attributes including width, height.
 
-    confighandler = labfluencegui.Confighandler
-    confighandler.VERBOSE = 0
+    #confighandler = labfluencegui.Confighandler
+    #confighandler.VERBOSE = 0
     em = confighandler.Singletons.get('experimentmanager', None)
     if em:
         print "\nem.ActiveExperiments:"
@@ -390,7 +400,7 @@ if __name__ == '__main__':
         print "\n\nShowing exps: {}".format(exps[0])
         notebook, expid, experiment = labfluencegui.show_notebook(exps[0])
         #notebook.tab(1, state="enabled")
-        notebook.select(2)
+        #notebook.select(2)
     else:
         print "\n\nNo active experiments? -- {}".format(exps)
 

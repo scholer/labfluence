@@ -105,8 +105,8 @@ class Experiment(object):
         """
 
         self.VERBOSE = VERBOSE
-        self.Server = server
-        self.Manager = manager
+        self._server = server
+        self._manager = manager
         self.Confighandler = confighandler
         self.WikiPage = wikipage
         self.SavePropsOnChange = savepropsonchange
@@ -218,6 +218,15 @@ class Experiment(object):
         if self.Server and self._attachments_cache is None:
             self.updateAttachmentsCache()
         return self._attachments_cache
+
+    @property
+    def Server(self, ):
+        #print "self._server: {}".format(self._server)
+        #print "self.Confighandler.Singletons: {}".format(self.Confighandler.Singletons)
+        return self._server or self.Confighandler.Singletons.get('server')
+    @property
+    def Manager(self, ):
+        return self._manager or self.Confighandler.Singletons.get('manager')
 
 
     def updateAttachmentsCache(self):
@@ -506,7 +515,7 @@ class Experiment(object):
         for foldername in localdirs:
             res = regex_prog.match(foldername)
             if self.VERBOSE:
-                print "{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", foldername, regex_prog.pattern)
+                print "\n\n{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", foldername, regex_prog.pattern)
             if res:
                 props = res.groupdict()
                 # I allow for regex with multiple date entries, i.e. both first and last.
@@ -705,7 +714,7 @@ class Experiment(object):
                     for dirpath,dirnames,filenames in os.walk(os.path.join(self.Localdirpath,subentry['foldername'])):
                         for filename in filenames:
                             appendfile(dirpath, filename)
-            print "Experiment.getLocalFilelist() :: Returning list: {}".format(ret)
+            #print "Experiment.getLocalFilelist() :: Returning list: {}".format(ret)
             return ret
         ignore_pat = self.Confighandler.get('local_exp_ignore_pattern')
         if ignore_pat:
@@ -750,13 +759,12 @@ class Experiment(object):
             print "Experiment.attachWikiPage() :: Searching on server..."
             pagestruct = self.searchForWikiPage()
             if pagestruct:
-                pageId = pagestruct['id']
-                self.Props['wiki_pageId'] = pageId
+                self.Props['wiki_pageId'] = pageId = pagestruct['id']
                 if self.SavePropsOnChange:
                     self.saveProps()
-        print "\nExperiment.attachWikiPage() :: pageId: {}    server: {}     dosearch: {}".format(pageId, self.Server, dosearch)
+        print "Experiment.attachWikiPage() :: pageId: {}  server: {}   dosearch: {}   pagestruct: {}".format(pageId, self.Server, dosearch, pagestruct)
         if not pageId:
-            print "Experiment.attachWikiPage() :: Notice - no pageId found (dosearch={}, self.Server={})...\n".format(dosearch, self.Server)
+            print "Experiment.attachWikiPage() :: Notice - no pageId found for exp {} (dosearch={}, self.Server={})...\n".format(self.Props.get('expid'), dosearch, self.Server)
             return pagestruct
         self.WikiPage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
         return self.WikiPage

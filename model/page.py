@@ -63,7 +63,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
     """
 
 
-    def __init__(self, pageId, server, pageStruct=None, VERBOSE=0):#, localdir=None, experiment=None):
+    def __init__(self, pageId, server, pagestruct=None, VERBOSE=0):#, localdir=None, experiment=None):
         """
         Experiment and localdir currently not implemented.
         These are mostly intended to provide local-dir-aware config items, e.g. string formats and regexs.
@@ -76,9 +76,12 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         self.VERBOSE = VERBOSE
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
-        self.Struct = pageStruct # Cached struct.
-        if pageStruct is None:
+        self.Struct = pagestruct # Cached struct.
+        if pagestruct is None:
             self.reloadFromServer()
+            print "WikiPage retrieved from server: {}".format(self.Struct)
+        else:
+            print "WikiPage initialized with pagestruct {}".format(pagestruct)
 
 
     def reloadFromServer(self):

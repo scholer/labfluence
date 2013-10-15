@@ -22,6 +22,7 @@ import Tix # Lots of widgets, but tix is not being developed anymore, so only us
 
 from subentrieslistbox import SubentriesListbox
 from shared_ui_utils import HyperLink
+from rspysol import rstkhtml
 
 class ExpJournalFrame(ttk.Frame):
     """
@@ -257,6 +258,8 @@ class JournalViewer(tk.Text):
 
     def update_wiki(self):
         print "JournalViewer.update_wiki() - Not implemented..."
+        self.Experiment.getWikiSubentryXhtml(self)
+
 
     def set_value(self, value):
         #initial_state = self.configure()['state'][4]

@@ -53,16 +53,45 @@ class ExpOverviewFrame(ttk.Frame):
             entry.grid(column=2, row=r)
 
         r = startrow + len(entries) + 1
-        # Subentries:
+        expandrows = list()
+        # Subentries (in Props)
         self.DynamicVariables['subentries'] = var = tk.StringVar()
         self.update_subentries()
         label = ttk.Label(self, text="Experiment subentries:", justify=tk.LEFT)
+        label.grid(column=1, row=r, columnspan=1, sticky="nsew")
+        r += 1
+        label = ttk.Label(self, textvariable=var, justify=tk.LEFT, state='readonly')
+        label.grid(column=1, row=r, columnspan=2, rowspan=2, sticky="nsew")
+        expandrows.append(r)
+        r += 2
+
+        # WikiPage props:
+        self.DynamicVariables['wikipage_struct'] = var = tk.StringVar()
+        self.update_wikipageinfo()
+        label = ttk.Label(self, text="WikiPage struct:", justify=tk.LEFT)
         label.grid(column=1, row=r, columnspan=2, sticky="nsew")
         r += 1
         label = ttk.Label(self, textvariable=var, justify=tk.LEFT, state='readonly')
         label.grid(column=1, row=r, columnspan=2, rowspan=2, sticky="nsew")
+        expandrows.append(r)
+        r += 2
 
         self.update_properties()
+
+
+    def update_wikipageinfo(self):
+        var = self.DynamicVariables['wikipage_struct']
+        expid = self.Experiment.Props.get('expid', "")
+        struct = self.Experiment.WikiPage.Struct #.get('exp_subentries', None)
+        def makevalstr(val):
+            val = "{}".format(val)
+            if len(val) > 50:
+                return val[:50]
+            return val
+        if struct:
+            var.set('\n'.join("- {}: {}".format(k,makevalstr(v)) for k,v in struct.items() ) )
+        else:
+            var.set("{}".format(struct))
 
     def update_subentries(self):
         var = self.DynamicVariables['subentries']
