@@ -48,11 +48,11 @@ class HyperLink(ttk.Label):
         if self.getUrl():
             lbl = event.widget
             lbl.configure(font='hyperlink_active', cursor="hand2")
-        print "entering hyperlink."
+        #print "entering hyperlink."
 
     def on_leave(self, event):
         event.widget.configure(font='hyperlink_inactive', cursor="")
-        print "leaving hyperlink."
+        #print "leaving hyperlink."
 
     def getUrl(self):
         if self.URI:

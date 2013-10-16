@@ -330,6 +330,23 @@ below        source and target become/remain sibling pages and the source is mov
 #                return True
 #        return False
 
+    def getWikiSubentryXhtml(self, subentry, regex_pat):
+        #regex_pat = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
+        if not regex_pat:
+            print "WikiPage.getWikiSubentryXhtml() > No regex pattern found in config, aborting..."
+        regex_prog = re.compile(regex_pat)
+        match = regex_prog.search(self.Struct['content'])
+        if match:
+            gd = match.groupdict()
+            print "matchgroups:"
+            for k in ('subentry_header', 'subentry_xhtml'):
+                print "-'{}': {}".format(k, gd[k])
+            xhtml = "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
+        else:
+            print "WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is:"
+            print self.Struct['content']
+            xhtml = ""
+        return xhtml
 
 
     def getRenderedHTML(self, content=None):

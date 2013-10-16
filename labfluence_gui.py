@@ -400,7 +400,7 @@ if __name__ == '__main__':
         print "\n\nShowing exps: {}".format(exps[0])
         notebook, expid, experiment = labfluencegui.show_notebook(exps[0])
         #notebook.tab(1, state="enabled")
-        notebook.select(2)
+        #notebook.select(2)  ## TAB SELECTION
     else:
         print "\n\nNo active experiments? -- {}".format(exps)
 

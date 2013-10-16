@@ -174,20 +174,20 @@ class tkHTMLWriter(formatter.DumbWriter):
         #    f = string.split(f)
         #    font, size = f[0], int(f[1])
 
-        font, size = "Helvetica", -14
-        fixed = ("Courier", -14)
+        font, size = "Helvetica", -11
+        fixed = ("Courier", -10)
         if os.name == "nt":
-            font, size = "Helvetica", 12
+            font, size = "Helvetica", 11
             fixed = ("Courier New", 10)
 
         sign = 1
         if size < 0: sign = -1
 
         self.fontmap = {
-            "h1"      : (font, size + 12*sign, "bold"),
-            "h2"      : (font, size +  8*sign, "bold"),
-            "h3"      : (font, size +  6*sign, "bold"),
-            "h4"      : (font, size +  4*sign, "bold"),
+            "h1"      : (font, size +  8*sign, "bold"),
+            "h2"      : (font, size +  6*sign, "bold"),
+            "h3"      : (font, size +  4*sign, "bold"),
+            "h4"      : (font, size +  3*sign, "bold"),
             "h5"      : (font, size +  2*sign, "bold"),
             "h6"      : (font, size +  1*sign, "bold"),
             "bold"    : (font, size, "bold"),

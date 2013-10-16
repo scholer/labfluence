@@ -267,9 +267,9 @@ class JournalViewer(tk.Text):
         Sets the value of the text widget to the journal-assistant cache for the currently selected subentry:
         """
         print "JournalViewer.update_wiki() - Not implemented..."
-        #html = self.Experiment.getWikiSubentryXhtml(self)
-        html = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
-        print 'self["font"] is: {}'.format(self["font"])
+        html = self.Experiment.getWikiSubentryXhtml()
+        #html = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
+        #print 'self["font"] is: {}'.format(self["font"])
         print "html is:"
         print html
 
@@ -277,6 +277,10 @@ class JournalViewer(tk.Text):
         self.config(state="normal")
         self.delete("1.0", "end")
         self.update_idletasks()
+
+        if not html:
+            print "No html, aborting..."
+            return
 
         # Write the html to the text widget:
         writer = tkHTMLWriter(self)

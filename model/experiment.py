@@ -172,6 +172,8 @@ class Experiment(object):
         #self.loadFileshistory()
         if not self.WikiPage:
             wikipage = self.attachWikiPage(dosearch=doserversearch)
+        if self.WikiPage and self.WikiPage.Struct:
+            self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
         self.JournalAssistant = JournalAssistant(self)
         if self.VERBOSE:
             print "Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props)
@@ -749,6 +751,41 @@ class Experiment(object):
     STUFF RELATED TO WIKI PAGE HANDLING
     """
 
+    def getWikiSubentryXhtml(self, subentry=None):
+        if subentry is None:
+            subentry = getattr(self.JournalAssistant, 'Current_subentry_idx', None)
+        if not subentry:
+            print "\nExperiment.getWikiSubentryXhtml() > No subentry provided, aborting...\n"
+            return None
+        #xhtml = self.WikiPage.getWikiSubentryXhtml(subentry)
+        regex_pat_fmt = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
+        fmt_params = self.makeFormattingParams(subentry_idx=subentry)
+        regex_pat = regex_pat_fmt.format(**fmt_params)
+        if not regex_pat:
+            print "\nExperiment.getWikiSubentryXhtml() > No regex pattern found in config, aborting...\n"
+            return
+        if not self.WikiPage or not self.WikiPage.Struct:
+            print "\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting..."
+            print "-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage)
+            return
+        content = self.WikiPage.Struct['content']
+        regex_prog = re.compile(regex_pat, flags=re.DOTALL)
+        match = regex_prog.search(content)
+        if match:
+            gd = match.groupdict()
+            #print "matchgroups:"
+            #for k in ('subentry_header', 'subentry_xhtml'):
+            #    print "-'{}': {}".format(k, gd[k])
+            return "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
+        else:
+            print "\nWikiPage.getWikiSubentryXhtml() > No match found?"
+            print "regex_pat_fmt: {}".format(regex_pat_fmt)
+            #print "fmt_params: {}".format(fmt_params)
+            print "regex_pat: {}".format(regex_pat)
+            print "len(self.WikiPage.Struct['content']) is: {}".format(len(self.WikiPage.Struct['content']))
+            return None
+
+
     def attachWikiPage(self, pageId=None, pagestruct=None, dosearch=False):
         if pageId is None:
             if pagestruct and 'id' in pagestruct:
@@ -1152,7 +1189,6 @@ if __name__ == '__main__':
         print e.getSubentryRepr(subentry_idx='z', default='What, no z?')
         print "e.getSubentryRepr(subentry_idx='z', default='exp'):"
         print e.getSubentryRepr(subentry_idx='z', default='exp')
-
         print "e.getSubentryRepr(subentry_idx=None, default='exp'):"
         print e.getSubentryRepr(subentry_idx=None, default='exp')
         print "e.getSubentryRepr(default='exp'):"
@@ -1164,6 +1200,23 @@ if __name__ == '__main__':
         print "<<<<<<<<<<<<<< test_getRepr() finished <<<<<<<<<<<<"
 
 
+
+    def test_getWikiSubentryXhtml(e=None):
+        print "\n>>>>>>>>>>>>>> test_getWikiSubentryXhtml() started >>>>>>>>>>>>>"
+        if not e:
+            e = setup1(useserver=True)
+            e.attachWikiPage()
+        print "\n\n"
+        print e.Server
+        for s in ('a',):#'b','c','e'):
+            print "\nFor subentry '{}':".format(s)
+            e.getWikiSubentryXhtml(s)
+        #print "\nInvoked without subentry:"
+        #e.getWikiSubentryXhtml()
+
+
+
+        print "<<<<<<<<<<<<<< test_getWikiSubentryXhtml() finished <<<<<<<<<<<<"
 
 
     print "\n\n---------------- STARTING EXPERIMENT.PY MAIN TESTS --------------\n\n"
@@ -1195,7 +1248,8 @@ if __name__ == '__main__':
 #    print "\n------------finished test_makeNewWikiSubentry() ----------------------\n"
 
     #e = None
-    e = test_getRepr()
+    #e = test_getRepr()
+    e = test_getWikiSubentryXhtml()
     print "\n\n"
     print e
 

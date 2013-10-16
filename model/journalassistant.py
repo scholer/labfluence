@@ -47,7 +47,7 @@ class JournalAssistant(object):
         self.JournalFilenameFmt = "{subentry_idx}_journal.txt"
         self.JournalFlushBackup = "{subentry_idx}_journal.flushed.bak"
         self.JournalFlushXhtml = "{subentry_idx}_journal.flushed.xhtml"
-        self.Current_subentry_idx = None # This could also just be the self.Experiments.Subentries subentry dict directly...?
+        self.Current_subentry_idx = None # This could also just be the self.Experiments.Subentries subentry dict directly...? Nah, it is actually good to have for reference.
         self.AppendAtEndIfNoTokenFound = False
 
 
