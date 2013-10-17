@@ -23,6 +23,8 @@ import Tix # Lots of widgets, but tix is not being developed anymore, so only us
 from expoverviewframe import ExpOverviewFrame
 from expfilemanagerframe import ExpFilemanagerFrame
 from expjournalframe import ExpJournalFrame
+from expwikipageframe import ExpWikipageFrame
+from expsatellitelocationsframe import ExpSatellitelocationsFrame
 
 
 class BackgroundFrame(tk.Frame):
@@ -65,10 +67,14 @@ class ExpNotebook(ttk.Notebook):
         self.overviewframe = ExpOverviewFrame(self, experiment, confighandler)
         self.filemanagerframe = ExpFilemanagerFrame(self, experiment, confighandler)
         self.journalframe = ExpJournalFrame(self, experiment, confighandler)
+        self.wikipageframe = ExpWikipageFrame(self, experiment, confighandler)
+        self.satellitesframe = ExpSatellitelocationsFrame(self, experiment, confighandler)
         # Adding tabs (pages) to notebook
         self.add(self.overviewframe, text="Overview", sticky="nesw", underline=0)
         self.add(self.filemanagerframe, text="File management", sticky="nesw", underline=0)
         self.add(self.journalframe, text="Journal assistent", sticky="nesw", underline=0)
+        self.add(self.wikipageframe, text="Wiki page", sticky="nesw", underline=0)
+        self.add(self.satellitesframe, text="Satellite locations", sticky="nesw", underline=0)
         self.enable_traversal()
 
     def update_info(self):

@@ -751,6 +751,15 @@ class Experiment(object):
     STUFF RELATED TO WIKI PAGE HANDLING
     """
 
+    def getWikiXhtml(self, ):
+        if not self.WikiPage or not self.WikiPage.Struct:
+            print "\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting..."
+            print "-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage)
+            return
+        content = self.WikiPage.Struct['content']
+        return content
+
+
     def getWikiSubentryXhtml(self, subentry=None):
         if subentry is None:
             subentry = getattr(self.JournalAssistant, 'Current_subentry_idx', None)

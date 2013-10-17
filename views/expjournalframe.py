@@ -179,7 +179,7 @@ class ExpJournalFrame(ttk.Frame):
 
     def update_wikiview(self):
         print "Not implemented"
-        self.journalwiki_view.update_wiki()
+        self.journalwiki_view.update_wiki_subentry()
 
     def update_cacheview(self):
         # Label-like view with variable:
@@ -281,11 +281,15 @@ class JournalViewer(ttk.Frame):
         cache = self.JA.getCacheContent()
         self.set_value(cache)
 
-    def update_wiki(self):
+    def update_wiki_xhtml(self, ):
+        xhtml = self.Experiment.getWikiXhtml()
+        self.set_value(xhtml)
+
+
+    def update_wiki_subentry(self):
         """
         Sets the value of the text widget to the journal-assistant cache for the currently selected subentry:
         """
-        print "JournalViewer.update_wiki() - Not implemented..."
         html = self.Experiment.getWikiSubentryXhtml()
         #html = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
         #print 'self["font"] is: {}'.format(self["font"])
