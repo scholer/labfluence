@@ -4,6 +4,3 @@ syntax: glob
 *.bak
 code-examples-from-others/*
 *.yml
-third-party/*
-*/test-data/*
-*.komodoproject

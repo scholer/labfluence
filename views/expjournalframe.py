@@ -65,8 +65,8 @@ class ExpJournalFrame(ttk.Frame):
         self.subentries_listbox = SubentriesListbox(self.controlframe, self.Experiment, self.Confighandler)
         #self.journalwiki_view = tk.Text(self.journalwikiframe, state='disabled', height=14)
         #self.journalcache_view = tk.Text(self.journalcacheframe, state='disabled', height=10)
-        self.journalwiki_view  = JournalViewer(self.journalwikiframe, self.Experiment, state='disabled', height=10)
-        self.journalcache_view = JournalViewer(self.journalcacheframe, self.Experiment, state='disabled', height=10)
+        self.journalwiki_view  = JournalViewer(self.journalwikiframe, self.Experiment, height=10)
+        self.journalcache_view = JournalViewer(self.journalcacheframe, self.Experiment, height=10)
         #viewprops = dict(state='normal', bg='white', justify=tk.LEFT)
         #self.journalwiki_view = tk.Label(self.journalwikiframe, height=10, textvariable=self.Variables['wiki'], **viewprops)
         #self.journalcache_view = tk.Label(self.journalcacheframe, height=10, textvariable=self.Variables['cache'], **viewprops)
@@ -89,15 +89,17 @@ class ExpJournalFrame(ttk.Frame):
         self.flushall_btn = ttk.Button(self.controlframe, text="Flush cache for all subentries", command=self.flushallcaches)
 
         # Other option input:
-        self.autoflushall_chkbtn = ttk.Checkbutton(self.controlframe, text="Autoflush every x mins:",
+        self.autoflush_frame = ttk.Frame(self.controlframe)
+        self.autoflushall_chkbtn = ttk.Checkbutton(self.autoflush_frame, text="Autoflush every ",
                                                    command=self.autoflush_reset, variable=self.Boolvars['autoflush'])
-        self.autoflushinterval_spinbox = tk.Spinbox(self.controlframe, from_=3, to=120, width=3,
+        self.autoflushinterval_spinbox = tk.Spinbox(self.autoflush_frame, from_=3, to=120, width=3,
                                                     command=self.autoflush_reset, textvariable=self.Variables['autoflush_interval'])
+        self.autoflushinterval_lbl = ttk.Label(self.autoflush_frame, text=" minutes")
         #self.autoflushinterval_spinbox.configure()
 
-        # scrollbars:
-        self.journalwiki_scrollbar = ttk.Scrollbar(self.journalwikiframe)
-        self.journalcache_scrollbar = ttk.Scrollbar(self.journalcacheframe)
+        ## scrollbars:
+        #self.journalwiki_scrollbar = ttk.Scrollbar(self.journalwikiframe)
+        #self.journalcache_scrollbar = ttk.Scrollbar(self.journalcacheframe)
 
 
     def init_layout(self):
@@ -131,14 +133,18 @@ class ExpJournalFrame(ttk.Frame):
         self.subentries_header.grid(row=1, column=1, sticky="nw")
         self.subentries_listbox.grid(row=3, column=1, sticky="news")
         self.flushall_btn.grid(row=4, column=1, sticky="nwe")
+        self.autoflush_frame.grid(row=6, column=1, sticky="w")
+        # These are in self.autoflush_frame:
         self.autoflushall_chkbtn.grid(row=6, column=1, sticky="w")
-        self.autoflushinterval_spinbox.grid(row=6, column=1, sticky="e")
+        self.autoflushinterval_spinbox.grid(row=6, column=2, sticky="w")
+        self.autoflushinterval_lbl.grid(row=6, column=3, sticky="w")
+
 
         # wiki-frame widgets:
         self.wikiview_header.grid(row=0, column=1, sticky="nw")
         self.wikiview_description.grid(row=0, column=2)
         self.journalwiki_view.grid(row=1, column=1, columnspan=3, sticky="nesw")
-        self.journalwiki_scrollbar.grid(row=1, column=4, sticky="nes")
+        #self.journalwiki_scrollbar.grid(row=1, column=4, sticky="nes")
 
         # cache-controls frame widgets:
         self.cacheview_header.grid(row=1, column=1)
@@ -146,7 +152,7 @@ class ExpJournalFrame(ttk.Frame):
 
         # cacheframe widgets:
         self.journalcache_view.grid(row=1, column=1, sticky="nesw")
-        self.journalcache_scrollbar.grid(row=1, column=2, sticky="nes")
+        #self.journalcache_scrollbar.grid(row=1, column=2, sticky="nes")
 
         # Journalentry widgets:
         self.journalentry_input.grid(row=1, column=1, sticky="nsew")
@@ -154,10 +160,10 @@ class ExpJournalFrame(ttk.Frame):
 
     def init_bindings(self):
         # Cross-widget dependencies/bindings:
-        self.journalwiki_view.config(yscrollcommand=self.journalwiki_scrollbar.set)
-        self.journalwiki_scrollbar.config(command=self.journalwiki_view.yview)
-        self.journalcache_view.config(yscrollcommand=self.journalcache_scrollbar.set)
-        self.journalcache_scrollbar.config(command=self.journalcache_view.yview)
+        #self.journalwiki_view.config(yscrollcommand=self.journalwiki_scrollbar.set)
+        #self.journalwiki_scrollbar.config(command=self.journalwiki_view.yview)
+        #self.journalcache_view.config(yscrollcommand=self.journalcache_scrollbar.set)
+        #self.journalcache_scrollbar.config(command=self.journalcache_view.yview)
 
         # Input / keypresses:
         self.subentries_listbox.bind('<<ListboxSelect>>', self.on_subentry_select)
@@ -244,15 +250,28 @@ class ExpJournalFrame(ttk.Frame):
         self.Confighandler.setkey('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
 
 
-class JournalViewer(tk.Text):
+class JournalViewer(ttk.Frame):
 
-    def __init__(self, parent, experiment, scrollbar=None, **options):
+    def __init__(self, parent, experiment, scrollbar=None, frameopts=dict(), **options):
         opts = dict(state='disabled', width=60)
         opts.update(options)
-        tk.Text.__init__(self, parent, **opts)
+        ttk.Frame.__init__(self, parent, **frameopts)
+        self.text = tk.Text(self, **opts)
         self.Experiment = experiment
         self.JA = experiment.JournalAssistant
         self.Parent = parent
+        # Uh, no. mega-widgets should always derive from ttk.Frame and not other widgets.
+        self.scrollbar = ttk.Scrollbar(self)
+        self.text.config(yscrollcommand=self.scrollbar.set)
+        self.text.config(state='disabled')
+        self.scrollbar.config(command=self.text.yview)
+        self.init_layout()
+
+    def init_layout(self):
+        self.text.grid(row=1, column=1, sticky="nesw")
+        self.scrollbar.grid(row=1, column=2, sticky="nesw")
+        self.columnconfigure(1, weight=1)
+        self.rowconfigure(1, weight=1)
 
 
     def update_cache(self):
@@ -274,31 +293,32 @@ class JournalViewer(tk.Text):
         print html
 
         # prepare the text widget:
-        self.config(state="normal")
-        self.delete("1.0", "end")
-        self.update_idletasks()
+        self.text.config(state="normal")
+        self.text.delete("1.0", "end")
+        self.text.update_idletasks()
 
         if not html:
             print "No html, aborting..."
+            self.text.config(state="disabled")
             return
 
         # Write the html to the text widget:
-        writer = tkHTMLWriter(self)
+        writer = tkHTMLWriter(self.text)
         fmt = formatter.AbstractFormatter(writer)
         parser = tkHTMLParser(fmt)
         parser.feed(html)
         parser.close()
 
-        self.config(state="disabled")
+        self.text.config(state="disabled")
 
 
     def set_value(self, value):
         #initial_state = self.configure()['state'][4]
-        initial_state = self.cget('state')
-        self.configure(state='normal')
-        if self.get('1.0', tk.END):
-            self.delete('1.0', tk.END)
+        initial_state = self.text.cget('state')
+        self.text.configure(state='normal')
+        if self.text.get('1.0', tk.END):
+            self.text.delete('1.0', tk.END)
         if value:
-            self.insert('1.0', value)
-        self.configure(state='disabled')
-        self.see(tk.END)
+            self.text.insert('1.0', value)
+        self.text.configure(state='disabled')
+        self.text.see(tk.END)

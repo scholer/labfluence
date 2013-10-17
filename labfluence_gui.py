@@ -33,6 +33,7 @@ from views.expnotebook import ExpNotebook, BackgroundFrame
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 from controllers.filemanagercontroller import ExpFilemanagerController
 from ui.fontmanager import FontManager
+import socket
 
 class LabfluenceGUI(object):
     """
@@ -368,8 +369,11 @@ def find_configs():
 if __name__ == '__main__':
 
     confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=0)
-    server = ConfluenceXmlRpcServer(autologin=True, prompt='auto', ui=None, confighandler=confighandler, VERBOSE=0)
-    confighandler.Singletons['server'] = server
+    try:
+        server = ConfluenceXmlRpcServer(autologin=True, prompt='auto', ui=None, confighandler=confighandler, VERBOSE=0)
+        confighandler.Singletons['server'] = server
+    except socket.error:
+        server = None
     manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ), VERBOSE=0)
     confighandler.Singletons['experimentmanager'] = manager
 
@@ -400,7 +404,7 @@ if __name__ == '__main__':
         print "\n\nShowing exps: {}".format(exps[0])
         notebook, expid, experiment = labfluencegui.show_notebook(exps[0])
         #notebook.tab(1, state="enabled")
-        #notebook.select(2)  ## TAB SELECTION
+        #notebook.select(2)
     else:
         print "\n\nNo active experiments? -- {}".format(exps)
 

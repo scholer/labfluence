@@ -109,7 +109,7 @@ class MfxScrolledText(Tkinter.Text):
                 del cnf[k]
         if cnf.has_key("bg"):
             fcnf["bg"] = cnf["bg"]
-        self.frame = apply(Tkinter.Frame, (parent,), fcnf)
+        self.frame = apply(Tkinter.Frame, (parent,), fcnf) # apply is deprechated Python build-in.
         self.vbar = Tkinter.Scrollbar(self.frame, name="vbar")
         self.vbar.pack(side=Tkinter.RIGHT, fill=Tkinter.Y)
         cnf["name"] = "text"
