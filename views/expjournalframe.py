@@ -73,8 +73,8 @@ class ExpJournalFrame(ExpFrame):
         self.subentries_listbox = SubentriesListbox(self.controlframe, self.Experiment)
         #self.journalwiki_view = tk.Text(self.journalwikiframe, state='disabled', height=14)
         #self.journalcache_view = tk.Text(self.journalcacheframe, state='disabled', height=10)
-        self.journalwiki_view  = JournalViewer(self.journalwikiframe, self.Experiment, height=10)
-        self.journalcache_view = JournalViewer(self.journalcacheframe, self.Experiment, height=10)
+        self.journalwiki_view  = JournalViewer(self.journalwikiframe, self.Experiment, textopts=dict(height=10, width=60) )
+        self.journalcache_view = JournalViewer(self.journalcacheframe, self.Experiment, textopts=dict(height=6, width=60) )
         #viewprops = dict(state='normal', bg='white', justify=tk.LEFT)
         #self.journalwiki_view = tk.Label(self.journalwikiframe, height=10, textvariable=self.Variables['wiki'], **viewprops)
         #self.journalcache_view = tk.Label(self.journalcacheframe, height=10, textvariable=self.Variables['cache'], **viewprops)
@@ -274,7 +274,7 @@ class JournalViewer(ExpFrame):
     #    # Uh, no. mega-widgets should always derive from ttk.Frame and not other widgets.
 
     def before_init(self, kwargs):
-        textopts = dict(state='disabled', width=60)
+        textopts = dict(state='disabled')#, width=60)
         textopts.update(kwargs.pop('textopts', dict()))
         self.Textoptions = textopts
 
@@ -285,7 +285,7 @@ class JournalViewer(ExpFrame):
     #    pass
 
     def init_widgets(self):
-        self.text = tk.Text(self, self.Textoptions)
+        self.text = tk.Text(self, **self.Textoptions)
         self.scrollbar = ttk.Scrollbar(self)
         self.text.config(yscrollcommand=self.scrollbar.set)
         self.text.config(state='disabled')

@@ -55,6 +55,7 @@ class LabfluenceGUI(object):
             print "LabfluenceGUI.__init__ >> Instantiating new ExperimentManager!"
             self.Confighandler.Singletons['experimentmanager'] = ExperimentManager(confighandler=self.Confighandler, autoinit=('localexps', ), VERBOSE=self.VERBOSE)
         self.init_ui()
+        self.init_bindings()
         self.init_fonts()
         self.connect_controllers()
         self.Controllers = dict()
@@ -68,7 +69,7 @@ class LabfluenceGUI(object):
                 self.tkroot.geometry(persisted_windowgeometry)
             except tk.TclError as e:
                 print e
-
+        self.update_widgets()
 
 
     # Properties, http://docs.python.org/2/library/functions.html#property
@@ -172,14 +173,20 @@ class LabfluenceGUI(object):
 
         self.mainframe = ttk.Frame(self.tkroot, padding="3 3 3 3") #"3 3 12 12"
         self.leftframe = ttk.Frame(self.mainframe)
+        self.controlsframe = ttk.Frame(self.leftframe)
+        self.home_btn = tk.Button(self.controlsframe, text="Home", command=self.showHome)
+        self.serverstatus_btn = tk.Button(self.controlsframe, text="(offline)", command=self.serverStatus)
+
+
         self.activeexps_frame = ttk.Frame(self.leftframe)
-        self.activeexps_list = tk.Listbox(self.activeexps_frame, height=16, activestyle='dotbox')
+        self.activeexps_label = ttk.Label(self.activeexps_frame, text="Active experiments:")
         self.activeexps_select_btn = ttk.Button(self.activeexps_frame, text="Select...", command=self.selectExperiments)
         self.activeexps_new_btn = ttk.Button(self.activeexps_frame, text="Create...", command=self.createNewExperiment)
         # you do not strictly need to be able to reference this from self.
-        self.activeexps_label = ttk.Label(self.activeexps_frame, text="Active experiments:")
-        self.recentexps_frame = ttk.Frame(self.leftframe)
+        self.activeexps_list = tk.Listbox(self.activeexps_frame, height=16, activestyle='dotbox')
+
         # Recent experiments widgets
+        self.recentexps_frame = ttk.Frame(self.leftframe)
         self.recentexps_list = tk.Listbox(self.recentexps_frame, height=10, width=30)
         self.recentexps_label = ttk.Label(self.recentexps_frame, text="Recent experiments:")
         # Question: Have only _one_ notebook which is updated when a new experiment is selected/loaded?
@@ -195,19 +202,25 @@ class LabfluenceGUI(object):
         self.mainframe.columnconfigure(1, weight=5, minsize=500) # rightframe expands 5x more than leftframe
         self.mainframe.rowconfigure(1, weight=1) # expand row 1
 
-        ######################
-        #### LEFT FRAME ######
-        ######################
+
+        #############################
+        #### LEFT FRAME layout ######
+        #############################
         self.leftframe.grid(column=0, row=1, sticky="nsew") # position leftframe in column 0, row 1 in the outer (mainframe) widget.
         self.leftframe.columnconfigure(0, weight=1)
-        self.leftframe.rowconfigure(0, weight=1) # distribute space evently between row 0 and row 1
-        self.leftframe.rowconfigure(1, weight=1)
+        self.leftframe.rowconfigure((2,3), weight=1) # distribute space evently between row 0 and row 1
+
+        #### CONTROLS layout   ###
+        # Not specifying "row" in grid will use the next empty row; column defaults to 0
+        self.controlsframe.grid(row=1, sticky="nesw")
+        self.home_btn.grid(row=1, column=1)
+        self.serverstatus_btn.grid(row=1, column=2)
 
         # Active experiments frame
-        self.activeexps_frame.grid(column=0, row=0, sticky="nesw")
+        self.activeexps_frame.grid(row=2, sticky="nesw")
         self.activeexps_frame.rowconfigure(5, weight=1) # make the 5th row expand.
         self.activeexps_frame.columnconfigure(3, weight=2)
-        self.activeexps_frame.columnconfigure(0, weight=0)
+        #self.activeexps_frame.columnconfigure(0, weight=0)
         # Active experiments widgets
         #self.activeexps_list.bind('<<ListboxSelect>>', self.show_notebook ) # Will throw the event to the show_notebook
         # Active experiments widgets layout:
@@ -217,7 +230,7 @@ class LabfluenceGUI(object):
         self.activeexps_list.grid(column=0, row=5, columnspan=4, sticky="nesw")
 
         # Recent experiment frame
-        self.recentexps_frame.grid(column=0, row=1, sticky="nesw")
+        self.recentexps_frame.grid(row=3, sticky="nesw")
         self.recentexps_frame.rowconfigure(5, weight=1) # make the 5th row expand.
         self.recentexps_frame.columnconfigure(1, weight=1) # make the 5th row expand.
         # Recent experiments widgets layout:
@@ -239,6 +252,11 @@ class LabfluenceGUI(object):
         self.rightframe.rowconfigure(1, weight=1, minsize=600)
         #self.add_notebook()
 
+    def init_bindings(self):
+        self.Confighandler.registerEntryChangeCallback("wiki_server_status", self.serverStatusChange)
+
+    def update_widgets(self):
+        self.serverStatusChange()
 
     def add_notebook(self, experiment):
         #self.notebook = ttk.Notebook(self.rightframe)
@@ -312,19 +330,36 @@ class LabfluenceGUI(object):
         menu_file.add_command(label='Exit', command=self.exitApp)
 
 
+    #############################
+    #### Callback methods  ######
+    #############################
 
-    def activeexps_contextmenu(self):
+    def activeexps_contextmenu(self, event):
         menu = tk.Menu(self.tkroot)
         menu.add_command(label='Close experiment')
         menu.add_command(label='Mark as complete')
         menu.add_command(label='Close & mark complete')
 
 
+    def showHome(self, event):
+        pass
+    def serverStatus(self, event):
+        pass
+    def serverStatusChange(self):
+        server = self.Confighandler.Singletons.get('server')
+        print "\n\n\nSERVER: {}\n".format(server)
+        if server:
+            self.serverstatus_btn.configure(background="green", text="Online")
+            print "Server reported to be online :-)"
+        else:
+            self.serverstatus_btn.configure(background="red", text="(offline)")
+            print "Server reported to be offline :-("
 
-    def createNewExperiment(self):
+
+    def createNewExperiment(self, event):
         print "Not implemented yet..."
 
-    def selectExperiments(self):
+    def selectExperiments(self, event):
         #print "Not implemented yet..."
         experiment_selector_window = tk.Toplevel(self.tkroot)
 

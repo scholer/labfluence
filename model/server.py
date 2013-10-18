@@ -151,10 +151,15 @@ class AbstractServer(object):
     def __nonzero__(self):
         return bool(self._connectionok)
 
-    #def setok(self):
-    #    self._connectionok = True
-    #def notok(self):
-    #    self._connectionok = False
+    def setok(self):
+        if not self._connectionok:
+            self._connectionok = True
+            self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
+    def notok(self):
+        if self._connectionok:
+            self._connectionok = False
+            self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
+
 
     def execute(self, function, *args):
         """
@@ -165,10 +170,10 @@ class AbstractServer(object):
         """
         try:
             ret = function(*args)
-            self._connectionok = True
+            self.setok()
             return ret
         except socket.error as e:
-            self._connectionok = False
+            self.notok()
             if self.RaiseTimeoutErrors:
                 raise e
 
