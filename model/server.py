@@ -42,6 +42,10 @@ def error_out(error_message):
     exit()
 
 class AbstractServer(object):
+    """
+    To test if server is connected, just use "if server".
+    (To test whether server is was not initialized, use the more specific "if server is None")
+    """
     def __init__(self, serverparams=None, username=None, password=None, logintoken=None,
                  confighandler=None, VERBOSE=0):
         """
@@ -50,11 +54,14 @@ class AbstractServer(object):
         """
         self.VERBOSE = VERBOSE
         #dict(host=None, url=None, port=None, protocol=None, urlpostfix=None)
-        self._defaultparams = dict(host="localhost", port='80', protocol='http', urlpostfix='/rpc/xmlrpc', username='', logintoken='')
+        self._defaultparams = dict(host="localhost", port='80', protocol='http',
+                                   urlpostfix='/rpc/xmlrpc', username='', logintoken='',
+                                   raisetimeouterrors=False)
         self._serverparams = serverparams
         self._username = username
         self._password = password
         self._logintoken = logintoken
+        self._connectionok = None # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
         self.Confighandler = confighandler
        ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
         ## It is nice, but not sure why this was so important, though...
@@ -82,21 +89,25 @@ class AbstractServer(object):
         params.update(config_params)
         params.update(runtime_params)
         return params
+
     def configs_iterator(self):
         yield ('runtime params', self._serverparams)
         yield ('config params', self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
                     or self.Confighandler.get('serverparams', dict()) )
         yield ('hardcoded defaults', self._defaultparams)
 
-    def getServerParam(self, key):
+    def getServerParam(self, key, default=None):
         configs = self.configs_iterator()
         for desc, cfg in configs:
             if cfg and key in cfg: # runtime-params
                 print "Returning {} from {}[{}]".format(cfg[key], desc, key)
                 return cfg[key]
         print "param '{}' not found, returning None.".format(key)
-        return None
+        return default
 
+    @property
+    def RaiseTimeoutErrors(self):
+        return self.getServerParam('raisetimeouterrors', True)
     @property
     def Hostname(self):
         return self.getServerParam('hostname')
@@ -137,6 +148,29 @@ class AbstractServer(object):
         else:
             return None
 
+    def __nonzero__(self):
+        return bool(self._connectionok)
+
+    #def setok(self):
+    #    self._connectionok = True
+    #def notok(self):
+    #    self._connectionok = False
+
+    def execute(self, function, *args):
+        """
+        Executes a server method, setting self._connectionok on suceed and fail on error.
+        If the server connection fails and raisetimeouterrors is set to true,
+        a socket.error will be raised. Otherwise, this will return None.
+        (Which might be hard to check...)
+        """
+        try:
+            ret = function(*args)
+            self._connectionok = True
+            return ret
+        except socket.error as e:
+            self._connectionok = False
+            if self.RaiseTimeoutErrors:
+                raise e
 
     def getToken(self, token_crypt=None):
         if token_crypt is None:
@@ -252,21 +286,24 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
             print "WARNING: Server's AppUrl is '{}'".format(appurl)
             return None
         self.RpcServer = xmlrpclib.Server(appurl)
-        # I intend to do something like if prompt='never'/'auto'/'force'
-        if prompt in ('force', ):
-            self.login(prompt=True)
-        elif autologin:
-            if self._logintoken and self.test_token(self._logintoken, doset=True):
-                print 'Connected to server using provided login token...'
-            elif self.Username and self.Password and self.login(doset=True):
-                # Providing a plain-text password should generally not be used;
-                # there is really no need for a password other than for login, only store the token.
-                print 'Connected to server using provided username and password...'
-            elif self.find_and_test_tokens(doset=True):
-                print 'Token found by magic, login ok...'
-            elif prompt in ('auto'):
+        socket.setdefaulttimeout(1.0) # without this there is no timeout, and this may block the requests
+        try:
+            # I intend to do something like if prompt='never'/'auto'/'force'
+            if prompt in ('force', ):
                 self.login(prompt=True)
-
+            elif autologin:
+                if self._logintoken and self.test_token(self._logintoken, doset=True):
+                    print 'Connected to server using provided login token...'
+                elif self.Username and self.Password and self.login(doset=True):
+                    # Providing a plain-text password should generally not be used;
+                    # there is really no need for a password other than for login, only store the token.
+                    print 'Connected to server using provided username and password...'
+                elif self.find_and_test_tokens(doset=True):
+                    print 'Token found by magic, login ok...'
+                elif prompt in ('auto'):
+                    self.login(prompt=True)
+        except socket.error as e:
+            print "Server > Unable to login, probably timeout: {}".format(e)
 
     def find_and_test_tokens(self, doset=False):
         """
@@ -306,7 +343,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
                 self.Logintoken = logintoken
             return True
         except xmlrpclib.Fault as err:
-            print "ConfluenceXmlRpcServer.test_token() : tested token did not work; {}: {}".format( err.faultCode, err.faultString)
+            print "ConfluenceXmlRpcServer.test_token() : tested token '{}' did not work; {}: {}".format( logintoken, err.faultCode, err.faultString)
             return False
 
     def login(self, username=None, password=None, logintoken=None, doset=True,
@@ -321,9 +358,10 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         if not (username and password):
             print "ConfluenceXmlRpcServer.login() :: Username and password are boolean False; aborting..."
             return
-        socket.setdefaulttimeout(120) # without this there is no timeout, and this may block the requests
         try:
+            print "Attempting server login with username: {}".format(username)
             token = self._login(username,password)
+            self._connectionok = True
             if doset:
                 self.Logintoken = token
             if dopersist:
@@ -332,6 +370,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
                 print "Logged in as '{}', received token '{}'".format(username, token)
         except xmlrpclib.Fault as err:
             err_msg = "Login error: {}: {}".format( err.faultCode, err.faultString)
+            self._connectionok = False
             #print "%d: %s" % ( err.faultCode, err.faultString)
             print err_msg
             if prompt and retry:
@@ -350,7 +389,8 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         Returns a login token.
         Raises xmlrpclib.Fauls on auth error/failure.
         """
-        return self.RpcServer.confluence2.login(username,password)
+        return self.execute(self.RpcServer.confluence2.login, username, password)
+        #return self.RpcServer.confluence2.login(username,password)
 
     def logout(self, token=None):
         """
@@ -687,8 +727,8 @@ contributor:
     #### Easier assist methods   #######
     ####################################
 
-    def getPageAttachments(self, pageId):
-        return self.getAttachments(self.Logintoken, pageId)
+    #def getPageAttachments(self, pageId):
+    #    return self.getAttachments(self.Logintoken, pageId)
 
 
 

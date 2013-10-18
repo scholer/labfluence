@@ -222,12 +222,10 @@ class Experiment(object):
         return self._attachments_cache
 
     @property
-    def Server(self, ):
-        #print "self._server: {}".format(self._server)
-        #print "self.Confighandler.Singletons: {}".format(self.Confighandler.Singletons)
-        return self._server or self.Confighandler.Singletons.get('server')
+    def Server(self):
+        return self._server or self.Confighandler.Singletons.get('server', None)
     @property
-    def Manager(self, ):
+    def Manager(self):
         return self._manager or self.Confighandler.Singletons.get('manager')
 
 
@@ -868,7 +866,13 @@ class Experiment(object):
         """
         Todo: allow for 'required' and 'optional' arguments.
         """
-        results = self.Server.search(query, 10, parameters)
+        server = self.Server
+        if not server:
+            # Server might be None or a server instance with attribute _connectionok value of either
+            # of 'None' (not tested) or False (last connection failed) or True (last connection succeeded).
+            print "searchForWikiPageWithQuery() > Server is None or not connected, aborting."
+            return
+        results = server.search(query, 10, parameters)
         if intitle:
             results = filter(lambda page: intitle in page['title'], results)
         if not singleMatchOnly:

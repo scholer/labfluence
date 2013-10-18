@@ -3,4 +3,7 @@ syntax: glob
 *~
 *.bak
 code-examples-from-others/*
+third-party/*
+projectfiles/*
+*/test-data/*
 *.yml

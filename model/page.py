@@ -141,6 +141,11 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         The parentId field is always optional. All other fields will be ignored.
         Note: the return value can be null, if an error that did not throw an exception occurred.
         """
+        if not self.Server:
+            # Server might be None or a server instance with attribute _connectionok value of either
+            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
+            print "WikiPage.updatePage() > Server is None or not connected, aborting..."
+            return
         if struct_from == 'server':
             if not self.reloadFromServer():
                 print "Could not retrieve updated version from server, aborting..."
@@ -189,6 +194,11 @@ below        source and target become/remain sibling pages and the source is mov
 #        if page_struct:
 #            print "Page moved to parent page: {}".format(parentId)
 #            self.Struct = page_struct
+        if not self.Server:
+            # Server might be None or a server instance with attribute _connectionok value of either
+            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
+            print "WikiPage.updatePage() > Server is None or not connected, aborting..."
+            return
         self.Server.movePage(self.PageId, targetPageId, position=position)
         return page_struct
 
@@ -350,6 +360,11 @@ below        source and target become/remain sibling pages and the source is mov
 
 
     def getRenderedHTML(self, content=None):
+        if not self.Server:
+            # Server might be None or a server instance with attribute _connectionok value of either
+            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
+            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            return
         if content:
             html = self.Server.renderContent(self.PageId, content)
         else:
@@ -370,6 +385,11 @@ below        source and target become/remain sibling pages and the source is mov
         - url (string)
         """
         if not self.Server:
+            # Server might be None or a server instance with attribute _connectionok value of either
+            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
+            print "WikiPage.getAttachmentInfo() > Server is None or not connected, aborting..."
+            return
+        if not self.Server:
             print "Page {} has no server object attached; aborting {} operation...".format(self, 'getMethodData')
             return
         info = self.Server.getAttachment(self.PageId, filename, versionNumber)
@@ -377,7 +397,9 @@ below        source and target become/remain sibling pages and the source is mov
 
     def getAttachmentData(self, fileName, versionNumber=0):
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getMethodData')
+            # Server might be None or a server instance with attribute _connectionok value of either
+            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
+            print "WikiPage.getAttachmentData() > Server is None or not connected, aborting..."
             return
         data = self.Server.getAttachmentData(self.PageId, filename, versionNumber)
         return data
@@ -387,7 +409,9 @@ below        source and target become/remain sibling pages and the source is mov
         attachmentInfo dict must include fields 'comment', 'contentType', 'fileName'
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getMethodData')
+            # Server might be None or a server instance with attribute _connectionok value of either
+            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
+            print "WikiPage.addAttachment() > Server is None or not connected, aborting..."
             return
         info = self.Server.addAttachment(self.PageId, attachmentInfo, attachmentData)
         return info
@@ -476,13 +500,24 @@ below        source and target become/remain sibling pages and the source is mov
 
 
     def watchPage(self):
+        if not self.Server:
+            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            return
         return self.Server.watchPage(self.PageId)
     def removePageWatch(self):
+        if not self.Server:
+            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            return
         return self.Server.removePageWatch(self.PageId)
     def isWatchingPage(self):
+        if not self.Server:
+            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            return
         return self.Server.isWatchingPage(self.PageId)
-
     def getPagePermissions(self):
+        if not self.Server:
+            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            return
         return self.Server.getPagePermissions(self.PageId)
 
 
@@ -493,10 +528,12 @@ class TemplateManager(object):
             print "TemplateManager.__init__() :: ERROR, a template manager is already registrered in the confighandler..."
             return confighandler['templatemanager']
         self.Confighandler = confighandler
-        self.Server = server
+        self._server = server
         self.Cache = dict()
         confighandler.Singletons['templatemanager'] = self
-
+    @property
+    def Server(self):
+        return self._server or self.Confighandler.Singletons.get('server')
 
     def get(self, templatetype):
         return self.getTemplate(templatetype)
@@ -507,18 +544,26 @@ class TemplateManager(object):
         """
         if templatetype is None:
             templatetype = self.Confighandler.get('wiki_default_newpage_template', 'exp_page')
+        ### First check if the template is cached. Enabling caching is generally a good thing.
         if templatetype in self.Cache and self.Confighandler.get('wiki_allow_template_caching', False):
             return self.Cache[templatetype]
         template = self.Confighandler.get(templatetype+'_template', None)
+        ### Second, if no cached template was found check whether a proper template is available locally in the config.
         if template:
             if self.Confighandler.get('wiki_allow_template_caching', False): # Maybe delete this, has little influence...
                 self.Cache[templatetype] = template
             return template
+        ### Finally, try to get template pageids and locate the template on the server.
         template_pageids = self.Confighandler.get('wiki_templates_pageIds')
         if template_pageids:
             print template_pageids
             templatePageId = template_pageids.get(templatetype, None)
             print "templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
+            if not self.Server:
+                # Server might be None or a server instance with attribute _connectionok value of either
+                # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
+                print "TemplateManager.getTemplate() > Server is None or not connected, aborting (after having searched locally)."
+                return
             if templatePageId:
                 templatestruct = self.Server.getPage(pageId=templatePageId)
                 print "\nstruct:"
@@ -545,7 +590,7 @@ class WikiPageFactory(object):
     but for creating new pages on the wiki.
     """
     def __init__(self, server, confighandler, defaulttemplate='exp_page'):
-        self.Server = server
+        self._server = server
         self.Confighandler = confighandler
         if 'templatemanager' in confighandler.Singletons:
             self.TemplateManager = confighandler.Singletons['templatemanager']
@@ -554,6 +599,9 @@ class WikiPageFactory(object):
         self.DefaultTemplateType = defaulttemplate
         #self.TemplatePagesIds = self.Confighandler.get('wiki_templates_pageIds') #{'experiment': 41746489}
         self.OverrideSpaceKeyRoot = True # Not sure this is ever used...
+    @property
+    def Server(self):
+        return self._server or self.Confighandler.Singletons.get('server', None)
 
 
     def makeMinimalStruct(self, struct):

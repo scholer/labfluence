@@ -39,14 +39,16 @@ class ExpOverviewFrame(ExpFrame):
     def frame_defaults(self, ):
         return dict(borderwidth=10)
 
-
     def init_layout(self):
         currow = 2
         f = self.ControlFrame = ttk.Frame(self)
-        b = self.closebtn = ttk.Button(f, command=self.closeAndArchive, text="Close and archive experiment")
-        b.grid(row=1, column=1, sticky="nw")
         f.grid(row=currow, column=1, sticky="news")
         currow += 1
+        b = self.closebtn = ttk.Button(f, command=self.closeAndArchive, text="Close and archive experiment")
+        b.grid(row=1, column=1, sticky="nw")
+        b = self.hidenotebookbtn = ttk.Button(f, command=self.hidenotebook, text="Close notebook")
+        b.grid(row=1, column=2, sticky="nw")
+
 
         self.AttrFrame = self.Frames['attr'] = f = ExpAttrFrame(self, self.Experiment)
         f.grid(row=currow, column=1, sticky="nesw")
@@ -69,6 +71,9 @@ class ExpOverviewFrame(ExpFrame):
     def update_variables(self):
         for frame in self.Frames.values():
             frame.update_variables()
+
+    def hidenotebook(self):
+        self.Parent.hide()
 
     def closeAndArchive(self, ):
         pass

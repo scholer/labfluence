@@ -131,3 +131,7 @@ class HyperLink(ttk.Label):
         print "Opening '{}'".format(url)
         # Perhaps check what protocol to use first, and open in webbrowser/filebrowser/ftpclient/?
         webbrowser.open_new(url)
+
+
+class CloseIcon(object):
+    pass

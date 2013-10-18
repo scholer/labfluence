@@ -27,11 +27,9 @@ from confighandler import ExpConfigHandler
 
 
 class ExperimentManager(object):
-    def __init__(self, confighandler, server=None, VERBOSE=0, autoinit=None):
+    def __init__(self, confighandler, VERBOSE=0, autoinit=None):
         self.VERBOSE = VERBOSE
         self.Confighandler = confighandler
-        if server:
-            self.Server = server
         #self.Experiments = list()       # list of experiment objects;
         if autoinit is None:
             autoinit = self.Confighandler.get('exp_manager_autoinit')
@@ -64,7 +62,7 @@ class ExperimentManager(object):
         return self.Confighandler.setdefault('experiments_by_id', dict())
     @ExperimentPropsById.setter
     def ExperimentPropsById(self, value):
-        # Do NOT override existing server if set, so using setdefault...
+        # Do NOT override existing experiments_by_id if set, so using setdefault...
         self.Confighandler.setdefault('experiments_by_id', value)
 
 

@@ -371,9 +371,10 @@ if __name__ == '__main__':
     confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=0)
     try:
         server = ConfluenceXmlRpcServer(autologin=True, prompt='auto', ui=None, confighandler=confighandler, VERBOSE=0)
-        confighandler.Singletons['server'] = server
     except socket.error:
+        print "This should not happen; autologin is shielded by try-clause."
         server = None
+    confighandler.Singletons['server'] = server
     manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ), VERBOSE=0)
     confighandler.Singletons['experimentmanager'] = manager
 
