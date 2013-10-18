@@ -245,7 +245,7 @@ class LabfluenceGUI(object):
         #self.notebook = expnotebook.ExpNotebook(self.rightframe)
         expid, experiment = self.get_expid_and_experiment(experiment)
         if expid not in self.ExpNotebooks:
-            notebook = ExpNotebook(self.rightframe, experiment, self.Confighandler)
+            notebook = ExpNotebook(self.rightframe, experiment)
             notebook.grid(column=1, row=1, sticky="nesw") # how to position notebook in its parent (rightframe)
             self.ExpNotebooks[expid] = notebook
         return self.ExpNotebooks[expid], expid, experiment

@@ -52,7 +52,9 @@ class ExpNotebook(ttk.Notebook):
     For info, see:
     - http://docs.python.org/2/library/ttk.html
     """
-    def __init__(self, parent, experiment, confighandler, **options):
+    def __init__(self, parent, experiment, **options):
+        # Change: Experiment widgets should not haave the confighandler directly.
+        # If they need anything, they should just go through the experiment object.
         # init super:
         #self.notebook = super(ttk.Notebook, self).__init__(parent) # only works for
         # for old-type classes, use:
@@ -64,11 +66,11 @@ class ExpNotebook(ttk.Notebook):
         #self.rowconfigure(1, weight=1) # also: minsize, (i)pad, etc...
         #self.columnconfigure(1, weight=1)#, pad=50)
         # however, since Notebook widgets does not usually use a grid layout manager, this does not have any effect...
-        self.overviewframe = ExpOverviewFrame(self, experiment, confighandler)
-        self.filemanagerframe = ExpFilemanagerFrame(self, experiment, confighandler)
-        self.journalframe = ExpJournalFrame(self, experiment, confighandler)
-        self.wikipageframe = ExpWikipageFrame(self, experiment, confighandler)
-        self.satellitesframe = ExpSatellitelocationsFrame(self, experiment, confighandler)
+        self.overviewframe = ExpOverviewFrame(self, experiment)
+        self.filemanagerframe = ExpFilemanagerFrame(self, experiment)
+        self.journalframe = ExpJournalFrame(self, experiment)
+        self.wikipageframe = ExpWikipageFrame(self, experiment)
+        self.satellitesframe = ExpSatellitelocationsFrame(self, experiment)
         # Adding tabs (pages) to notebook
         self.add(self.overviewframe, text="Overview", sticky="nesw", underline=0)
         self.add(self.filemanagerframe, text="File management", sticky="nesw", underline=0)
@@ -78,4 +80,4 @@ class ExpNotebook(ttk.Notebook):
         self.enable_traversal()
 
     def update_info(self):
-        self.overviewframe.update_properties()
+        self.overviewframe.update_variables()

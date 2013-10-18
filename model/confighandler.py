@@ -464,7 +464,8 @@ class ExpConfigHandler(ConfigHandler):
 
     def renameConfigKey(self, oldpath, newpath):
         """
-        There is probably not a need to do this for the 'system', 'user', 'exp' dicts; only the experiments managed by HierarchicalConfigHandler
+        There is probably not a need to do this for the 'system', 'user', 'exp' dicts;
+        only the experiments managed by HierarchicalConfigHandler (i.e. after renaming a folder)
         """
         self.HierarchicalConfigHandler.renameConfigKey(oldpath, newpath)
 

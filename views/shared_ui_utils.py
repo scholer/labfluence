@@ -20,6 +20,66 @@ import Tkinter as tk
 import ttk
 import webbrowser
 
+class ExpFrame(ttk.Frame):
+    """
+    Base frame for most widgets that has a direct control over an experiment.
+    **kwargs are passed as keyword arguments to ttk.Frame super class.
+    Includes hook methods that should make it easy to avoid overriding the default init.
+    These are (in order of invokation):
+    - before_init   : prepare for frame initialization. This is passed the kwargs dict, which
+                        so you can manipulate this before it is passed to the ttk.Frame super class.
+    - frame_defaults: return dict of default frame options.
+    - init_variables: initialize any variables and non-widget attributes. Tkinter variables should be stored in self.Variables dict unless special circumstances are required.
+    - init_widgets  : initialize child widgets. Store references in dicts self.Labels, Buttons, Entries, Frames, etc.
+    - init_layout   : should be used for the frame layout (if not specified under init_widgets)
+    - init_bindings : bindings can be placed here.
+    - after_init    : if you need to do some additional stuff after frame initialization, this is the place to do so.
+    """
+    def __init__(self, parent, experiment, **kwargs):
+        self.before_init(kwargs)
+        frameopts = dict(self.frame_defaults(), **kwargs)
+        ttk.Frame.__init__(self, parent, **frameopts)
+        self.Parent = parent
+        self.Experiment = experiment
+        # Edit: widgets should not have access to confighandler.
+        # If they need a config entry, they should use experiment.getConfigEntry(key).
+        self.Variables = dict()
+        self.Labels = dict()
+        self.Entries = dict()
+        self.Buttons = dict()
+        self.Frames = dict()
+        self.init_variables()
+        self.init_widgets()
+        self.init_layout()
+        self.init_bindings()
+        self.after_init()
+
+    def frame_defaults(self):
+        return dict()
+    def before_init(self, kwargs):
+        pass
+    def after_init(self):
+        pass
+    def init_variables(self):
+        pass
+    def init_widgets(self):
+        pass
+    def init_layout(self):
+        pass
+    def init_bindings(self):
+        pass
+
+    def getApp(self):
+        try:
+            return self.Experiment.Confighandler.Singletons.get('app')
+        except AttributeError:
+            return None
+
+    def getFonts(self, ):
+        app = self.getApp()
+        if app:
+            return getattr(app, 'CustomFonts', None)
+
 
 class HyperLink(ttk.Label):
     """
@@ -28,13 +88,12 @@ class HyperLink(ttk.Label):
     - http://stackoverflow.com/questions/11639103/python-tkinter-tkfont-label-resize
     """
 
-    def __init__(self, parent, uri=None, experiment=None, confighandler=None, **options):
+    def __init__(self, parent, uri=None, experiment=None, **options):
         #defaults = dict(foreground="blue") # text color is not a property of the font, as far as I can tell.
         #options = dict(defaults, **options)
         ttk.Label.__init__(self, parent, **options)
         self.URI = uri
         self.Experiment = experiment
-        self.Confighandler = confighandler
         if self.getUrl():
             self.configure(foreground="blue")
         self.bind('<Enter>', self.on_enter)

@@ -22,33 +22,41 @@ import Tix # Lots of widgets, but tix is not being developed anymore, so only us
 
 import htmllib, formatter
 
-from subentrieslistbox import SubentriesListbox
-from shared_ui_utils import HyperLink
+#from subentrieslistbox import SubentriesListbox
+from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
+from shared_ui_utils import HyperLink, ExpFrame
 from rspysol.rstkhtml import tkHTMLParser, tkHTMLWriter
 
-class ExpJournalFrame(ttk.Frame):
+class ExpJournalFrame(ExpFrame):
     """
     """
-    def __init__(self, parent, experiment, confighandler=None):
-        ttk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
-        self.grid(row=1, column=1, sticky="nesw")#, padx=50, pady=30)
-        self.Experiment = experiment
-        self.Confighandler = confighandler or dict() # Not sure this will ever be needed, probably better to always go through the experiment object...
-        #self.PropVariables = dict()
-        self.App = self.Confighandler.Singletons['app']
-        self.Fonts = self.App.CustomFonts
+    #def __init__(self, parent, experiment, confighandler=None):
+    #    ttk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
+    #    self.grid(row=1, column=1, sticky="nesw")#, padx=50, pady=30)
+    #    self.Experiment = experiment
+    #    self.Confighandler = confighandler or dict() # Not sure this will ever be needed, probably better to always go through the experiment object...
+    #    #self.PropVariables = dict()
+    #    #self.App = self.Confighandler.Singletons['app']
+
+    def frame_defaults(self):
+        return dict(borderwidth=10)
+
+    def init_variables(self):
+        self.Fonts = self.getFonts()
         v = ('wiki','cache','input', 'autoflush_interval', 'wiki_titledesc')
         self.Variables = dict( (k, tk.StringVar()) for k in v )
-        self.Variables['autoflush_interval'].set(self.Confighandler.get('app_autoflush_interval', '10'))
+        self.Variables['autoflush_interval'].set(self.Experiment.getConfigEntry('app_autoflush_interval', '10'))
         v = ('autoflush',)
         self.Boolvars = dict()# (k, tk.BooleanVar(value=False)) for k in v )
-        self.Boolvars['autoflush'] = tk.BooleanVar( value=self.Confighandler.get('app_autoflush_on', False) )
-        self.Labels = dict()
-        self.Entries = dict()
+        self.Boolvars['autoflush'] = tk.BooleanVar( value=self.Experiment.getConfigEntry('app_autoflush_on', False) )
+        #self.Labels = dict()
+        #self.Entries = dict()
         self.AutoflushAfterIdentifiers = list()
-        self.init_widgets()
-        self.init_layout()
-        self.init_bindings()
+        #self.init_widgets()
+        #self.init_layout()
+        #self.init_bindings()
+
+    def after_init(self):
         self.updatewidgets()
 
 
@@ -62,7 +70,7 @@ class ExpJournalFrame(ttk.Frame):
         self.cachecontrolsframe = ttk.Frame(self)
 
         # Other widgets:
-        self.subentries_listbox = SubentriesListbox(self.controlframe, self.Experiment, self.Confighandler)
+        self.subentries_listbox = SubentriesListbox(self.controlframe, self.Experiment)
         #self.journalwiki_view = tk.Text(self.journalwikiframe, state='disabled', height=14)
         #self.journalcache_view = tk.Text(self.journalcacheframe, state='disabled', height=10)
         self.journalwiki_view  = JournalViewer(self.journalwikiframe, self.Experiment, height=10)
@@ -246,33 +254,48 @@ class ExpJournalFrame(ttk.Frame):
         after_identifier = self.after(mins*60*1000, self.flushallcaches)
         self.AutoflushAfterIdentifiers.append(after_identifier)
         print "New afterTimer with id {} added for self.flushallcaches in {} ms".format(after_identifier, mins*60*1000)
-        self.Confighandler.setkey('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
-        self.Confighandler.setkey('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
+        self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
+        self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
 
 
-class JournalViewer(ttk.Frame):
+class JournalViewer(ExpFrame):
 
-    def __init__(self, parent, experiment, scrollbar=None, frameopts=dict(), **options):
-        opts = dict(state='disabled', width=60)
-        opts.update(options)
-        ttk.Frame.__init__(self, parent, **frameopts)
-        self.text = tk.Text(self, **opts)
-        self.Experiment = experiment
-        self.JA = experiment.JournalAssistant
-        self.Parent = parent
-        # Uh, no. mega-widgets should always derive from ttk.Frame and not other widgets.
+    #def __init__(self, parent, experiment, **frameopts):
+    #    """
+    #    **frameopts refer to options for the frame.
+    #    - however, if there is a textopts present in **frameopts, that item will be popped and used
+    #        as argument to the text widget.
+    #    """
+    #    ExpFrame.__init__(self, parent, experiment, **frameopts)
+        #self.Experiment = experiment
+    #    textopts = dict(state='disabled', width=60)
+    #    textopts.update(options)
+    #    #self.Parent = parent
+    #    # Uh, no. mega-widgets should always derive from ttk.Frame and not other widgets.
+
+    def before_init(self, kwargs):
+        textopts = dict(state='disabled', width=60)
+        textopts.update(kwargs.pop('textopts', dict()))
+        self.Textoptions = textopts
+
+    def init_variables(self):
+        self.JA = self.Experiment.JournalAssistant
+
+    #def frame_defaults(self):
+    #    pass
+
+    def init_widgets(self):
+        self.text = tk.Text(self, self.Textoptions)
         self.scrollbar = ttk.Scrollbar(self)
         self.text.config(yscrollcommand=self.scrollbar.set)
         self.text.config(state='disabled')
         self.scrollbar.config(command=self.text.yview)
-        self.init_layout()
 
     def init_layout(self):
         self.text.grid(row=1, column=1, sticky="nesw")
         self.scrollbar.grid(row=1, column=2, sticky="nesw")
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
-
 
     def update_cache(self):
         """

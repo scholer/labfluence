@@ -32,6 +32,9 @@ class SubentriesListFrame(tk.Listbox):
         tk.Listbox.__init__(self, parent)
         self.Confighandler = confighandler
         self.Experiment = experiment
+
+    def init_variables(self, ):
+
         self.Subentrylist = list() # list of (<display-str>, <subentry_idx>, <subentry-dict>)
         #self.subentrieslistbox = tk.Listbox(self)
         #self.subentrieslistbox.grid(row=0, column=0, sticky="news")

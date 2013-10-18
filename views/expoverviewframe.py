@@ -18,53 +18,64 @@
 # python 2.7:
 import Tkinter as tk
 import ttk
-import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+#import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+from shared_ui_utils import HyperLink, ExpFrame
 
 
-class ExpOverviewFrame(ttk.Frame):
+class ExpOverviewFrame(ExpFrame):
     """
     """
-    def __init__(self, parent, experiment, confighandler=None):
-        ttk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
-        #self.grid(row=1, column=1, sticky="nesw")#, padx=50, pady=30)
-        self.Parent = parent
-        self.Experiment = experiment
-        self.Confighandler = confighandler # Not sure this will ever be needed, probably better to always go through the experiment object...
-        #self.PropVariables = dict()
-        #self.AttrVariables = dict()
-        #self.DynamicVariables = dict()
-        self.Labels = dict()
-        self.Entries = dict()
-        self.Frames = dict()
-        self.init_layout()
+    #def __init__(self, parent, experiment)#, confighandler=None):
+    #    ttk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
+    #    self.Parent = parent
+    #    self.Experiment = experiment
+    #    # Edit: widgets should not have access to confighandler.
+    #    # If they need a config entry, they should use experiment.getConfigEntry(key).
+    #    self.Labels = dict()
+    #    self.Entries = dict()
+    #    self.Frames = dict()
+    #    self.init_layout()
+
+    def frame_defaults(self, ):
+        return dict(borderwidth=10)
 
 
     def init_layout(self):
-        currow = 1
-        self.AttrFrame = self.Frames['attr'] = f = ExpAttrFrame(self, self.Experiment, self.Confighandler)
+        currow = 2
+        f = self.ControlFrame = ttk.Frame(self)
+        b = self.closebtn = ttk.Button(f, command=self.closeAndArchive, text="Close and archive experiment")
+        b.grid(row=1, column=1, sticky="nw")
+        f.grid(row=currow, column=1, sticky="news")
+        currow += 1
+
+        self.AttrFrame = self.Frames['attr'] = f = ExpAttrFrame(self, self.Experiment)
         f.grid(row=currow, column=1, sticky="nesw")
         currow += 1
 
-        self.PropsFrame = self.Frames['props'] = f = ExpPropsFrame(self, self.Experiment, self.Confighandler)
+        self.PropsFrame = self.Frames['props'] = f = ExpPropsFrame(self, self.Experiment)
         f.grid(row=currow, column=1, sticky="nesw")
         currow += 1
 
-        self.SubentriesFrame = self.Frames['subentries'] = f = ExpSubentriesFrame(self, self.Experiment, self.Confighandler)
+        self.SubentriesFrame = self.Frames['subentries'] = f = ExpSubentriesFrame(self, self.Experiment)
         f.grid(row=currow, column=1, sticky="nesw")
         currow += 1
 
-        self.WikiPageInfoFrame = self.Frames['wikipageinfo'] = f = ExpWikiPageStructFrame(self, self.Experiment, self.Confighandler)
+        self.WikiPageInfoFrame = self.Frames['wikipageinfo'] = f = ExpWikiPageStructFrame(self, self.Experiment)
         f.grid(row=currow, column=1, sticky="nesw")
         currow += 1
 
         self.columnconfigure(1, weight=1)
 
-    def update_widgets(self):
+    def update_variables(self):
         for frame in self.Frames.values():
             frame.update_variables()
 
+    def closeAndArchive(self, ):
+        pass
 
-class ExpPropsFrame(ttk.Frame):
+
+
+class ExpPropsFrame(ExpFrame):
     """
     A frame to show properties of an experiment (Experiment.Props)
     This frame is designed to show properties from only a single entity.
@@ -72,15 +83,14 @@ class ExpPropsFrame(ttk.Frame):
     This class can be repurposed by overriding getValue() and getEntries() methods,
     and optionally also init_layout() method.
     """
-    def __init__(self, parent, experiment, confighandler=None):
-        ttk.Frame.__init__(self, parent)
-        self.Experiment = experiment
-        #self.Variables = dict()
-        self.Labels = dict()
-        self.Entries = dict()
-        self.init_variables()
-        #self.update_variables()
-        self.init_layout()
+    #def __init__(self, parent, experiment):
+    #    ttk.Frame.__init__(self, parent)
+    #    self.Experiment = experiment
+    #    #self.Variables = dict()
+    #    self.Labels = dict()
+    #    self.Entries = dict()
+    #    self.init_variables()
+    #    self.init_layout()
 
     def init_variables(self):
         self.Variables = dict( ( k, tk.StringVar(value=self.getValue(k)) )  for (k,desc) in self.getEntries() )
@@ -118,8 +128,9 @@ class ExpPropsFrame(ttk.Frame):
                 self.Entries[key] = entry = ttk.Entry(self, textvariable=var, state='readonly', justify=tk.LEFT)
                 entry.grid(column=2, row=r, sticky="nsew")
             else:
-                self.Entries[key] = entry = ttk.Entry(self, textvariable=var, state='readonly', justify=tk.LEFT)
-                entry.grid(column=1, row=r, sticky="nsew", columnspan=2)
+                self.Entries[key] = entry = ttk.Label(self, textvariable=var, state='readonly', justify=tk.LEFT, anchor="e")
+                #self.Entries[key] = entry = ttk.Entry(self, textvariable=var, state='readonly', justify=tk.LEFT)
+                entry.grid(column=1, row=r, sticky="nsw", columnspan=2)
 
 
 
@@ -127,7 +138,7 @@ class ExpAttrFrame(ExpPropsFrame):
     def getValue(self, key):
         val = getattr(self.Experiment, key, None)
         if val and len(val)>80:
-            val = "(...) "+val[-80:]
+            #val = "(...) "+val[-80:]
             print "\nattr val: {}\n".format(val)
         return val
     def getEntries(self, ):
@@ -162,7 +173,7 @@ class ExpSubentriesFrame(ExpPropsFrame):
                 self.Labels[key] = label = ttk.Label( self, text=desc+":", justify=tk.LEFT)
                 label.grid(column=1, row=r, sticky="nsw")
                 r += 1
-            self.Entries[key] = entry = ttk.Label(self, textvariable=var, state='readonly', justify=tk.LEFT)
+            self.Entries[key] = entry = ttk.Label(self, textvariable=var, state='readonly', justify=tk.LEFT, wraplength=500)
             entry.grid(column=1, row=r, sticky="nsew", columnspan=2)
             r += 1
 
@@ -177,8 +188,8 @@ class ExpWikiPageStructFrame(ExpSubentriesFrame):
         struct = page.Struct #.get('exp_subentries', None)
         def makevalstr(val):
             val = "{}".format(val)
-            if len(val) > 50:
-                return val[:50]
+            if len(val) > 100:
+                return val[:100]+" (...)"
             return val
         if struct:
             return '\n'.join("- {}: {}".format(k,makevalstr(v)) for k,v in struct.items() )
@@ -188,4 +199,3 @@ class ExpWikiPageStructFrame(ExpSubentriesFrame):
     def getEntries(self, ):
         return ( ('WikiPage', 'Wiki page struct'),
                 )
-

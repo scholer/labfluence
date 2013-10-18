@@ -270,6 +270,12 @@ class Experiment(object):
         else:
             return self.Confighandler.get(cfgkey, default=default, path=self.Localdirpath)
 
+    def setConfigEntry(self, cfgkey, value):
+        if cfgkey in self.Props:
+            self.Props[cfgkey] = value
+        else:
+            # does not currently check the hierarchical config, only the explicidly loaded 'system', 'user', 'exp', 'cache', etc.
+            self.Confighandler.setkey(cfgkey, value)
 
     def getAbsPath(self):
         return os.path.abspath(self.Localdirpath)
