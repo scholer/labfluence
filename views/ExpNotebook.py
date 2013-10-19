@@ -15,11 +15,16 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-# python 2.7:
+# GUI
 import Tkinter as tk
 import ttk
 import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
+# Other standard lib modules:
+import logging
+logger = logging.getLogger(__name__)
+
+# Labfluence modules and classes:
 from expoverviewframe import ExpOverviewFrame
 from expfilemanagerframe import ExpFilemanagerFrame
 from expjournalframe import ExpJournalFrame

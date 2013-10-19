@@ -23,7 +23,10 @@ from collections import OrderedDict
 import xmlrpclib
 import hashlib
 import fnmatch
+import logging
+logger = logging.getLogger(__name__)
 
+# Labfluence modules and classes:
 from confighandler import ExpConfigHandler
 from server import ConfluenceXmlRpcServer
 from page import WikiPage, WikiPageFactory
@@ -108,21 +111,22 @@ class Experiment(object):
         self._server = server
         self._manager = manager
         self.Confighandler = confighandler
-        self.WikiPage = wikipage
+        self._wikipage = wikipage
         self.SavePropsOnChange = savepropsonchange
         self.PropsChanged = False # Flag,
         self.Subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
         self.ConfigFn = loadYmlFn
         self._attachments_cache = None # cached list of wiki attachment_structs. None = <not initialized>
-
+        self._fileshistory = dict()
+        self._props = None
+        self._expid = None
         if localdir is None:
-            if 'localdir' in props:
-                localdir = props.get('localdir')
-            else:
-                print "\n\nExperiment.__init__() :: CRITICAL: No localdir provided; functionality of this object will be greatly reduced and may break at any time.\n\n"
-                self.Localdirpath = None
-                self.Foldername = None
-                self.Parentdirpath = None
+            localdir = props.get('localdir')
+        if not localdir:
+            print "\n\nExperiment.__init__() :: CRITICAL: No localdir provided; functionality of this object will be greatly reduced and may break at any time.\n\n"
+            self.Localdirpath = None
+            self.Foldername = None
+            self.Parentdirpath = None
         else:
             # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
             parentdirpath, foldername = os.path.split(localdir)
@@ -135,8 +139,6 @@ class Experiment(object):
                 print "Experiment.__init__() :: Warning, could not determine foldername...????"
             self.Foldername = foldername
             self.Localdirpath = os.path.join(self.Parentdirpath, self.Foldername)
-            #self.Localdir = localdir # Currently not updating; this might be relative...
-
 
         """ Experiment properties/config related """
         """ Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
@@ -170,10 +172,10 @@ class Experiment(object):
         This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
         """
         #self.loadFileshistory()
-        if not self.WikiPage:
-            wikipage = self.attachWikiPage(dosearch=doserversearch)
-        if self.WikiPage and self.WikiPage.Struct:
-            self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
+        #if not self.WikiPage:
+        #    wikipage = self.attachWikiPage(dosearch=doserversearch)
+        #if self.WikiPage and self.WikiPage.Struct:
+        #    self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
         self.JournalAssistant = JournalAssistant(self)
         if self.VERBOSE:
             print "Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props)
@@ -183,17 +185,104 @@ class Experiment(object):
     """ ATTRIBUTE PROPERTIES: """
     @property
     def Props(self):
+        """
+        If localdirpath is provided, use that to get props from the confighandler.
+        """
         if getattr(self, 'Localdirpath', None):
-            return self.Confighandler.getExpConfig(self.Localdirpath)
-        props_cache = self.Confighandler.get('expprops_by_id_cache')
-        if props_cache and getattr(self, '_expid', None):
-            return props_cache.setdefault(self._expid, dict())
+            props = self.Confighandler.getExpConfig(self.Localdirpath)
         else:
-            print "Warning, no localdirpath provided for this experiment and no props_cache or no self._expid."
-            if not hasattr(self, '_props'):
-                self._props = dict()
-            return self._props
+            props_cache = self.Confighandler.get('expprops_by_id_cache')
+            if props_cache and getattr(self, '_expid', None):
+                props = props_cache.setdefault(self._expid, dict())
+            else:
+                print "Warning, no localdirpath provided for this experiment and no props_cache or no self._expid."
+                if not hasattr(self, '_props'):
+                    self._props = dict()
+                props = self._props
+        wikipage = self._wikipage # self.WikiPage calls self.attachWikiPage which calls self.Props -- circular loop.
+        if not props.get('wiki_pagetitle') and wikipage and wikipage.Struct \
+            and props.get('wiki_pagetitle') != wikipage.Struct['title']:
+            logger.info("Updating experiment props['wiki_pagetitle'] to '{}'".format(wikipage.Struct['title']))
+            props['wiki_pagetitle'] = wikipage.Struct['title']
+        return props
+    @property
+    def Subentries(self):
+        return self.Props.setdefault('exp_subentries', OrderedDict())
+    @Subentries.setter
+    def Subentries(self, subentries):
+        self.Props['exp_subentries'] = subentries
+    @property
+    def Expid(self, ):
+        return self.Props.get('expid')
+    @Expid.setter
+    def Expid(self, expid):
+        if expid == self.Expid:
+            logger.info("Trying to set new expid '{0}', but that is the same as the existing self.Expid '{1}', localpath='{2}'".format(expid, self.Expid, self.Localdirpath))
+            return
+        elif self.Expid:
+            logger.info("Overriding old self.Expid '{1}' with new expid '{0}', localpath='{2}'".format(expid, self.Expid, self.Localdirpath))
+        self.Props['expid'] = expid
+    @property
+    def Wiki_pagetitle(self):
+        return self.Props.get('wiki_pagetitle')
+    @property
+    def PageId(self, ):
+        if self.WikiPage and self.WikiPage.PageId:
+            self.Props.setdefault('wiki_pageId', self.WikiPage.PageId)
+            return self.WikiPage.PageId
+        elif self.Props.get('wiki_pageId'):
+            pageid = self.Props.get('wiki_pageId')
+            if self.WikiPage:
+                self.WikiPage.PageId = pageid
+            return pageid
+    @PageId.setter
+    def PageId(self, pageid):
+        if self.WikiPage:
+            if self.WikiPage.PageId != pageid:
+                self.WikiPage.PageId = pageid
+                self.WikiPage.reloadFromServer()
+        self.Props['wiki_pageId']
 
+
+    @property
+    def Attachments(self):
+        """
+        Only update if a server is available...
+        """
+        if self.Server and self._attachments_cache is None:
+            self.updateAttachmentsCache()
+        return self._attachments_cache
+    @property
+    def Server(self):
+        return self._server or self.Confighandler.Singletons.get('server', None)
+    @property
+    def Manager(self):
+        return self._manager or self.Confighandler.Singletons.get('manager')
+    @property
+    def WikiPage(self):
+        if not self._wikipage:
+            self.attachWikiPage()
+        return self._wikipage
+    @WikiPage.setter
+    def WikiPage(self, newwikipage):
+        self._wikipage = newwikipage
+    @property
+    def Fileshistory(self):
+        if not self._fileshistory:
+            self.loadFileshistory() # Make sure self.loadFileshistory does NOT refer to self.Fileshistory (cyclic reference)
+        return self._fileshistory
+    @property
+    def Status(self, ):
+        manager = self.Manager
+        if self.Expid in manager.ActiveExperimentIds:
+            return 'active'
+        elif self.Expid in manager.RecentExperimentIds:
+            return 'recent'
+    def isactive(self, ):
+        return self.Expid in self.Manager.ActiveExperimentIds
+    def isrecent(self, ):
+        return self.Expid in self.Manager.RecentExperimentIds
+    ## Non-property getters:
     def getUrl(self, ):
         url = self.Props.get('url', None)
         if not url:
@@ -205,38 +294,23 @@ class Experiment(object):
         return url
 
 
-    @property
-    def Subentries(self):
-        return self.Props.setdefault('exp_subentries', OrderedDict())
-    @Subentries.setter
-    def Subentries(self, subentries):
-        self.Props['exp_subentries'] = subentries
-
-    @property
-    def Attachments(self):
-        """
-        Only update if a server is available...
-        """
-        if self.Server and self._attachments_cache is None:
-            self.updateAttachmentsCache()
-        return self._attachments_cache
-
-    @property
-    def Server(self):
-        return self._server or self.Confighandler.Singletons.get('server', None)
-    @property
-    def Manager(self):
-        return self._manager or self.Confighandler.Singletons.get('manager')
-
-
     def updateAttachmentsCache(self):
         structs = self.listAttachments()
         if not structs:
             print "Experiment.updateAttachmentsCache() :: listAttachments() returned '{}', aborting".format(structs)
         self._attachments_cache = structs
 
+    ########################
+    ### MANAGER methods: ###
+    ########################
 
-    """ Macro methods: """
+    def archive(self, ):
+        self.Manager.archiveExperiment(self)
+
+
+    ######################
+    ### Macro methods: ###
+    ######################
 
     def saveAll(self):
         """
@@ -278,13 +352,10 @@ class Experiment(object):
     def getAbsPath(self):
         return os.path.abspath(self.Localdirpath)
 
-
-
     def saveIfChanged(self):
         if self.PropsChanged:
             self.saveProps()
             self.PropsChanged = False
-
 
     def saveProps(self, path=None):
         """
@@ -317,7 +388,6 @@ class Experiment(object):
             print open(os.path.join(path,self.ConfigFn)).read()
 
 
-
     def updatePropsByFoldername(self, regex_prog=None):
         if regex_prog is None:
             exp_regex = self.getConfigEntry('exp_series_regex')
@@ -342,7 +412,6 @@ class Experiment(object):
             if self.SavePropsOnChange:
                 self.saveProps()
         return regex_match
-
 
 
 
@@ -482,8 +551,7 @@ class Experiment(object):
     @property
     def Subentries_regex_prog(self):
         regex_prog = getattr(self, '_subentries_regex_prog', None)
-        if regex_prog:
-            return regex_prog
+        if regex_prog: return regex_prog
         else:
             regex_str = self.getConfigEntry('exp_subentry_regex') #getExpSubentryRegex()
             if not regex_str:
@@ -609,6 +677,7 @@ class Experiment(object):
             filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
         relpath = os.path.relpath(filepath, self.Localdirpath)
         digestentry = dict(datetime=datetime.now())
+        fileshistory = self.Fileshistory
         for digesttype in digesttypes:
             with open(filepath, 'rb') as f:
                 m = hashlib.new(digesttype) # generic; can also be e.g. hashlib.md5()
@@ -618,15 +687,19 @@ class Experiment(object):
                     m.update(chunk)
                 hexdigest = m.hexdigest()
                 digestentry[digesttype] = hexdigest
-            if relpath in self.Fileshistory:
-                if hexdigest not in [entry[digesttype] for entry in self.Fileshistory[relpath] if digesttype in entry]:
-                    self.Fileshistory[relpath].append(d)
-                # if hexdigest is present, then no need to add it...
-            else:
-                self.Fileshistory[relpath] = [d]
+        if relpath in fileshistory:
+            # if hexdigest is present, then no need to add it...? Well, now that you have hashed it, just add it anyways.
+            #if hexdigest not in [entry[digesttype] for entry in fileshistory[relpath] if digesttype in entry]:
+            fileshistory[relpath].append(d)
+        else:
+            fileshistory[relpath] = [d]
         return digestentry
 
     def saveFileshistory(self):
+        fileshistory = self.Fileshistory # This is ok; if _fileshistory is empty, it will try to reload to make sure not to override.
+        if not fileshistory:
+            logger.info("No fileshistory ('{}')for experiment '{}', aborting saveFileshistory".format(fileshistory, self))
+            return
         savetofolder = os.path.join(self.Localdirpath, '.labfluence')
         if not os.path.isdir(savetofolder):
             try:
@@ -635,15 +708,18 @@ class Experiment(object):
                 print e
                 return
         fn = os.path.join(savetofolder, 'files_history.yml')
-        yaml.dump(self.Fileshistory, open(fn, 'wb'), default_flow_style=False)
+        yaml.dump(fileshistory, open(fn, 'wb'), default_flow_style=False)
 
     def loadFileshistory(self):
         if not getattr(self, 'Localdirpath', None):
+            logger.warning("loadFileshistory was invoked, but experiment has no localfiledirpath. ({})".format(self))
             return
         savetofolder = os.path.join(self.Localdirpath, '.labfluence')
         fn = os.path.join(savetofolder, 'files_history.yml')
         try:
-            self.Fileshistory = yaml.load(open(fn))
+            if self._fileshistory is None:
+                self._fileshistory = dict()
+            self._fileshistory.update(yaml.load(open(fn)))
             return True
         except OSError as e:
             print e
@@ -651,9 +727,6 @@ class Experiment(object):
             print e
         except yaml.YAMLError as e:
             print e
-        # If self.Fileshistory is already set, I dont think you should set to empty dict if read failed.
-        if not getattr(self, 'Fileshistory', None):
-            self.Fileshistory = dict()
 
     def getRelativeStartPath(self, relative):
         if relative is None or relative=='exp':
@@ -799,15 +872,18 @@ class Experiment(object):
             return None
 
 
-    def attachWikiPage(self, pageId=None, pagestruct=None, dosearch=False):
+    def attachWikiPage(self, pageId=None, pagestruct=None, dosearch=0):
         if pageId is None:
             if pagestruct and 'id' in pagestruct:
                 pageId = pagestruct['id']
             else:
                 pageId = self.Props.get('wiki_pageId', None)
+        if (pageId is None and self._wikipage) or (self._wikipage and self._wikipage.PageId == pageId):
+            logger.warning("attachWikiPage invoked, but no (new) pageId was provided, and existing wikipage already attached, aborting. If a wrong pageId is registrered, you need to remove it manually.")
+            return
         if not pageId and self.Server and dosearch:
             print "Experiment.attachWikiPage() :: Searching on server..."
-            pagestruct = self.searchForWikiPage()
+            pagestruct = self.searchForWikiPage(dosearch)
             if pagestruct:
                 self.Props['wiki_pageId'] = pageId = pagestruct['id']
                 if self.SavePropsOnChange:
@@ -817,6 +893,8 @@ class Experiment(object):
             print "Experiment.attachWikiPage() :: Notice - no pageId found for exp {} (dosearch={}, self.Server={})...\n".format(self.Props.get('expid'), dosearch, self.Server)
             return pagestruct
         self.WikiPage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
+        if self.WikiPage.Struct:
+            self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
         return self.WikiPage
 
 
@@ -890,6 +968,10 @@ class Experiment(object):
 
 
     def makeWikiPage(self, dosave=True, pagefactory=None):
+        """
+        Unlike attachWikiPage which attempts to attach an existing wiki page,
+        this method creates a new wiki page and persists it to the server.
+        """
         if not (self.Server and self.Confighandler):
             print "Experiment.makeWikiPage() :: FATAL ERROR, no server and/or no confighandler."
             return

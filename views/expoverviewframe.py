@@ -19,6 +19,10 @@
 import Tkinter as tk
 import ttk
 #import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+import logging
+logger = logging.getLogger(__name__)
+
+
 from shared_ui_utils import HyperLink, ExpFrame
 
 
@@ -36,6 +40,9 @@ class ExpOverviewFrame(ExpFrame):
     #    self.Frames = dict()
     #    self.init_layout()
 
+    def before_init(self, kwargs):
+        self.NoWikipageFound = None
+
     def frame_defaults(self, ):
         return dict(borderwidth=10)
 
@@ -44,10 +51,25 @@ class ExpOverviewFrame(ExpFrame):
         f = self.ControlFrame = ttk.Frame(self)
         f.grid(row=currow, column=1, sticky="news")
         currow += 1
-        b = self.closebtn = ttk.Button(f, command=self.closeAndArchive, text="Close and archive experiment")
-        b.grid(row=1, column=1, sticky="nw")
+        curcol = 1
+        b = self.closebtn = ttk.Button(f, command=self.closeAndArchive, text="Close and archive experiment", state=self.statebyisactive() )
+        b.grid(row=1, column=curcol, sticky="nw")
+        curcol += 1
         b = self.hidenotebookbtn = ttk.Button(f, command=self.hidenotebook, text="Close notebook")
-        b.grid(row=1, column=2, sticky="nw")
+        b.grid(row=1, column=curcol, sticky="nw")
+        curcol += 1
+        b = self.updatebtn = ttk.Button(f, command=self.update_variables, text="Update info")
+        b.grid(row=1, column=curcol, sticky="nw")
+        curcol += 1
+        b = self.savepropsbtn = ttk.Button(f, command=self.saveprops, text="Save props now!")
+        b.grid(row=1, column=curcol, sticky="nw")
+        curcol += 1
+        b = self.wikipagebtn = ttk.Button(f, command=self.wikipage_lookup, text="Look up wikipage", state=self.statebynowikipageid() )
+        b.grid(row=1, column=curcol, sticky="nw")
+        curcol += 1
+        b = self.createwikipagebtn = ttk.Button(f, command=self.create_wikipage, text="Create wikipage", state=self.statebywikipagecreate() )
+        b.grid(row=1, column=curcol, sticky="nw")
+        curcol += 1
 
 
         self.AttrFrame = self.Frames['attr'] = f = ExpAttrFrame(self, self.Experiment)
@@ -68,16 +90,63 @@ class ExpOverviewFrame(ExpFrame):
 
         self.columnconfigure(1, weight=1)
 
+    def init_bindings(self):
+        ch = self.getConfighandler()
+        if ch:
+            ch.registerEntryChangeCallback('app_active_experiments', self.activeExpsChange)
+
     def update_variables(self):
         for frame in self.Frames.values():
             frame.update_variables()
 
-    def hidenotebook(self):
-        self.Parent.hide()
+    def hidenotebook(self, event=None):
+        #self.Parent.hide(event) # nope, Notebook.hide takes a <tab-id> and hides the corresponding tab.
+        self.Parent.lower()
 
-    def closeAndArchive(self, ):
-        pass
+    def closeAndArchive(self, event=None):
+        self.Parent.lower()
+        self.Experiment.archive()
 
+    def wikipage_lookup(self):
+        wikipage = self.Experiment.attachWikiPage(dosearch=4)
+        if wikipage:
+            self.update_variables
+            self.saveprops()
+            return wikipage
+        # else, perhaps do a broader search, allowing the user to select from a list of possible matches.
+        self.NoWikipageFound = True
+        self.createwikipagebtn['state'] = self.statebywikipagecreate()
+
+
+    def create_wikipage(self):
+        logger.info("Creating new wikipage for experiment '{}'".format(self))
+        page = self.Experiment.makeWikiPage()
+        if page:
+            logger.info("New wikipage created: {}".format(page))
+            self.update_variables()
+            # perhaps do self.Parent.update_frames instead?
+        else:
+            logger.error("makeWikiPage returned false: {}".format(page))
+
+
+    def saveprops(self):
+        self.Experiment.saveAll()
+
+    def statebyisactive(self):
+        return 'normal' if self.Experiment.isactive() else 'disabled'
+
+    def statebynowikipageid(self):
+        return 'normal' if self.Experiment.PageId is None else 'disabled'
+
+    def statebywikipagecreate(self):
+        if self.NoWikipageFound and not self.Experiment.PageId:
+            return 'normal'
+        else:
+            return 'disabled'
+
+    def activeExpsChange(self, event=None):
+        self.closebtn['state'] = 'normal' if self.Experiment.isactive() else 'disabled'
+        logger.debug("closebtn['state'] set to {}".format(str(self.closebtn.cget('state')) ))
 
 
 class ExpPropsFrame(ExpFrame):
@@ -188,7 +257,7 @@ class ExpWikiPageStructFrame(ExpSubentriesFrame):
     def getValue(self, key):
         page = getattr(self.Experiment, key, None)
         if not page:
-            print "ExpOverviewFrame.update_wikipageinfo() > Experiment '{}' ({}) has no attribute '{}', aborting.".format(expid, self.Experiment, key)
+            logger.info("ExpOverviewFrame.update_wikipageinfo() > Experiment '{}' has no attribute '{}', aborting.".format(self.Experiment, key))
             return None
         struct = page.Struct #.get('exp_subentries', None)
         def makevalstr(val):

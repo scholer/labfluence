@@ -19,6 +19,9 @@
 import Tkinter as tk
 import ttk
 import webbrowser
+import logging
+logger = logging.getLogger(__name__)
+
 
 class ExpFrame(ttk.Frame):
     """
@@ -74,7 +77,16 @@ class ExpFrame(ttk.Frame):
             return self.Experiment.Confighandler.Singletons.get('app')
         except AttributeError:
             return None
-
+    def getManager(self):
+        try:
+            return self.Experiment.Confighandler.Singletons.get('experimentmanager')
+        except AttributeError:
+            return None
+    def getConfighandler(self):
+        try:
+            return self.Experiment.Confighandler
+        except AttributeError:
+            return None
     def getFonts(self, ):
         app = self.getApp()
         if app:
@@ -131,7 +143,4 @@ class HyperLink(ttk.Label):
         print "Opening '{}'".format(url)
         # Perhaps check what protocol to use first, and open in webbrowser/filebrowser/ftpclient/?
         webbrowser.open_new(url)
-
-
-class CloseIcon(object):
     pass

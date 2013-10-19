@@ -21,8 +21,14 @@
 import Tkinter as tk
 import ttk
 import tkFont
-#try:
-#    import ttk
+
+# Other standard lib modules:
+import socket
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Labfluence modules and classes:
 
 from model.confighandler import ExpConfigHandler
 from model.experiment_manager import ExperimentManager
@@ -33,7 +39,6 @@ from views.expnotebook import ExpNotebook, BackgroundFrame
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 from controllers.filemanagercontroller import ExpFilemanagerController
 from ui.fontmanager import FontManager
-import socket
 
 class LabfluenceGUI(object):
     """
@@ -254,6 +259,9 @@ class LabfluenceGUI(object):
 
     def init_bindings(self):
         self.Confighandler.registerEntryChangeCallback("wiki_server_status", self.serverStatusChange)
+        # Edit, these bindings are currently handled by the relevant controllers...
+        #self.Confighandler.registerEntryChangeCallback("app_active_experiments", self.activeExpsChanged)
+        #self.Confighandler.registerEntryChangeCallback("app_recent_experiments", self.recentExpsChanged)
 
     def update_widgets(self):
         self.serverStatusChange()
@@ -341,20 +349,29 @@ class LabfluenceGUI(object):
         menu.add_command(label='Close & mark complete')
 
 
-    def showHome(self, event):
-        pass
-    def serverStatus(self, event):
-        pass
+    def showHome(self, event=None):
+        self.backgroundframe.lift()
+
+    def serverStatus(self, event=None):
+        server = self.Confighandler.Singletons.get('server')
+        if server is None:
+            self.serverStatusChange()
+            return
+        serverinfo = server.getServerInfo()
+        print serverinfo
+
     def serverStatusChange(self):
         server = self.Confighandler.Singletons.get('server')
         print "\n\n\nSERVER: {}\n".format(server)
         if server:
             self.serverstatus_btn.configure(background="green", text="Online")
             print "Server reported to be online :-)"
+            for notebook in self.ExpNotebooks:
+                notebook.update_info()
         else:
             self.serverstatus_btn.configure(background="red", text="(offline)")
             print "Server reported to be offline :-("
-
+            print "server._connectionok: {}".format(server._connectionok)
 
     def createNewExperiment(self, event):
         print "Not implemented yet..."
@@ -362,6 +379,9 @@ class LabfluenceGUI(object):
     def selectExperiments(self, event):
         #print "Not implemented yet..."
         experiment_selector_window = tk.Toplevel(self.tkroot)
+
+    def activeExpsChange(self, event=None):
+        self.activeexps_list.reload()
 
 
     def exitApp(self):

@@ -95,6 +95,9 @@ class ExpJournalFrame(ExpFrame):
         # Buttons:
         self.flush_btn = ttk.Button(self.cachecontrolsframe, text="Flush cache!", command=self.flushcache)
         self.flushall_btn = ttk.Button(self.controlframe, text="Flush cache for all subentries", command=self.flushallcaches)
+        self.createnewsubentry_btn = ttk.Button(self.controlframe, text="Create new subentry", command=self.createnewsubentry)
+        self.newwikipagesubentry_btn = ttk.Button(self.controlframe, text="Insert subentry xhtml",
+                                                command=self.newwikipagesubentry, state='disabled')
 
         # Other option input:
         self.autoflush_frame = ttk.Frame(self.controlframe)
@@ -186,8 +189,11 @@ class ExpJournalFrame(ExpFrame):
         self.update_wikiview()
 
     def update_wikiview(self):
-        print "Not implemented"
-        self.journalwiki_view.update_wiki_subentry()
+        xhtml = self.journalwiki_view.update_wiki_subentry()
+        if xhtml:
+            self.newwikipagesubentry_btn['state'] = 'normal'
+        else:
+            self.newwikipagesubentry_btn['state'] = 'disabled'
 
     def update_cacheview(self):
         # Label-like view with variable:
@@ -257,6 +263,15 @@ class ExpJournalFrame(ExpFrame):
         self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
         self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
 
+    def createnewsubentry(self, event=None):
+        idx = self.Experiment.getNewSubentryIdx()
+        kwargs = dict(subentry_idx=idx, makefolder=False, makewikientry=False)
+        #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
+        self.Experiment.addNewSubentry()
+
+    def newwikipagesubentry(self):
+        pass
+
 
 class JournalViewer(ExpFrame):
 
@@ -312,31 +327,31 @@ class JournalViewer(ExpFrame):
     def update_wiki_subentry(self):
         """
         Sets the value of the text widget to the journal-assistant cache for the currently selected subentry:
+        Returns the html from experiment.getWikiSubentryXhtml().
+        If the regex search failed, this will be None.
         """
-        html = self.Experiment.getWikiSubentryXhtml()
-        #html = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
+        xhtml = self.Experiment.getWikiSubentryXhtml()
+        #xhtml = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
         #print 'self["font"] is: {}'.format(self["font"])
-        print "html is:"
-        print html
-
+        print "xhtml is:"
+        print xhtml
         # prepare the text widget:
         self.text.config(state="normal")
         self.text.delete("1.0", "end")
         self.text.update_idletasks()
-
-        if not html:
-            print "No html, aborting..."
+        if not xhtml:
+            print "No xhtml, aborting..."
             self.text.config(state="disabled")
-            return
-
-        # Write the html to the text widget:
+            return xhtml
+        # Write the xhtml to the text widget:
         writer = tkHTMLWriter(self.text)
         fmt = formatter.AbstractFormatter(writer)
         parser = tkHTMLParser(fmt)
-        parser.feed(html)
+        parser.feed(xhtml)
         parser.close()
-
+        # Finally, disable the text widget again
         self.text.config(state="disabled")
+        return xhtml
 
 
     def set_value(self, value):

@@ -21,23 +21,32 @@
 import Tkinter as tk
 import ttk
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Note: A simpler alternative to using a controller could be to simply expend the tk.Listbox class,
 # or just configure the listbox manually...
-
+# See views/experimentmanagerframes.py for widgets that implement this approach
 
 class ExpListBoxController(object):
 
     def __init__(self, listbox, confighandler, app=None):
         self.Listbox = listbox
         self.Confighandler = confighandler
-        self.App = app or self.Confighandler.Singletons.get('app')
+        self._app = app
         self.ExperimentByListIndex = list()
         # You could also just assume the list is immutable and simply rely on the indices.
         #self.EntryMap = dict() # Maps an entry
         self.updateList()
-        #self.activeexps_list.bind('<<ListboxSelect>>', self.show_notebook ) # Will throw the event to the show_notebook
         self.Listbox.bind('<<ListboxSelect>>', self.on_select ) # Will throw the event to the show_notebook
+        self.Listbox.bind("<Double-Button-1>", self.on_doubleclick)
 
+    @property
+    def App(self):
+        return self._app or self.Confighandler.Singletons.get('app')
+    @property
+    def ExperimentManager(self):
+        return self.Confighandler.Singletons.get('experimentmanager')
     @property
     def Experiments(self):
         """
@@ -52,9 +61,10 @@ class ExpListBoxController(object):
 
     def updateList(self):
         exps = self.Experiments # This property works rather like the getlist() method in filemanager.
+        logger.debug("updating list with experiments: {}".format(exps))
+        self.clearList()
         if exps:
             print "\nUpdating self {} list with experiments:\n{}".format(self, "\n".join("{e} with props {e.Props}".format(e=e) for e in self.Experiments))
-            self.clearList()
             # Note: The list will get the string representation from the experiment ( __repr__ method).
             # This is also what is returned upon querying.
             self.ExperimentByListIndex = exps # This list should be consolidated to match the (<display>, <identifier>, <full object>) tuple list structure
@@ -67,11 +77,12 @@ class ExpListBoxController(object):
         lst = event.widget
         curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
         selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
-        print curselection, selected_items, type(selected_items)
+        logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
         experiment = self.ExperimentByListIndex[int(curselection[0])]
-        print curselection, experiment, type(experiment)
+        logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
         self.showExp(experiment)
-
+    def on_doubleclick(self, event):
+        pass
 
     def showExp(self, experiment):
         app = self.App
@@ -87,13 +98,12 @@ class ActiveExpListBoxController(ExpListBoxController):
 
     @property
     def Experiments(self):
-        em = self.Confighandler.Singletons.get('experimentmanager', None)
+        em = self.ExperimentManager
         if em:
-            print "Getting em.ActiveExperiments"
+            logger.debug("Returning em.ActiveExperiments.")
             return em.ActiveExperiments
-        print "Getting self.Confighandler.get('app_active_experiments')"
-        return self.Confighandler.get('app_active_experiments')
-
+        #print "Getting self.Confighandler.get('app_active_experiments')"
+        #return self.Confighandler.get('app_active_experiments')
 
 
 class RecentExpListBoxController(ExpListBoxController):
@@ -104,7 +114,20 @@ class RecentExpListBoxController(ExpListBoxController):
 
     @property
     def Experiments(self):
-        em = self.Confighandler.Singletons.get('experimentmanager', None)
+        em = self.ExperimentManager
         if em:
+            logger.debug("Returning em.RecentExperiments.")
             return em.RecentExperiments
-        return self.Confighandler.get('app_recent_experiments')
+
+    def on_doubleclick(self, event):
+        lst = event.widget
+        curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
+        selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
+        logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
+        experiment = self.ExperimentByListIndex[int(curselection[0])]
+        logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
+        expid = experiment.Expid
+        self.ExperimentManager.addActiveExperiments( (expid, ))
+        # possibly invoke
+        # self.Confighandler.invoke # nope, this is done by Manager.addActiveExperiments...
+        # however, if you use Manager.addActiveExperiment(expid), then it is _not_ invoked.

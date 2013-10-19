@@ -63,7 +63,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
     """
 
 
-    def __init__(self, pageId, server, pagestruct=None, VERBOSE=0):#, localdir=None, experiment=None):
+    def __init__(self, pageId, server, confighandler=None, pagestruct=None, VERBOSE=0):#, localdir=None, experiment=None):
         """
         Experiment and localdir currently not implemented.
         These are mostly intended to provide local-dir-aware config items, e.g. string formats and regexs.
@@ -72,16 +72,31 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         # The current approach is that this should be immutable; changing the pageId could result
         # in undefined bahaviour, e.g. overwriting a page with another page's content.
         self.PageId = pageId
-        self.Server = server
+        self._server = server
         self.VERBOSE = VERBOSE
+        self.Confighandler = confighandler
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
-        self.Struct = pagestruct # Cached struct.
+        self._struct = pagestruct # Cached struct.
         if pagestruct is None:
             self.reloadFromServer()
             print "WikiPage retrieved from server: {}".format(self.Struct)
         else:
             print "WikiPage initialized with pagestruct {}".format(pagestruct)
+
+
+    @property
+    def Struct(self):
+        if not self._struct:
+            self.reloadFromServer()
+        return self._struct
+    @Struct.setter
+    def Struct(self, newstruct):
+        if newstruct and not self._struct:
+            self._struct = newstruct
+    @property
+    def Server(self):
+        return self._server or self.Confighandler.Singletons.get('server')
 
 
     def reloadFromServer(self):
@@ -344,7 +359,7 @@ below        source and target become/remain sibling pages and the source is mov
         #regex_pat = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
         if not regex_pat:
             print "WikiPage.getWikiSubentryXhtml() > No regex pattern found in config, aborting..."
-        regex_prog = re.compile(regex_pat)
+        regex_prog = re.compile(regex_pat, re.DOTALL)
         match = regex_prog.search(self.Struct['content'])
         if match:
             gd = match.groupdict()
@@ -619,7 +634,7 @@ class WikiPageFactory(object):
         """
         Returns a template (text string);
         """
-        return self.TemplateManager(templatetype)
+        return self.TemplateManager.getTemplate(templatetype)
 #        if templatetype is None:
 #            templatetype = self.DefaultTemplateType
 #        template = self.Confighandler.get(templatetype+'_template')

@@ -20,6 +20,8 @@ import os
 import os.path
 from datetime import datetime
 from collections import OrderedDict
+import logging
+logger = logging.getLogger(__name__)
 
 
 # from http://stackoverflow.com/questions/4579908/cross-platform-splitting-of-path-in-python
@@ -258,26 +260,38 @@ class ConfigHandler(object):
         if VERBOSE:
             print "\nautoRead() :: Updated ConfigPaths:\n{}".format("\n".join("- {} : {}".format(k,v) for k,v in self.ConfigPaths.items()))
 
+    def saveConfigForEntry(self, key):
+        """
+        Saves the config file that contains a particular entry.
+        Useful if you have changed only a single config item and do not want to persist all config files.
+        Example: The app changes the value of 'app_active_experiment' and invokes saveConfigForEntry('app_active_experiment')
+        Note: For Hierarchical configs, use the path-based save method in ExpConfigHandler.
+        """
+        for cfgtype, cfg in reversed(self.Configs.items()):
+            if key in cfg:
+                self.saveConfigs(what=cfgtype)
+                return True
+        logger.warning("saveConfigForEntry invoked with key '{}', but key not found in any of the loaded configs ({})!".format(key, ",".join(self.Configs)))
 
     def saveConfigs(self, what='all', VERBOSE=None):
+        logger.debug("saveConfigs invoked with configtosave '{}'".format(what))
         if VERBOSE is None:
             VERBOSE = self.VERBOSE
         #for (outputfn, config) in zip(self.getConfigPath(what='all'), self.getConfig(what='all')):
         for cfgtype,outputfn in self.ConfigPaths.items():
             if (what=='all' or cfgtype in what or cfgtype==what):
                 if outputfn:
-                    if VERBOSE:
-                        print "saveConfigs() :: Saving config '{}' to file: {}".format(cfgtype, outputfn)
+                    logger.info("saveConfigs() :: Saving config '{}' to file: {}".format(cfgtype, outputfn))
                     self._saveConfig(outputfn, self.Configs[cfgtype])
                 else:
-                    print "saveConfigs() :: No filename specified for config '{}'".format(cfgtype)
+                    logger.info("saveConfigs() :: No filename specified for config '{}'".format(cfgtype))
+            else:
+                logger.debug("configtosave '{}' not matching cfgtype '{}' with outputfn '{}'".format(what, cfgtype, outputfn))
 
-    def _saveConfig(self, outputfn, config, desc='', VERBOSE=None):
-        if VERBOSE is None:
-            VERBOSE = self.VERBOSE
+    def _saveConfig(self, outputfn, config, desc=''):
         try:
             yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False)
-            print "_saveConfig() :: Config saved to file: {}".format(outputfn)
+            logger.info("_saveConfig() :: Config saved to file: {}".format(outputfn))
             return True
         except IOError, e:
             # This is to be expected for the system config...
@@ -288,24 +302,28 @@ class ConfigHandler(object):
         for k,v in config.items():
             print "{indent}{k}: {v}".format(indent=' '*indent, k=k, v=v)
 
-    def printConfigs(self, what='all'):
+    def printConfigs(self, cfgtypestoprint='all'):
         for cfgtype,outputfn in self.ConfigPaths.items():
-            if (what=='all' or cfgtype in what or cfgtype==what):
+            if (cfgtypestoprint=='all' or cfgtype in cfgtypestoprint or cfgtype==cfgtypestoprint):
                 print "\nConfig '{}' in file: {}".format(cfgtype, outputfn)
                 self._printConfig(self.Configs[cfgtype])
 
 
-    def getConfigDir(self, what='user'):
+    def getConfigDir(self, cfgtype='user'):
         """
         Returns the directory of a particular configuration (file); defaulting to the 'user' config.
         Valid arguments are: 'system', 'user', 'exp', etc.
         """
-        return os.path.dirname(self.getConfigPath(what))
+        return os.path.dirname(self.getConfigPath(cfgtype))
 
 
     def registerEntryChangeCallback(self, configentry, function, args=None, kwargs=None):
         """
         Registers a callback for a particular entry (name).
+        Actually, this can be used as a simple, general-purpose callback manager, across all objects
+        that have access to the Confighandler singleton. The 'configentry' key does not have to
+        correspond to an actual configentry, it can just be a name that specifies that particular
+        callback by concention.
         Note: I see no reason to add a 'registerConfigChangeCallback' method.
         Although this could provide per-config callbacks (e.g. an experiment that could subscribe to
         changes only for that experiment), I think it is better to code for this situation directly.
@@ -335,6 +353,7 @@ class ConfigHandler(object):
         # I would have liked this to be a set, but hard to implement set for dict-type kwargs and no frozendict in python2.
         # Just make sure not to register the same callback twice.
         self.EntryChangeCallbacks.setdefault(configentry, list()).append( (function, args, kwargs) )
+        logger.debug("Registrered callback for configentry '{}': {}(*{}, **{})".format(configentry, function, args, kwargs))
         # I could also have implemented as dict based on the function is hashable, e.g.:
         #self.EntryChangeCallbacks.setdefault(configentry, dict()).set(function, (args, kwargs) )
         # and invoke with:
@@ -342,10 +361,19 @@ class ConfigHandler(object):
         #     function(*args, **kwargs)
 
     def invokeEntryChangeCallback(self, configentry=None):
+        """
+        Simple invokation of registrered callbacks.
+        If configentry is provided, only callbacks registrered to that entry will be invoked.
+        If configentry is None (default), all keys registrered in self.ChangedEntriesForCallbacks
+        will have their corresponding callbacks invoked.
+        When a configentry has had its callbacks invoked, it will be unregistrered from
+        self.ChangedEntriesForCallbacks.
+        """
         if configentry:
             if configentry in self.EntryChangeCallbacks:
                 for function, args, kwargs in self.EntryChangeCallbacks[configentry]:
                     function(*args, **kwargs)
+                    logger.debug("callback invoked for configentry '{}': {}(*{}, **{})".format(configentry, function, args, kwargs))
                 self.ChangedEntriesForCallbacks.discard(configentry) # Erase this entry if registrered here.
         elif self.ChangedEntriesForCallbacks:
             # Use the self.ChangedEntriesForCallbacks set to determine what to call.
@@ -356,6 +384,7 @@ class ConfigHandler(object):
             while True:
                 try:
                     entry = self.ChangedEntriesForCallbacks.pop()
+                    logger.debug("Popped configentry '{}' from ChangedEntriesForCallbacks...".format(configentry))
                     self.invokeEntryChangeCallback(entry)
                 except KeyError: # raised when pop on empty set.
                     break
@@ -427,7 +456,7 @@ class ExpConfigHandler(ConfigHandler):
         for cfgtype, cfg in reversed(self.Configs.items()):
             if key in cfg:
                 exp_path = self.getConfigDir('exp')
-                # special cases:
+                # special cases, e.g. paths:
                 if pathsrelativetoexp and key in ('local_exp_rootDir', 'local_exp_subDir') and cfg[key][0] == '.':
                     return os.path.normpath(os.path.join(exp_path, cfg[key]))
                 elif pathsrelativetoexp and key in ('local_exp_ignoreDirs'):

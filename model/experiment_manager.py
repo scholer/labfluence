@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
 ##    This program is free software: you can redistribute it and/or modify
@@ -19,6 +19,7 @@
 import os
 import re
 import logging
+logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
 #from operator import attrgetter, itemgetter, methodcaller
 
 
@@ -38,7 +39,7 @@ class ExperimentManager(object):
             if 'localexps' in autoinit:
                 self.ExperimentsById = self.makeExperimentByExpIdMap(self.getLocalExperiments())
             if 'wikiexps' in autoinit:
-                print "wikiexps in autoinit not implemented..."
+                logger.info("wikiexps in autoinit not implemented...")
         #self.ExpSummariesById = dict()  # yaml-persisted brief info, from cache. Edit, this is now a property ExperimentPropsById
         # Discussion: Is it worth having a cached summary?
         # - Note: I still think basic info should be persisted on a per-experiment basis, not in a single large yaml file.
@@ -83,27 +84,68 @@ class ExperimentManager(object):
     """
 
     @property
-    def ActiveExperimentsIds(self):
+    def ActiveExperimentIds(self):
         "List of active experiments, obtained from confighandler."
         return self.Confighandler.setdefault('app_active_experiments', list())
-
     @property
-    def RecentExperimentsIds(self):
+    def RecentExperimentIds(self):
         "List of recently opened experiments, obtained from confighandler."
         return self.Confighandler.setdefault('app_recent_experiments', list())
-
     @property
     def ActiveExperiments(self):
         "List of active experiments, obtained from confighandler."
-        expids = self.RecentExperimentsIds
+        expids = self.ActiveExperimentIds
         return self.getExpsById(expids)
-
     @property
     def RecentExperiments(self):
         "List of recently opened experiments, obtained from confighandler."
-        expids = self.RecentExperimentsIds
+        expids = self.RecentExperimentIds
         return self.getExpsById(expids)
 
+    def archiveExperiment(self, exp):
+        if not isinstance(exp, basestring):
+            expid = exp.Props['expid'] # When you eventually implement file: and wiki: notations in addition to expid:, use try-except clause
+        else:
+            expid = exp
+        try:
+            self.ActiveExperimentIds.remove(expid)
+            logger.debug("Removed expid '{}' from ActiveExperimentIds".format(expid))
+        except ValueError:
+            logger.warning("Expid '{}' not in ActiveExperimentIds.".format(expid))
+        logger.debug("Appending expid '{}' to RecentExperimentIds".format(expid))
+        self.RecentExperimentIds.append(expid)
+        self.sortRecentExprimentIds()
+        self.Confighandler.invokeEntryChangeCallback('app_active_experiments')
+        self.Confighandler.invokeEntryChangeCallback('app_recent_experiments')
+        self.Confighandler.saveConfigForEntry('app_recent_experiments')
+
+    def addActiveExperiments(self, exps, removeFromRecent=True):
+        for exp in exps:
+            if not isinstance(exp, basestring):
+                exp = exp.Props['expid']
+            self.addActiveExperimentId(exp, removeFromRecent)
+        self.sortActiveExprimentIds()
+        self.sortRecentExprimentIds()
+        self.Confighandler.invokeEntryChangeCallback()#'app_active_experiments')
+        self.Confighandler.saveConfigForEntry('app_active_experiments')
+
+    def addActiveExperimentId(self, expid, removeFromRecent=True):
+        self.ActiveExperimentIds.append(expid)
+        logger.debug("Appending expid '{}' to RecentExperimentIds".format(expid))
+        # possibly do:
+        self.Confighandler.ChangedEntriesForCallbacks.add('app_active_experiments') # it is a set.
+        if removeFromRecent:
+            logger.debug("Removing expid '{}' from RecentExperimentIds".format(expid))
+            self.RecentExperimentIds.remove(expid)
+            self.Confighandler.ChangedEntriesForCallbacks.add('app_recent_experiments')
+
+    def sortActiveExprimentIds(self):
+        # Sort "in place", just in case there are direct references to the list in other places...:
+        self.ActiveExperimentIds.sort()
+        logger.debug("Sorted ActiveExperimentIds: ".format(self.ActiveExperimentIds))
+    def sortRecentExprimentIds(self):
+        self.RecentExperimentIds.sort()
+        logger.debug("Sorted RecentExperimentIds: ".format(self.RecentExperimentIds))
 
     def initExpIds(self, expids):
         for expid in expids:
@@ -155,8 +197,6 @@ class ExperimentManager(object):
         #return os.path.join(self.Confighandler.getConfigDir('exp'), self.getLocalExpRootDir(), self.getLocalExpSubDir() )
         # edit: I have updated ExpConfigHandler to account for this:
         return self.getLocalExpSubDir()
-
-
 
 
     def getCurrentWikiExperiments(self, ret='page-structs'):

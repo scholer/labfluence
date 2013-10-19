@@ -24,6 +24,10 @@ import string
 from Crypto.Cipher import AES
 #import Crypto.Random
 from Crypto.Random import random as crypt_random
+import logging
+logger = logging.getLogger(__name__)
+
+# Labfluence modules and classes:
 from confighandler import ConfigHandler, ExpConfigHandler
 
 """
@@ -61,6 +65,7 @@ class AbstractServer(object):
         self._username = username
         self._password = password
         self._logintoken = logintoken
+        #self._raisetimeouterrors = True # Edit: Hardcoded not here but in the attribute getter.
         self._connectionok = None # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
         self.Confighandler = confighandler
        ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
@@ -155,10 +160,12 @@ class AbstractServer(object):
         if not self._connectionok:
             self._connectionok = True
             self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
+        print "\n\nServer: _connectionok set to: '{}' (should be True)".format(self._connectionok)
     def notok(self):
         if self._connectionok:
             self._connectionok = False
             self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
+        print "\n\nServer: _connectionok set to: '{}' (should be False)".format(self._connectionok)
 
 
     def execute(self, function, *args):
@@ -343,7 +350,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
             print "ConfluenceXmlRpcServer.test_token() :: No token provided, aborting..."
             return None
         try:
-            serverinfo = self.RpcServer.confluence2.getServerInfo(logintoken)
+            serverinfo = self.getServerInfo(logintoken)
             if doset:
                 self.Logintoken = logintoken
             return True
@@ -395,7 +402,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         Raises xmlrpclib.Fauls on auth error/failure.
         """
         return self.execute(self.RpcServer.confluence2.login, username, password)
-        #return self.RpcServer.confluence2.login(username,password)
+        #return self.execute(self.RpcServer.confluence2.login(username,password)
 
     def logout(self, token=None):
         """
@@ -407,7 +414,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         if token is None:
             print "Error, login token is None."
             return
-        return self.RpcServer.confluence2.logout(token)
+        return self.execute(self.RpcServer.confluence2.logout, token)
 
 
     ################################
@@ -423,7 +430,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         if token is None:
             print "Error, login token is None."
             return
-        return self.RpcServer.confluence2.getServerInfo(token)
+        return self.execute(self.RpcServer.confluence2.getServerInfo, token)
 
     def getSpaces(self, token=None):
         """
@@ -434,7 +441,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         if token is None:
             print "Error, login token is None."
             return
-        return self.RpcServer.confluence2.getSpaces(token)
+        return self.execute(self.RpcServer.confluence2.getSpaces, token)
 
 
     ################################
@@ -450,23 +457,23 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         if token is None:
             print "Error, login token is None."
             return
-        return self.RpcServer.confluence2.getUser(token, username)
+        return self.execute(self.RpcServer.confluence2.getUser, token, username)
 
     def createUser(self, newuserinfo, newuserpasswd):
-        self.RpcServer.confluence2.addUser(self.Logintoken, newuserinfo, newuserpasswd)
+        return self.execute(self.RpcServer.confluence2.addUser, self.Logintoken, newuserinfo, newuserpasswd)
 
     def getGroups(self):
         # returns a list of all groups. Requires admin priviledges.
-        return self.RpcServer.confluence2.getGroups(self.Logintoken)
+        return self.execute(self.RpcServer.confluence2.getGroups, self.Logintoken)
 
     def getGroup(self, group):
         # returns a single group. Requires admin priviledges.
-        return self.RpcServer.confluence2.getSpaces(self.Logintoken, group)
+        return self.execute(self.RpcServer.confluence2.getSpaces, self.Logintoken, group)
 
 
     def getActiveUsers(self, viewAll):
         # returns a list of all active users.
-        return self.RpcServer.confluence2.getActiveUsers(self.Logintoken, viewAll)
+        return self.execute(self.RpcServer.confluence2.getActiveUsers, self.Logintoken, viewAll)
 
 
 
@@ -476,7 +483,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
     ################################
 
     def getPages(self, spaceKey):
-        return self.RpcServer.confluence2.getPages(self.Logintoken, spaceKey)
+        return self.execute(self.RpcServer.confluence2.getPages, self.Logintoken, spaceKey)
 
     def getPage(self, pageId=None, spaceKey=None, pageTitle=None):
         """
@@ -487,9 +494,9 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         """
         if pageId:
             pageId = str(pageId) # getPage method takes a long int.
-            return self.RpcServer.confluence2.getPage(self.Logintoken, pageId)
+            return self.execute(self.RpcServer.confluence2.getPage, self.Logintoken, pageId)
         elif spaceKey and pageTitle:
-            return self.RpcServer.confluence2.getPage(self.Logintoken, spaceKey, pageTitle)
+            return self.execute(self.RpcServer.confluence2.getPage, self.Logintoken, spaceKey, pageTitle)
         else:
             raise("Must specify either pageId or spaceKey/pageTitle.")
 
@@ -499,7 +506,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.RpcServer.confluence2.removePage(self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.removePage, self.Logintoken, pageId)
 
     def movePage(self, sourcePageId, targetPageId, position='append'):
         """
@@ -515,7 +522,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         * append-> source becomes a child of the target.
         """
         sourcePageId, targetPageId = str(sourcePageId), str(targetPageId)
-        return self.RpcServer.confluence2.movePage(self.Logintoken, sourcePageId, targetPageId, position)
+        return self.execute(self.RpcServer.confluence2.movePage, self.Logintoken, sourcePageId, targetPageId, position)
 
     def getPageHistory(self, pageId):
         """
@@ -524,7 +531,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.RpcServer.confluence2.getPageHistory(self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getPageHistory, self.Logintoken, pageId)
 
     def getAttachments(self, pageId):
         """
@@ -532,7 +539,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.RpcServer.confluence2.getAttachments(self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getAttachments, self.Logintoken, pageId)
 
     def getAncestors(self, pageId):
         """
@@ -540,7 +547,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.RpcServer.confluence2.getAncestors(self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getAncestors, self.Logintoken, pageId)
 
     def getChildren(self, pageId):
         """
@@ -548,7 +555,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.RpcServer.confluence2.getChildren(self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getChildren, self.Logintoken, pageId)
 
     def getDescendents(self, pageId):
         """
@@ -556,7 +563,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.RpcServer.confluence2.getDescendents(self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getDescendents, self.Logintoken, pageId)
 
     def getComments(self, pageId):
         """
@@ -564,7 +571,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.RpcServer.confluence2.getComments(self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getComments, self.Logintoken, pageId)
 
     def getComment(self, commentId):
         """
@@ -572,7 +579,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes commentId as string.
         """
         commentId = str(commentId)
-        return self.RpcServer.confluence2.getComment(self.Logintoken, commentId)
+        return self.execute(self.RpcServer.confluence2.getComment, self.Logintoken, commentId)
 
     def removeComment(self, commentId):
         """
@@ -580,15 +587,15 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes commentId as string.
         """
         commentId = str(commentId)
-        return self.RpcServer.confluence2.removeComment(self.Logintoken, commentId)
+        return self.execute(self.RpcServer.confluence2.removeComment, self.Logintoken, commentId)
 
     def addComment(self, comment_struct):
         # adds a comment to the page.
-        return self.RpcServer.confluence2.addComment(self.Logintoken, comment_struct)
+        return self.execute(self.RpcServer.confluence2.addComment, self.Logintoken, comment_struct)
 
     def editComment(self, comment_struct):
         # Updates an existing comment on the page.
-        return self.RpcServer.confluence2.editComment(self.Logintoken, comment_struct)
+        return self.execute(self.RpcServer.confluence2.editComment, self.Logintoken, comment_struct)
 
 
 
@@ -599,11 +606,11 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
     def getAttachment(self, pageId, fileName, versionNumber=0):
         # Returns get information about an attachment.
         # versionNumber=0 is the current version.
-        return self.RpcServer.confluence2.getAttachment(self.Logintoken, pageId, fileName, versionNumber)
+        return self.execute(self.RpcServer.confluence2.getAttachment, self.Logintoken, pageId, fileName, versionNumber)
 
     def getAttachmentData(self, pageId, fileName, versionNumber=0):
         # Returns the contents of an attachment. (bytes)
-        return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, pageId, fileName, versionNumber)
+        return self.execute(self.RpcServer.confluence2.getAttachmentData, self.Logintoken, pageId, fileName, versionNumber)
 
     def addAttachment(self, contentId, attachment_struct, attachmentData):
         """
@@ -622,16 +629,16 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         #        attachmentData = data
         #    except IOError:
         #        pass
-        return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, contentId, attachment_struct, attachmentData)
+        return self.execute(self.RpcServer.confluence2.getAttachmentData, self.Logintoken, contentId, attachment_struct, attachmentData)
 
     def removeAttachment(self, contentId, fileName):
         """remove an attachment from a content entity object.
         """
-        return self.RpcServer.confluence2.removeAttachment(self.Logintoken, contentId, fileName)
+        return self.execute(self.RpcServer.confluence2.removeAttachment, self.Logintoken, contentId, fileName)
 
     def moveAttachment(self, originalContentId, originalName, newContentEntityId, newName):
         """move an attachment to a different content entity object and/or give it a new name."""
-        return self.RpcServer.confluence2.moveAttachment(self.Logintoken, originalContentId, originalName, newContentEntityId, newName)
+        return self.execute(self.RpcServer.confluence2.moveAttachment, self.Logintoken, originalContentId, originalName, newContentEntityId, newName)
 
 
     ####################################
@@ -651,7 +658,7 @@ Operates exactly like updatePage() if the page already exists.
         if self.VERBOSE:
             print "server.storePage() :: Storing page:"
             print page_struct
-        return self.RpcServer.confluence2.storePage(self.Logintoken, page_struct)
+        return self.execute(self.RpcServer.confluence2.storePage, self.Logintoken, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
         """ updates a page.
@@ -659,11 +666,11 @@ The Page given should have id, space, title, content and version fields at a min
 The parentId field is always optional. All other fields will be ignored.
 Note: the return value can be null, if an error that did not throw an exception occurred.
 """
-        return self.RpcServer.confluence2.updatePage(self.Logintoken, page_struct, pageUpdateOptions)
+        return self.execute(self.RpcServer.confluence2.updatePage, self.Logintoken, page_struct, pageUpdateOptions)
 
 
     def convertWikiToStorageFormat(self, wikitext):
-        return self.RpcServer.confluence2.convertWikiToStorageFormat(self.Logintoken, wikitext)
+        return self.execute(self.RpcServer.confluence2.convertWikiToStorageFormat, self.Logintoken, wikitext)
 
 
     def renderContent(self, spaceKey=None, pageId=None, content=None):
@@ -679,11 +686,11 @@ Note: the return value can be null, if an error that did not throw an exception 
         if pageId:
             pageId = str(pageId)
             if content:
-                return self.RpcServer.confluence2.renderContent(self.Logintoken, pageId=pageId, content=content)
+                return self.execute(self.RpcServer.confluence2.renderContent, self.Logintoken, pageId=pageId, content=content)
             else:
-                return self.RpcServer.confluence2.renderContent(self.Logintoken, pageId=pageId, content=content)
+                return self.execute(self.RpcServer.confluence2.renderContent, self.Logintoken, pageId=pageId)
         elif spaceKey and content:
-            return self.RpcServer.confluence2.renderContent(self.Logintoken, spaceKey=pageId, content=content)
+            return self.execute(self.RpcServer.confluence2.renderContent, self.Logintoken, spaceKey=pageId, content=content)
         print "server.renderContent() :: Error, must pass either pageId (with optional content) or spaceKey and content."
         return None
 
@@ -718,9 +725,9 @@ contributor:
 * default: Results are not filtered by contributor
         """
         if parameters:
-            return self.RpcServer.confluence2.search(self.Logintoken, query, parameters, maxResults)
+            return self.execute(self.RpcServer.confluence2.search, self.Logintoken, query, parameters, maxResults)
         else:
-            return self.RpcServer.confluence2.search(self.Logintoken, query, maxResults)
+            return self.execute(self.RpcServer.confluence2.search, self.Logintoken, query, maxResults)
 
 
 
@@ -750,7 +757,7 @@ contributor:
         if contentformat == 'wiki':
             newContent = self.convertWikiToStorageFormat(newContent)
         page_struct['content'] = newContent
-        page = self._server.confluence2.storePage(self.Logintoken, page_struct)
+        page = self.execute(self.RpcServer.confluence2.storePage, self.Logintoken, page_struct)
         return True
 
 
