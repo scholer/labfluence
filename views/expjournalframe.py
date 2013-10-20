@@ -21,11 +21,15 @@ import ttk
 import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
 import htmllib, formatter
+from datetime import datetime
+from collections import OrderedDict
 
 #from subentrieslistbox import SubentriesListbox
 from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
 from shared_ui_utils import HyperLink, ExpFrame
 from rspysol.rstkhtml import tkHTMLParser, tkHTMLWriter
+from dialogs import Dialog
+
 
 class ExpJournalFrame(ExpFrame):
     """
@@ -129,7 +133,7 @@ class ExpJournalFrame(ExpFrame):
 
         # Make the sub-frames expand:
         self.controlframe.columnconfigure(1, weight=1)
-        self.controlframe.rowconfigure(3, weight=1)
+        self.controlframe.rowconfigure(2, weight=1)
         self.journalwikiframe.columnconfigure(3, weight=1)
         self.journalwikiframe.rowconfigure(1, weight=1)
         self.cachecontrolsframe.columnconfigure(2, weight=1)
@@ -141,10 +145,12 @@ class ExpJournalFrame(ExpFrame):
 
 
         # Control-frame widgets:
-        self.subentries_header.grid(row=1, column=1, sticky="nw")
-        self.subentries_listbox.grid(row=3, column=1, sticky="news")
-        self.flushall_btn.grid(row=4, column=1, sticky="nwe")
-        self.autoflush_frame.grid(row=6, column=1, sticky="w")
+        self.subentries_header.grid(row=1, column=1, sticky="nw", columnspan=2)
+        self.subentries_listbox.grid(row=2, column=1, sticky="news", columnspan=2)
+        self.createnewsubentry_btn.grid(row=3, column=1, sticky="ew")
+        self.newwikipagesubentry_btn.grid(row=3, column=2, sticky="ew")
+        self.flushall_btn.grid(row=4, column=1, sticky="nwe", columnspan=2)
+        self.autoflush_frame.grid(row=6, column=1, sticky="w", columnspan=2)
         # These are in self.autoflush_frame:
         self.autoflushall_chkbtn.grid(row=6, column=1, sticky="w")
         self.autoflushinterval_spinbox.grid(row=6, column=2, sticky="w")
@@ -191,9 +197,9 @@ class ExpJournalFrame(ExpFrame):
     def update_wikiview(self):
         xhtml = self.journalwiki_view.update_wiki_subentry()
         if xhtml:
-            self.newwikipagesubentry_btn['state'] = 'normal'
-        else:
             self.newwikipagesubentry_btn['state'] = 'disabled'
+        else:
+            self.newwikipagesubentry_btn['state'] = 'normal'
 
     def update_cacheview(self):
         # Label-like view with variable:
@@ -265,9 +271,32 @@ class ExpJournalFrame(ExpFrame):
 
     def createnewsubentry(self, event=None):
         idx = self.Experiment.getNewSubentryIdx()
+        props = dict(self.Experiment.Props)
+        props['subentry_idx'] = idx
+        props['subentry_titledesc'] = ""
+        props['subentry_date'] = "{:%Y%m%d}".format(datetime.now())
+        props['makefolder'] = True
+        props['makewikientry'] = True
         kwargs = dict(subentry_idx=idx, makefolder=False, makewikientry=False)
+        #items are: variable, description, entry widget, kwargs for widget
+        entries = ( ('expid', "Experiment ID"),
+                    ('subentry_idx', "Subentry index"),
+                    ('subentry_titledesc', "Subentry title desc"),
+                    ('makefolder', "Make local folder"),
+                    ('makewikientry', "Make wiki entry"),
+                    ('subentry_date', "subentry date")
+                    )
+        fieldvars = OrderedDict( (key, [props[key], desc, dict()] ) for key,desc in entries )
+        for items in fieldvars.values():
+            if isinstance(items[0], bool):
+                items[0] = tk.BooleanVar(value=items[0])
+            else:
+                items[0] = tk.StringVar(value=items[0])
+        fieldvars['expid'][2]['state'] = 'disabled'
+        dia = Dialog(self, "Create new subentry", fieldvars)
+        print dia.result
         #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
-        self.Experiment.addNewSubentry()
+        #self.Experiment.addNewSubentry()
 
     def newwikipagesubentry(self):
         pass
