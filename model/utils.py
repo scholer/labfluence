@@ -20,6 +20,9 @@ import yaml
 import re
 import random
 import string
+import logging
+logger = logging.getLogger(__name__)
+
 try:
     import magic
     magic_available = True
@@ -30,7 +33,7 @@ try:
 except ImportError:
     magic_available = False
     magicmime = None
-    print "Notice: magic module is not available; mimetypes will be based on file extensions. See http://pypi.python.org/pypi/python-magic/ for info on installing the filemagic python module."
+    logger.info("Notice: magic module is not available; mimetypes will be based on file extensions. See http://pypi.python.org/pypi/python-magic/ for info on installing the filemagic python module.")
     import mimetypes
 
 
@@ -73,7 +76,7 @@ def idx_generator(start, idx=None, maxruns=100):
             start = 1
             i = start
         else:
-            print "idx_generator() :: Fatal error, could not determine start; aborting..."
+            logger.error("idx_generator() :: Fatal error, could not determine start; aborting...")
             raise StopIteration
     for run in xrange(maxruns):
         yield i
@@ -111,16 +114,16 @@ def getnearestfile(startpath=None):
             return os.path.join(dirpath, filenames[0])
     def walkup(startpath):
         parpath = os.path.dirname(startpath)
-        print "walkup:\n--startpath: {}\n--parpath:{}".format(startpath, parpath)
+        logger.debug("walkup:\n--startpath: {}\n--parpath:{}".format(startpath, parpath))
         if parpath == startpath:
-            print "startpath '{}' == parpath '{}'".format(startpath, parpath)
+            logger.debug("startpath '{}' == parpath '{}'".format(startpath, parpath))
             return None
         for f in os.listdir(parpath):
             if os.path.isfile(os.path.join(parpath, f)):
-                print "'{}' is file, returning it...".format(f)
+                logger.debug("'{}' is file, returning it...".format(f))
                 return f
             else:
-                print "'{}' is not a file...".format(f)
+                logger.debug("'{}' is not a file...".format(f))
         return walkup(parpath)
     return walkup(startpath)
 

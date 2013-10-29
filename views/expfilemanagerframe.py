@@ -22,6 +22,8 @@ import Tix # Lots of widgets, but tix is not being developed anymore, so only us
 from collections import OrderedDict
 import os
 import time
+import logging
+logger = logging.getLogger(__name__)
 
 #from subentrieslistbox import SubentriesListbox
 from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
@@ -88,13 +90,13 @@ class ExpFilemanagerFrame(ExpFrame):
     def on_filter_change(self, event):
         changed_widget = event.widget
         filterdict = self.filelistfilterframe.getFilterdict()
-        print "Filterdict: {}".format(filterdict)
+        logger.debug("Filterdict: {}".format(filterdict))
         self.localfilelistframe.updatelist(filterdict)
         self.wikifilelistframe.updatelist(filterdict, src='cache')
 
     def on_file_select(self, event):
         listbox = event.widget
-        print listbox.curselection()
+        logger.debug("on_file_select: curselection: {}".format(listbox.curselection()))
         # file_repr, file_identifier, info_struct
         file_tuples = listbox.getSelection()
         # easy way to check if selection is local or wiki file: if 'pageId' in info_struct
@@ -132,8 +134,8 @@ class FilelistFilterFrame(ExpFrame):
         experiment = self.Experiment
         # Layout:
         def cb():
-            print "fn_isregex is : {}".format(fn_isregex.get())
-            print "self.Filterdict['fn_is_regex'] is : {}".format(self.Filterdict['fn_is_regex'].get())
+            logger.debug("fn_isregex is : {}".format(fn_isregex.get()) )
+            logger.debug("self.Filterdict['fn_is_regex'] is : {}".format(self.Filterdict['fn_is_regex'].get()))
 
         headerfont = self.Fonts['header3']
         self.Header_label = ttk.Label(self, text="Filelist filters:", font=headerfont)
@@ -279,20 +281,20 @@ class FileInfoFrame(ExpFrame):
                     try:
                         metadata['modified'] = time.ctime(os.path.getmtime(file_identifier))
                     except WindowsError as e:
-                        print e
+                        logger.exception(e)
                 if 'fileSize' not in metadata:
                     try:
                         metadata['fileSize'] = os.path.getsize(file_identifier)
                     except WindowsError as e:
-                        print e
+                        logger.exception(e)
                 if 'fileName' not in metadata:
                     metadata['fileName'] = os.path.basename(file_repr)
         else:
             metadata = dict()
 
-        print "metadata: {}".format(metadata)
+        logger.debug("update_info_tuples(), metadata: {}".format(metadata))
         for key,tkvar in self.FileinfoTkvars.items():
-            print "Setting '{}' to value: '{}'".format(key, metadata.get(key, ""))
+            logger.debug("Setting '{}' to value: '{}'".format(key, metadata.get(key, "")))
             tkvar.set(metadata.get(key, ""))
 
 

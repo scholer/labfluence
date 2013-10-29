@@ -19,6 +19,8 @@
 import Tkinter as tk
 import ttk
 import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+import logging
+logger = logging.getLogger(__name__)
 
 class ExpListbox(tk.Listbox):
     """
@@ -132,7 +134,7 @@ class SubentriesListbox(ExpListbox):
             return subentry.get('foldername',
                                 exp_subentry_dir_fmt.format(**self.Experiment.makeFormattingParams(subentry['subentry_idx'])) )
         lst = [ (subentryrepr(subentry),idx,subentry) for idx,subentry in self.Experiment.Subentries.items()]
-        print "lst: {}".format(lst)
+        logger.debug("updatelist() lst: {}".format(lst))
         self.Subentrylist = zip(*lst)
         #self.subentrieslistbox.delete(0,tk.END)
         #self.subentrieslistbox.insert(tk.END, *self.Subentrylist[0])

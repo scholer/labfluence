@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
-## 
+##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
 ##    the Free Software Foundation, either version 3 of the License, or
@@ -22,6 +22,8 @@ import shutil
 import time
 # FTP not yet implemented...
 #from ftplib import FTP
+import logging
+logger = logging.getLogger(__name__)
 
 
 
@@ -42,7 +44,7 @@ class SatelliteLocation(object):
             regexpat = re.compile(regexpat)
         basepath = self.getRealPath(basepath)
         if folderscheme == './experiment/subentry/':
-            subentryfolders = ( (subentry, self.join(basepath, experiment, subentry)) 
+            subentryfolders = ( (subentry, self.join(basepath, experiment, subentry))
                      for experiment in self.listdir(basepath) if self.isdir(self.join(basepath, experiment))
                         for subentry in self.join(basepath,experiment) if self.isdir(self.join(basepath, experiment, subentry)) )
         else: # e.g. if self.FolderScheme == './subentry/':
@@ -69,10 +71,10 @@ class SatelliteFileLocation(SatelliteLocation):
     """
 
     def __init__(self, uri, confighandler):
-        super(SatelliteFileLocation, self).__init__(uri, confighandler) 
+        super(SatelliteFileLocation, self).__init__(uri, confighandler)
         # python3 is just super().__init__(uri, confighandler)
         # old school must be invoked with BaseClass.__init__(self, ...), like:
-        # SatelliteLocation.__init__(self, 
+        # SatelliteLocation.__init__(self,
         self.ensureMount()
 
 
@@ -81,10 +83,10 @@ class SatelliteFileLocation(SatelliteLocation):
         Ensures that the file location is available.
         """
         if not self.isMounted():
-            print "\nSatelliteFileLocation does not seem to be correctly mounted (it might just be empty, but hard to tell)\n{}\--will try to mount with mountcommand...".format(self.URI) 
+            print "\nSatelliteFileLocation does not seem to be correctly mounted (it might just be empty, but hard to tell)\n{}\--will try to mount with mountcommand...".format(self.URI)
             ec = self.mount()
             return ec
-        print "\nSatelliteFileLocation correctly mounted (well, it is not empty): {}".format(self.URI) 
+        print "\nSatelliteFileLocation correctly mounted (well, it is not empty): {}".format(self.URI)
 
     def mount(self):
         """
@@ -177,7 +179,7 @@ class SatelliteFileLocation(SatelliteLocation):
             shutil.copy2(srcfilepath, destfilepath)
         else:
             print "\nSatelliteFileLocation.syncFileToLocalDir() :: srcfile '{}' is NOT newer than destfile '{}', NOT overwriting destfile...".format(srcfilepath, destfilepath)
-        print "\n".join( "-- {} last modified: {}".format(f, modtime) 
+        print "\n".join( "-- {} last modified: {}".format(f, modtime)
                         for f, modtime in ( ('srcfile ', time.ctime(os.path.getmtime(srcfilepath))),
                                             ('destfile', time.ctime(os.path.getmtime(destfilepath))) ) )
 
@@ -190,10 +192,10 @@ class SatelliteFileLocation(SatelliteLocation):
 class SatelliteFtpLocation(SatelliteLocation):
     """
     This class is intended to deal with ftp locations.
-    This has currently not been implemented. 
+    This has currently not been implemented.
     On linux, you can mount ftp resources as a locally-available filesystem using curlftpfs,
     and use the SatelliteFileLocation class to manipulate this location.
-    
+
     Other resources that might be interesting to implement:
     - http
     - webdav
@@ -242,7 +244,7 @@ if __name__ == '__main__':
     def test_syncToLocalDir1():
         print "\n>>>>> test_syncToLocalDir1() -----------------"
         destdir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/"
-        sfl.syncToLocalDir("20130222 RS115g Dry-AFM of transferin TR", 
+        sfl.syncToLocalDir("20130222 RS115g Dry-AFM of transferin TR",
                 "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1")
         print "<<<<< completed test_syncToLocalDir1() -------"
 
@@ -257,11 +259,11 @@ if __name__ == '__main__':
 
     def test_syncFileToLocalDir():
         print "\n>>>>> test_syncFileToLocalDir() -----------------"
-        sfl.syncFileToLocalDir("20130222 RS115g Dry-AFM of transferin TR/RS115g_c5-grd1_TRctrl_130222_105519.mi", 
+        sfl.syncFileToLocalDir("20130222 RS115g Dry-AFM of transferin TR/RS115g_c5-grd1_TRctrl_130222_105519.mi",
                     "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1/20130222 RS115g Dry-AFM of transferin TR (old)")
         print "<<<<< completed test_syncFileToLocalDir() -------"
-        
-        
+
+
 
 
     def test_test():
@@ -275,7 +277,3 @@ if __name__ == '__main__':
 #    test_syncToLocalDir1()
     test_syncToLocalDir2()
     print "\n------- satellite_locations testing complete ----------- "
-    
-    
-    
-    

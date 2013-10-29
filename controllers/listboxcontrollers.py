@@ -64,7 +64,7 @@ class ExpListBoxController(object):
         logger.debug("updating list with experiments: {}".format(exps))
         self.clearList()
         if exps:
-            print "\nUpdating self {} list with experiments:\n{}".format(self, "\n".join("{e} with props {e.Props}".format(e=e) for e in self.Experiments))
+            logger.debug("\nUpdating self {} list with experiments:\n{}".format(self, "\n".join("{e} with props {e.Props}".format(e=e) for e in self.Experiments)))
             # Note: The list will get the string representation from the experiment ( __repr__ method).
             # This is also what is returned upon querying.
             self.ExperimentByListIndex = exps # This list should be consolidated to match the (<display>, <identifier>, <full object>) tuple list structure
@@ -102,7 +102,7 @@ class ActiveExpListBoxController(ExpListBoxController):
         if em:
             logger.debug("Returning em.ActiveExperiments.")
             return em.ActiveExperiments
-        #print "Getting self.Confighandler.get('app_active_experiments')"
+        #logger.debug("Getting self.Confighandler.get('app_active_experiments')"
         #return self.Confighandler.get('app_active_experiments')
 
 

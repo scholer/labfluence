@@ -168,7 +168,7 @@ class ExpPropsFrame(ExpFrame):
 
     def init_variables(self):
         self.Variables = dict( ( k, tk.StringVar(value=self.getValue(k)) )  for (k,desc) in self.getEntries() )
-        print "\n{}.Variables: {}\n".format(self.__class__.__name__, self.Variables)
+        logger.debug("{}.Variables: {}\n".format(self.__class__.__name__, self.Variables))
 
     def update_variables(self):
         for key, tkvar in self.Variables.items():
@@ -213,7 +213,7 @@ class ExpAttrFrame(ExpPropsFrame):
         val = getattr(self.Experiment, key, None)
         if val and len(val)>80:
             #val = "(...) "+val[-80:]
-            print "\nattr val: {}\n".format(val)
+            logger.debug("attr val: {}\n".format(val))
         return val
     def getEntries(self, ):
         return ( ('Localdirpath', ''),

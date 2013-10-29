@@ -24,11 +24,28 @@ import string
 from Crypto.Cipher import AES
 #import Crypto.Random
 from Crypto.Random import random as crypt_random
+import inspect
 import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
 from confighandler import ConfigHandler, ExpConfigHandler
+
+
+def login_prompt(username=None, msg="", options=dict() ):
+    """
+    The third keyword argument, options, can be modified in-place by the login handler,
+    changing e.g. persistance options ("save in memory").
+    """
+    import getpass
+    if username is None:
+        username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
+    print "\n{}\nPlease enter credentials:".format(msg)
+    username = raw_input('Username (enter={}):'.format(username)) or username # use 'username' if input is empty.
+    password = getpass.getpass()
+    logger.debug("login_prompt returning username, password: {}, {}".format(username, password))
+    return username, password
+
 
 """
 Edits:
@@ -40,22 +57,19 @@ Edits:
 
 """
 
-def error_out(error_message):
-    print("Error: ")
-    print(error_message)
-    exit()
 
 class AbstractServer(object):
     """
     To test if server is connected, just use "if server".
     (To test whether server is was not initialized, use the more specific "if server is None")
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None,
-                 confighandler=None, VERBOSE=0):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, url=None,
+                 confighandler=None, autologin=True, VERBOSE=0):
         """
         Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
         However, this could also be simplified using getattr...
         """
+        logger.debug("AbstractServer init started.\n")
         self.VERBOSE = VERBOSE
         #dict(host=None, url=None, port=None, protocol=None, urlpostfix=None)
         self._defaultparams = dict(host="localhost", port='80', protocol='http',
@@ -65,6 +79,11 @@ class AbstractServer(object):
         self._username = username
         self._password = password
         self._logintoken = logintoken
+        self._autologin = autologin
+        self._url = url
+        self._loginpromptoptions = None
+        self._defaultpromptoptions = dict(save_username_inmemory=True, save_password_inmemory=True)
+        self._raiseerrors = None # For temporary overwrite.
         #self._raisetimeouterrors = True # Edit: Hardcoded not here but in the attribute getter.
         self._connectionok = None # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
         self.Confighandler = confighandler
@@ -85,29 +104,53 @@ class AbstractServer(object):
                 self.Confighandler.get(self.CONFIG_FORMAT.format('password'), None) or \
                 self.Confighandler.get('password', None)
     @property
+    def Logintoken(self):
+        return self._logintoken
+    @Logintoken.setter
+    def Logintoken(self, newtoken):
+        # Possibly include som auto-persisting, provided it has been requested in config or at runtime?
+        self._logintoken = newtoken
+    @property
+    def Loginpromptoptions(self):
+        return  self._loginpromptoptions or \
+                self.Confighandler.get(self.CONFIG_FORMAT.format('loginpromptoptions'), None) or \
+                self.Confighandler.get('loginpromptoptions', self._defaultpromptoptions)
+    @property
+    def AutologinEnabled(self, ):
+        serverparams = self.Serverparams
+        if 'autologin_enabled' in serverparams:
+            return serverparams['autologin_enabled']
+        elif self._autologin is not None:
+            return self._autologin
+        else:
+            return True
+
+    @property
     def Serverparams(self):
         params = self._defaultparams or dict()
+        if self.Confighandler:
+            config_params = self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
+                            or self.Confighandler.get('serverparams', dict())
+            logger.debug("config_params: {}".format(config_params))
+            params.update(config_params)
         runtime_params =  self._serverparams or dict()
-        config_params = self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
-                        or self.Confighandler.get('serverparams', dict())
-        print "config_params: {}".format(config_params)
-        params.update(config_params)
         params.update(runtime_params)
         return params
 
     def configs_iterator(self):
         yield ('runtime params', self._serverparams)
-        yield ('config params', self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
-                    or self.Confighandler.get('serverparams', dict()) )
+        if self.Confighandler:
+            yield ('config params', self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
+                        or self.Confighandler.get('serverparams', dict()) )
         yield ('hardcoded defaults', self._defaultparams)
 
     def getServerParam(self, key, default=None):
         configs = self.configs_iterator()
         for desc, cfg in configs:
             if cfg and key in cfg: # runtime-params
-                print "Returning {} from {}[{}]".format(cfg[key], desc, key)
+                logger.debug("Returning {} from {}[{}]".format(cfg[key], desc, key))
                 return cfg[key]
-        print "param '{}' not found, returning None.".format(key)
+        logger.debug("param '{}' not found, returning None.".format(key))
         return default
 
     @property
@@ -128,7 +171,7 @@ class AbstractServer(object):
     @property
     def BaseUrl(self):
         serverparams = self.Serverparams
-        #print "serverparams: {}".format(serverparams)
+        #logger.debug("serverparams: {}".format(serverparams)
         if 'baseurl' in serverparams:
             return serverparams['baseurl']
         try:
@@ -147,7 +190,7 @@ class AbstractServer(object):
             return url
         baseurl = self.BaseUrl
         urlpostfix = self.UrlPostfix
-        print "baseurl: {}     urlpostfix: {}".format(baseurl, urlpostfix)
+        logger.debug("baseurl: {}     urlpostfix: {}".format(baseurl, urlpostfix))
         if baseurl:
             return baseurl + self.UrlPostfix
         else:
@@ -159,52 +202,92 @@ class AbstractServer(object):
     def setok(self):
         if not self._connectionok:
             self._connectionok = True
-            self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        print "\n\nServer: _connectionok set to: '{}' (should be True)".format(self._connectionok)
+            if self.Confighandler:
+                self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
+        logger.info("\nServer: _connectionok set to: '{}' (should be True)".format(self._connectionok) )
     def notok(self):
-        if self._connectionok:
+        logger.debug("server.notok() invoked, earlier value of self._connectionok is: {}".format(self._connectionok))
+        if self._connectionok is not False:
             self._connectionok = False
-            self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        print "\n\nServer: _connectionok set to: '{}' (should be False)".format(self._connectionok)
+            if self.Confighandler:
+                self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
+        logger.info( "\nServer: _connectionok is now: '{}' (should be False)".format(self._connectionok) )
 
 
     def execute(self, function, *args):
         """
+        Update: the args should now NOT include the token.
+        This is managed by this method, in order to avoid sending a None-type token.
         Executes a server method, setting self._connectionok on suceed and fail on error.
         If the server connection fails and raisetimeouterrors is set to true,
         a socket.error will be raised. Otherwise, this will return None.
         (Which might be hard to check...)
+        Note: raiseerrors only apply to e.g. timeout errors, i.e. permanent issues that will not
+        change by changing e.g. parameters.
+        It does not appy to e.g. xmlrpclib.Fault, which is raised from e.g. an erroneous token
+        and can be corrected by providing a correct token or logging in anew.
+
+        Edit: changed policy, execute() and autologin() will always catch socket errors;
+        test_token() and login() are allowed to catch xmlrpclib.Fault exceptions,
+        while all other methods should not catch any exceptions.
         """
+        token = self.Logintoken
+        if not token:
+            logger.info("%s, self.Logintoken is '%s', will try to obtain anew..", self.__class__.__name__, token)
+            if self.AutologinEnabled:
+                logger.debug("%s, attempting autologin()...", self.__class__.__name__)
+                token = self.autologin() # autologin will setok/notok
+            if not token:
+                logger.warning("%s, token could not be obtained (is '%s'), aborting.", self.__class__.__name__, token)
+            return None
         try:
-            ret = function(*args)
+            logger.debug("%s, trying to execute for function %s with args %s", self.__class__.__name__, inspect.stack()[1][3], args)
+            ret = function(token, *args)
             self.setok()
             return ret
         except socket.error as e:
+            logger.debug("&s, socket error during execution of function %s: ", self.__class__.__name__, inspect.stack()[1][3], e)
             self.notok()
-            if self.RaiseTimeoutErrors:
-                raise e
+            logger.debug("self.notok() invoked?")
+            #if raiseerrors is None:
+            #raiseerrors = self._raiseerrors
+            #if raiseerrors is None:
+            #    raiseerrors = self.RaiseTimeoutErrors
+            #if raiseerrors:
+            #    raise e
+        except xmlrpclib.Fault as e:
+            logger.debug("Server: socket error during execution of function {}:".format(""))
+            logger.debug(e)
+            if self.AutologinEnabled:
+                token = self.autologin() # autologin will set connectionok status
+            else:
+                self.notok()
+        return None # Default if
+
+    def autologin(self):
+        pass
 
     def getToken(self, token_crypt=None):
         if token_crypt is None:
             token_crypt = self.Confighandler.get('wiki_logintoken_crypt')
         if token_crypt is None:
-            print "\nAbstractServer.getToken() :: ERROR, token_crypt is None; aborting..."
+            logger.warning("\nAbstractServer.getToken() :: ERROR, token_crypt is None; aborting...")
             return
         crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', crypt_key_default)
         if crypt_key == crypt_key_default:
-            print "\nAbstractServer.getToken() :: Warning, using default crypt_key for encryption. You should manually edit the labfluence system config and set this to something else."
+            logger.warning("\nAbstractServer.getToken() :: Warning, using default crypt_key for encryption. You should manually edit the labfluence system config and set this to something else.")
         crypt_iv = self.Confighandler.get('crypt_iv', None)
         # The IV is set along with the encrypted token; if the IV is not present, the encrypted token cannot be decrypted.
         # Using an initiation vector different from the one used to encrypt the message will produce scamble.
         if crypt_iv is None:
-            print "\nAbstractServer.getToken() :: Warning, could not retrieve initiation vector for decrypting token..."
+            logger.warning("\nAbstractServer.getToken() :: Warning, could not retrieve initiation vector for decrypting token...")
             token_unencrypted = self.Confighandler.get('wiki_logintoken')
             if token_unencrypted:
-                print "\nAbstractServer.getToken() :: unencrypted logintoken found in config. Returning this, but please try to transfer to encrypted version."
+                logger.warning("\nAbstractServer.getToken() :: unencrypted logintoken found in config. Returning this, but please try to transfer to encrypted version.")
                 return token_unencrypted
             else:
-                print "AbstractServer.getToken() :: Aborting..."
+                logger.info("AbstractServer.getToken() :: Aborting...")
                 return
         # Uh, it might be better to use AES.MODE
         cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
@@ -213,9 +296,9 @@ class AbstractServer(object):
         char_space = string.ascii_letters+string.digits
         for char in token:
             if char not in char_space:
-                print "getToken() :: ERROR, invalid token decrypted, token is '{}'".format(token)
+                logger.error("getToken() :: ERROR, invalid token decrypted, token is '{}'".format(token))
                 return None
-        print token
+        logger.debug("getToken returns token: {}".format(token))
         return token
 
     def saveToken(self, token, persist=True, username=None):
@@ -237,7 +320,7 @@ class AbstractServer(object):
         # Not exactly 128-bit worth of bytes since ascii_letters+digits is only 62 in length, but should be ok still; I want to make sure it is realiably persistable with yaml.
         cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
         if token is None:
-            print "\nAbstractServer.saveToken() :: ERROR, token is None; aborting..."
+            logger.error("\nAbstractServer.saveToken() :: ERROR, token is None; aborting...")
             return
         token_crypt = cryptor.encrypt(token)
         if persist:
@@ -280,8 +363,7 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
 https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
 https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
     """
-
-    def __init__(self, autologin=True, prompt='auto', ui=None, **kwargs):
+    def __init__(self, ui=None, **kwargs):
                  #serverparams=None, username=None, password=None, logintoken=None,
                  #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
@@ -291,31 +373,63 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         super(ConfluenceXmlRpcServer, self).__init__(**kwargs) # Remember, super takes current class as first argument.
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
         self.UI = ui
-        print "Making server with url: {}".format(self.AppUrl)
         appurl = self.AppUrl
-        print "\n\n\nserver.AppUrl: {}\n\n\n".format(appurl)
+        logger.info("%s - Making server with url: %s", self.__class__.__name__, appurl)
         if not appurl:
-            print "WARNING: Server's AppUrl is '{}'".format(appurl)
+            logger.warning("WARNING: Server's AppUrl is '%s'", appurl)
             return None
         self.RpcServer = xmlrpclib.Server(appurl)
-        socket.setdefaulttimeout(1.0) # without this there is no timeout, and this may block the requests
+        if self.AutologinEnabled:
+            self.autologin()
+
+    def autologin(self, prompt='auto'):
+        """
+        I intend to do something like if prompt='never'/'auto'/'force'
+        If prompt is 'force', then the login will NOT attempt to locate a valid login token,
+        but will always ask for user credentials.
+        If prompt is 'never', then the method will attempt to find a valid token and fail silently
+        if no valid token is found.
+        If prompt is 'auto', then the method will first attempt to locate a valid token and then
+        prompt the user for credentials if no valid token is found.
+
+        If successful login is achieved, self.setok is invoked either by self.login() or
+        self.test_token(), provided that doset is true (so that the token is saved in memory - default).
+        """
+        socket.setdefaulttimeout(3.0) # without this there is no timeout, and this may block the requests
+        #oldflag = self._raiseerrors
+        # Edit: None of the methods will attempt to catch socket errors;
+        # it is only this autologin() and the execute() method that does that.
+        #self._raiseerrors = True # Ensure that e.g. timeout errors are raised.
+        token = None
         try:
-            # I intend to do something like if prompt='never'/'auto'/'force'
+            #
             if prompt in ('force', ):
-                self.login(prompt=True)
-            elif autologin:
+                token = self.login(prompt=True) # doset defaults to True
+            else:
                 if self._logintoken and self.test_token(self._logintoken, doset=True):
-                    print 'Connected to server using provided login token...'
+                    logger.info('Connected to server using provided login token...')
+                    token = self._logintoken
                 elif self.Username and self.Password and self.login(doset=True):
                     # Providing a plain-text password should generally not be used;
                     # there is really no need for a password other than for login, only store the token.
-                    print 'Connected to server using provided username and password...'
+                    # Edit: It might be a really good idea to store the password in-memory,
+                    # so that it can be used to re-authenticate with the server when a token expires during run.
+                    logger.info('Connected to server using provided username and password...')
+                    token = self._logintoken
                 elif self.find_and_test_tokens(doset=True):
-                    print 'Token found by magic, login ok...'
+                    logger.info('Token found in the config is valid, login ok...')
+                    token = self._logintoken
                 elif prompt in ('auto'):
-                    self.login(prompt=True)
+                    token = self.login(prompt=True)
         except socket.error as e:
-            print "Server > Unable to login, probably timeout: {}".format(e)
+            logger.warning("%s - socket error prevented login, probably timeout, error is: %s", self.__class__.__name__, e)
+        #self._raiseerrors = oldflag
+        if self.Logintoken:
+            self.setok()
+        else:
+            self.notok()
+        return token
+
 
     def find_and_test_tokens(self, doset=False):
         """
@@ -325,13 +439,12 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         If a valid token is found, returns that token. Otherwise return None.
         """
         # 1) Check the config...:
-        token = self.getToken()
+        token = self.getToken() # returns unencrypted token stored in config (encrypted, hopefully)
         if token and self.test_token(token, doset=True):
             return token
         else:
-            print "find_and_test_tokens() :: No valid token found in config..."
-        # 2) Check a list of files?
-        # Not implemented...
+            logger.info("find_and_test_tokens() :: No valid token found in config...")
+        # 2) Check a list of files? No, the token should be saved in the config or nowhere at all.
 
 
     def test_token(self, logintoken=None, doset=True):
@@ -347,133 +460,161 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         if logintoken is None:
             logintoken = getattr(self, 'Logintoken', None)
         if not logintoken:
-            print "ConfluenceXmlRpcServer.test_token() :: No token provided, aborting..."
+            logger.info("ConfluenceXmlRpcServer.test_token() :: No token provided, aborting...")
             return None
         try:
-            serverinfo = self.getServerInfo(logintoken)
+            serverinfo = self._testConnection(logintoken) # _testConnection() and _login() does NOT use the execute method.
             if doset:
                 self.Logintoken = logintoken
+                self.setok()
             return True
         except xmlrpclib.Fault as err:
-            print "ConfluenceXmlRpcServer.test_token() : tested token '{}' did not work; {}: {}".format( logintoken, err.faultCode, err.faultString)
+            logger.debug("ConfluenceXmlRpcServer.test_token() : tested token '{}' did not work; {}: {}".format( logintoken, err.faultCode, err.faultString))
             return False
 
     def login(self, username=None, password=None, logintoken=None, doset=True,
               prompt=False, retry=3, dopersist=True, msg=None):
+        """
+        Attempt server login.
+        If prompt is True, then username and password will be obtained by prompting the user.
+        If doset is True, the token will be stored in memory.
+        If dopersist is True, self.saveToken will be invoked after successful login.
+
+        This method should NOT attempt to catch socket errors;
+        only autologin() and execute() may do that.
+        """
+        #logger.debug("server.login invoked with args (locals): {}".format(locals()))
         if username is None: username=self.Username
         if password is None: password=self.Password
         if prompt is True:
+            #msg = "Please provide your credentials" # Uh, no do not override.
+            promptopts = self.Loginpromptoptions
             if self.UI and hasattr(self.UI, 'login_prompt'):
-                username, password = self.UI.login_prompt(username=username, msg=msg)
-            else: # use command line login prompt:
-                username, password = login_prompt(username)
+                promptfun = self.UI.login_prompt
+            else: # use command line login prompt, defined above.
+                promptfun = login_prompt
+            username, password = promptfun(username=username, msg=msg, options=promptopts)
+            # The prompt method may modify the promptopts dict in-place:
         if not (username and password):
-            print "ConfluenceXmlRpcServer.login() :: Username and password are boolean False; aborting..."
-            return
+            logger.info( "ConfluenceXmlRpcServer.login() :: Username or password is boolean False; retrying..." )
+            newmsg = "Empty username or password; please try again. Use Ctrl+C (or cancel) to cancel."
+            token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=newmsg)
+            return token
         try:
-            print "Attempting server login with username: {}".format(username)
+            logger.debug("Attempting server login with username: {}".format(username))
             token = self._login(username,password)
-            self._connectionok = True
             if doset:
                 self.Logintoken = token
+                self.setok()
             if dopersist:
                 self.saveToken(token, username=username)
-            if self.VERBOSE > 3:
-                print "Logged in as '{}', received token '{}'".format(username, token)
+            if prompt:
+                if promptopts.get('save_username_inmemory', True):
+                    self._username = username
+                if promptopts.get('save_password_inmemory', True):
+                    self._password = password
+            logger.info("Logged in as '{}', received token of length {}".format(username, len(token)))
         except xmlrpclib.Fault as err:
-            err_msg = "Login error: {}: {}".format( err.faultCode, err.faultString)
-            self._connectionok = False
-            #print "%d: %s" % ( err.faultCode, err.faultString)
-            print err_msg
-            if prompt and retry:
+            err_msg = "Login error, catched xmlrpclib.Fault. faultCode and -String is:\n{}: {}".format( err.faultCode, err.faultString)
+            # NOTE: In case of too many failed logins, it will not be possible to log in with xmlrpc,
+            # and a browser login is required.
+            # Unfortunately, the error is pretty similar, same faultCode and only slightly different faultString.
+            # For incorrect username/password, faultCode: faultString is: (and e.args and e.message are both empty)
+            # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed - incorrect username/password combination.
+            # For too many failed logins, faultCode: faultString is:
+            # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed. The maximum number of failed login attempts has been reached. Please log into the web application through the web interface to reset the number of failed login attempts.
+            #logger.debug("%d: %s" % ( err.faultCode, err.faultString)
+            # In case the password has been changed or whatever, reset it:
+            if not prompt and self._password:
+                self._password = None
+            if prompt and int(retry)>0:
                 token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=err_msg)
             else:
+                logger.info(err_msg)
+                logger.info("server.login failed completely, prompt is '{}' and retry is {}.".format(prompt, retry))
                 return None
+        # If a succesful login is completed, set serverstatus to ok:
+        # This is not done by self._login, which does not use execute.
         return token
 
 
-    ##################################
-    #### AUTHENTICATION methods ######
-    ##################################
+    ##############################
+    #### Un-managed methods ######
+    ##############################
 
     def _login(self, username,password):
         """
         Returns a login token.
         Raises xmlrpclib.Fauls on auth error/failure.
+        Uhm... there might be an infinite cycle here,
+        execute->autologin->login->execute...
         """
-        return self.execute(self.RpcServer.confluence2.login, username, password)
+        return self.RpcServer.confluence2.login(username, password)
         #return self.execute(self.RpcServer.confluence2.login(username,password)
 
-    def logout(self, token=None):
+    def _testConnection(self, token=None):
         """
-        Returns True if token was present (and now removed), False if token was not present.
-        Returns None if no token could be found.
+        returns a list of dicts with space info for spaces that the user can see.
         """
         if token is None:
-            token = self.Logintoken
-        if token is None:
-            print "Error, login token is None."
-            return
-        return self.execute(self.RpcServer.confluence2.logout, token)
+            token = self._logintoken
+        return self.RpcServer.confluence2.getServerInfo(token)
+
 
 
     ################################
     #### SERVER-level methods ######
     ################################
 
-    def getServerInfo(self, token=None):
+    def logout(self):
         """
-        returns a list of dicts with space info for spaces that the user can see.
+        Returns True if token was present (and now removed), False if token was not present.
+        Returns None if no token could be found.
         """
-        if token is None:
-            token = self.Logintoken
-        if token is None:
-            print "Error, login token is None."
-            return
-        return self.execute(self.RpcServer.confluence2.getServerInfo, token)
+        ret = self.execute(self.RpcServer.confluence2.logout)
+        self.clearToken()
+        return ret
 
-    def getSpaces(self, token=None):
+    def getServerInfo(self):
         """
         returns a list of dicts with space info for spaces that the user can see.
         """
-        if token is None:
-            token = self.Logintoken
-        if token is None:
-            print "Error, login token is None."
-            return
-        return self.execute(self.RpcServer.confluence2.getSpaces, token)
+        return self.execute(self.RpcServer.confluence2.getServerInfo)
+        #return self.RpcServer.confluence2.getServerInfo(token)
+
+
+    def getSpaces(self):
+        """
+        returns a list of dicts with space info for spaces that the user can see.
+        """
+        return self.execute(self.RpcServer.confluence2.getSpaces)
 
 
     ################################
     #### USER methods       ########
     ################################
 
-    def getUser(self, username, token=None):
+    def getUser(self, username):
         """
         returns a dict with name, email, fullname, url and key.
         """
-        if token is None:
-            token = self.Logintoken
-        if token is None:
-            print "Error, login token is None."
-            return
-        return self.execute(self.RpcServer.confluence2.getUser, token, username)
+        return self.execute(self.RpcServer.confluence2.getUser, username)
 
     def createUser(self, newuserinfo, newuserpasswd):
-        return self.execute(self.RpcServer.confluence2.addUser, self.Logintoken, newuserinfo, newuserpasswd)
+        return self.execute(self.RpcServer.confluence2.addUser, newuserinfo, newuserpasswd)
 
     def getGroups(self):
         # returns a list of all groups. Requires admin priviledges.
-        return self.execute(self.RpcServer.confluence2.getGroups, self.Logintoken)
+        return self.execute(self.RpcServer.confluence2.getGroups)
 
     def getGroup(self, group):
         # returns a single group. Requires admin priviledges.
-        return self.execute(self.RpcServer.confluence2.getSpaces, self.Logintoken, group)
+        return self.execute(self.RpcServer.confluence2.getSpaces, group)
 
 
     def getActiveUsers(self, viewAll):
         # returns a list of all active users.
-        return self.execute(self.RpcServer.confluence2.getActiveUsers, self.Logintoken, viewAll)
+        return self.execute(self.RpcServer.confluence2.getActiveUsers, viewAll)
 
 
 
@@ -483,7 +624,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
     ################################
 
     def getPages(self, spaceKey):
-        return self.execute(self.RpcServer.confluence2.getPages, self.Logintoken, spaceKey)
+        return self.execute(self.RpcServer.confluence2.getPages, spaceKey)
 
     def getPage(self, pageId=None, spaceKey=None, pageTitle=None):
         """
@@ -494,9 +635,9 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         """
         if pageId:
             pageId = str(pageId) # getPage method takes a long int.
-            return self.execute(self.RpcServer.confluence2.getPage, self.Logintoken, pageId)
+            return self.execute(self.RpcServer.confluence2.getPage, pageId)
         elif spaceKey and pageTitle:
-            return self.execute(self.RpcServer.confluence2.getPage, self.Logintoken, spaceKey, pageTitle)
+            return self.execute(self.RpcServer.confluence2.getPage, spaceKey, pageTitle)
         else:
             raise("Must specify either pageId or spaceKey/pageTitle.")
 
@@ -506,7 +647,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.removePage, self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.removePage, pageId)
 
     def movePage(self, sourcePageId, targetPageId, position='append'):
         """
@@ -522,7 +663,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         * append-> source becomes a child of the target.
         """
         sourcePageId, targetPageId = str(sourcePageId), str(targetPageId)
-        return self.execute(self.RpcServer.confluence2.movePage, self.Logintoken, sourcePageId, targetPageId, position)
+        return self.execute(self.RpcServer.confluence2.movePage, sourcePageId, targetPageId, position)
 
     def getPageHistory(self, pageId):
         """
@@ -531,7 +672,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.getPageHistory, self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getPageHistory, pageId)
 
     def getAttachments(self, pageId):
         """
@@ -539,7 +680,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.getAttachments, self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getAttachments, pageId)
 
     def getAncestors(self, pageId):
         """
@@ -547,7 +688,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.getAncestors, self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getAncestors, pageId)
 
     def getChildren(self, pageId):
         """
@@ -555,7 +696,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.getChildren, self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getChildren, pageId)
 
     def getDescendents(self, pageId):
         """
@@ -563,7 +704,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.getDescendents, self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getDescendents, pageId)
 
     def getComments(self, pageId):
         """
@@ -571,7 +712,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes pageId as string.
         """
         pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.getComments, self.Logintoken, pageId)
+        return self.execute(self.RpcServer.confluence2.getComments, pageId)
 
     def getComment(self, commentId):
         """
@@ -579,7 +720,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes commentId as string.
         """
         commentId = str(commentId)
-        return self.execute(self.RpcServer.confluence2.getComment, self.Logintoken, commentId)
+        return self.execute(self.RpcServer.confluence2.getComment, commentId)
 
     def removeComment(self, commentId):
         """
@@ -587,15 +728,15 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         takes commentId as string.
         """
         commentId = str(commentId)
-        return self.execute(self.RpcServer.confluence2.removeComment, self.Logintoken, commentId)
+        return self.execute(self.RpcServer.confluence2.removeComment, commentId)
 
     def addComment(self, comment_struct):
         # adds a comment to the page.
-        return self.execute(self.RpcServer.confluence2.addComment, self.Logintoken, comment_struct)
+        return self.execute(self.RpcServer.confluence2.addComment, comment_struct)
 
     def editComment(self, comment_struct):
         # Updates an existing comment on the page.
-        return self.execute(self.RpcServer.confluence2.editComment, self.Logintoken, comment_struct)
+        return self.execute(self.RpcServer.confluence2.editComment, comment_struct)
 
 
 
@@ -606,11 +747,11 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
     def getAttachment(self, pageId, fileName, versionNumber=0):
         # Returns get information about an attachment.
         # versionNumber=0 is the current version.
-        return self.execute(self.RpcServer.confluence2.getAttachment, self.Logintoken, pageId, fileName, versionNumber)
+        return self.execute(self.RpcServer.confluence2.getAttachment, pageId, fileName, versionNumber)
 
     def getAttachmentData(self, pageId, fileName, versionNumber=0):
         # Returns the contents of an attachment. (bytes)
-        return self.execute(self.RpcServer.confluence2.getAttachmentData, self.Logintoken, pageId, fileName, versionNumber)
+        return self.execute(self.RpcServer.confluence2.getAttachmentData, pageId, fileName, versionNumber)
 
     def addAttachment(self, contentId, attachment_struct, attachmentData):
         """
@@ -629,16 +770,16 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         #        attachmentData = data
         #    except IOError:
         #        pass
-        return self.execute(self.RpcServer.confluence2.getAttachmentData, self.Logintoken, contentId, attachment_struct, attachmentData)
+        return self.execute(self.RpcServer.confluence2.getAttachmentData, contentId, attachment_struct, attachmentData)
 
     def removeAttachment(self, contentId, fileName):
         """remove an attachment from a content entity object.
         """
-        return self.execute(self.RpcServer.confluence2.removeAttachment, self.Logintoken, contentId, fileName)
+        return self.execute(self.RpcServer.confluence2.removeAttachment, contentId, fileName)
 
     def moveAttachment(self, originalContentId, originalName, newContentEntityId, newName):
         """move an attachment to a different content entity object and/or give it a new name."""
-        return self.execute(self.RpcServer.confluence2.moveAttachment, self.Logintoken, originalContentId, originalName, newContentEntityId, newName)
+        return self.execute(self.RpcServer.confluence2.moveAttachment, originalContentId, originalName, newContentEntityId, newName)
 
 
     ####################################
@@ -656,9 +797,8 @@ Note: the return value can be null, if an error that did not throw an exception 
 Operates exactly like updatePage() if the page already exists.
 """
         if self.VERBOSE:
-            print "server.storePage() :: Storing page:"
-            print page_struct
-        return self.execute(self.RpcServer.confluence2.storePage, self.Logintoken, page_struct)
+            logger.info("server.storePage() :: Storing page:\n{}".format(page_struct))
+        return self.execute(self.RpcServer.confluence2.storePage, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
         """ updates a page.
@@ -666,11 +806,11 @@ The Page given should have id, space, title, content and version fields at a min
 The parentId field is always optional. All other fields will be ignored.
 Note: the return value can be null, if an error that did not throw an exception occurred.
 """
-        return self.execute(self.RpcServer.confluence2.updatePage, self.Logintoken, page_struct, pageUpdateOptions)
+        return self.execute(self.RpcServer.confluence2.updatePage, page_struct, pageUpdateOptions)
 
 
     def convertWikiToStorageFormat(self, wikitext):
-        return self.execute(self.RpcServer.confluence2.convertWikiToStorageFormat, self.Logintoken, wikitext)
+        return self.execute(self.RpcServer.confluence2.convertWikiToStorageFormat, wikitext)
 
 
     def renderContent(self, spaceKey=None, pageId=None, content=None):
@@ -686,12 +826,12 @@ Note: the return value can be null, if an error that did not throw an exception 
         if pageId:
             pageId = str(pageId)
             if content:
-                return self.execute(self.RpcServer.confluence2.renderContent, self.Logintoken, pageId=pageId, content=content)
+                return self.execute(self.RpcServer.confluence2.renderContent, pageId=pageId, content=content)
             else:
-                return self.execute(self.RpcServer.confluence2.renderContent, self.Logintoken, pageId=pageId)
+                return self.execute(self.RpcServer.confluence2.renderContent, pageId=pageId)
         elif spaceKey and content:
-            return self.execute(self.RpcServer.confluence2.renderContent, self.Logintoken, spaceKey=pageId, content=content)
-        print "server.renderContent() :: Error, must pass either pageId (with optional content) or spaceKey and content."
+            return self.execute(self.RpcServer.confluence2.renderContent, spaceKey=pageId, content=content)
+        logger.warning("server.renderContent() :: Error, must pass either pageId (with optional content) or spaceKey and content.")
         return None
 
 
@@ -725,9 +865,9 @@ contributor:
 * default: Results are not filtered by contributor
         """
         if parameters:
-            return self.execute(self.RpcServer.confluence2.search, self.Logintoken, query, parameters, maxResults)
+            return self.execute(self.RpcServer.confluence2.search, query, parameters, maxResults)
         else:
-            return self.execute(self.RpcServer.confluence2.search, self.Logintoken, query, maxResults)
+            return self.execute(self.RpcServer.confluence2.search, query, maxResults)
 
 
 
@@ -753,22 +893,13 @@ contributor:
         :return: bool: True if succeeded
         """
         page_struct = self.getPage(pageId, spaceKey)
-        #print data
+        #logger.warning(data
         if contentformat == 'wiki':
             newContent = self.convertWikiToStorageFormat(newContent)
         page_struct['content'] = newContent
-        page = self.execute(self.RpcServer.confluence2.storePage, self.Logintoken, page_struct)
+        page = self.execute(self.RpcServer.confluence2.storePage, page_struct)
         return True
 
-
-
-def login_prompt(username=None, msg=None):
-    import getpass
-    if username is None:
-        username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
-    username = raw_input('Username (enter={}):'.format(username)) or username # use 'username' if input is empty.
-    password = getpass.getpass()
-    return username, password
 
 # init: (host=None, url=None, port=None, username=None, password=None, logintoken=None, autologin=True, protocol=None, urlpostfix=None)
 
@@ -776,7 +907,10 @@ def login_prompt(username=None, msg=None):
 
 if __name__ == "__main__":
 
+    logging.basicConfig(level=logging.DEBUG)
+
     def test1():
+        logger.info("\n>>>>>>>>>>>>>> test_getLocalFilelist() started >>>>>>>>>>>>>")
         username = 'scholer'
         username, password = login_prompt()
         url = 'http://10.14.40.245:8090/rpc/xmlrpc'
@@ -818,10 +952,11 @@ if __name__ == "__main__":
         print "\ntoken (before forced login):\t{}".format(token)
         token = server.login(dopersist=persist, prompt=True)
         print "token (after login):\t\t{}".format(token)
-        token_crypt, crypt_iv, crypt_key = server.saveToken(token, persist=persist)
-        print "token_crypt, iv, key:\t{}".format((token_crypt, crypt_iv, crypt_key))
-        token_decrypt = server.getToken(token_crypt)
-        print "token_decrypt:\t\t\t{}".format(token_decrypt)
+        if token:
+            token_crypt, crypt_iv, crypt_key = server.saveToken(token, persist=persist)
+            print "token_crypt, iv, key:\t{}".format((token_crypt, crypt_iv, crypt_key))
+            token_decrypt = server.getToken(token_crypt)
+            print "token_decrypt:\t\t\t{}".format(token_decrypt)
 
     def test_loadToken(ch=None):
         if ch is None:
@@ -829,7 +964,7 @@ if __name__ == "__main__":
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
         # Deactivating autologin...
-        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, prompt='never', autologin=False)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=False)
         token = server.find_and_test_tokens()
         print "\nFound token: {}".format(token)
         print "server.Logintoken: {}".format(token)
@@ -842,12 +977,14 @@ if __name__ == "__main__":
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
         print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
         # Deactivating autologin...
-        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, prompt='never', autologin=False)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=False)
         token = server.find_and_test_tokens()
         print "\nFound token: {}".format(token)
         print "server.Logintoken: {}".format(token)
         if token is None:
             token = server.login(prompt=True)
+        ret = server._testConnection()
+        print "\n_testConnection returned:\n{}".format(ret)
         serverinfo = server.getServerInfo()
         print "\nServer info:"
         print serverinfo
@@ -910,10 +1047,10 @@ if __name__ == "__main__":
 
 
 
-    #test_login()
-    server = test_config1()
-    #test_loginAndSetToken(persist=True)
+    #test_login() # currently does not work; the server needs a confighandler.
+    #server = test_config1()
     test_getServerInfo()
+    test_loginAndSetToken(persist=True)
     #test_loadToken()
     #test_movePage1()
     #test_getPageById()

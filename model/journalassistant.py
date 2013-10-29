@@ -23,6 +23,8 @@ from collections import OrderedDict
 import xmlrpclib
 import hashlib
 import random
+import logging
+logger = logging.getLogger(__name__)
 
 
 #from experiment import Experiment # importing from experiment will produce circular import reference. Import under test instead.
@@ -312,7 +314,7 @@ if __name__ == '__main__':
     if True:
         ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
         ch = ExpConfigHandler(pathscheme='default1')
-        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=1, prompt='auto', autologin=True)
+        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=1, autologin=True)
         e = Experiment(confighandler=ch, server=server, localdir=ldir, VERBOSE=10)
         e.attachWikiPage(dosearch=True)
         ja = e.JournalAssistant

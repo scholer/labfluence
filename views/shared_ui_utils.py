@@ -98,6 +98,7 @@ class HyperLink(ttk.Label):
     Based partially on:
     - http://effbot.org/zone/tkinter-text-hyperlink.htm
     - http://stackoverflow.com/questions/11639103/python-tkinter-tkfont-label-resize
+    state can be controlled as configure(state='disabled)
     """
 
     def __init__(self, parent, uri=None, experiment=None, **options):
@@ -119,11 +120,9 @@ class HyperLink(ttk.Label):
         if self.getUrl():
             lbl = event.widget
             lbl.configure(font='hyperlink_active', cursor="hand2")
-        #print "entering hyperlink."
 
     def on_leave(self, event):
         event.widget.configure(font='hyperlink_inactive', cursor="")
-        #print "leaving hyperlink."
 
     def getUrl(self):
         if self.URI:
@@ -138,9 +137,9 @@ class HyperLink(ttk.Label):
         # http://stackoverflow.com/questions/8742644/python-2-7-tkinter-open-webbrowser-click
         url = self.getUrl()
         if not url:
-            print "No url available...\n-url='{}'\nself.Experiment='{}'".format(url, self.Experiment)
+            logger.debug("No url available...\n-url='{}'\nself.Experiment='{}'".format(url, self.Experiment))
             return
-        print "Opening '{}'".format(url)
+        logger.debug("Opening '{}'".format(url))
         # Perhaps check what protocol to use first, and open in webbrowser/filebrowser/ftpclient/?
         webbrowser.open_new(url)
     pass

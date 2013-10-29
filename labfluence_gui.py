@@ -25,7 +25,7 @@ import tkFont
 # Other standard lib modules:
 import socket
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
@@ -79,6 +79,12 @@ class LabfluenceGUI(object):
 
     # Properties, http://docs.python.org/2/library/functions.html#property
     # Note: Only works for new-style classes (which inherits from 'object').
+    @property
+    def Server(self):
+        """Experiment manager, obtained from confighandler if possible.
+        Edit: Not 'if possible'. Having a well-behaved confighandler is now a requirement as this significantly simplifies a lot of code.
+        """
+        return self.Confighandler.Singletons.get('server', None)
     # Tkinter does not use new-style classes under python2.
     def getActiveExperimentIds(self):
         return self.Confighandler.setdefault('app_active_experiments', list())
@@ -180,6 +186,7 @@ class LabfluenceGUI(object):
         self.leftframe = ttk.Frame(self.mainframe)
         self.controlsframe = ttk.Frame(self.leftframe)
         self.home_btn = tk.Button(self.controlsframe, text="Home", command=self.showHome)
+
         self.serverstatus_btn = tk.Button(self.controlsframe, text="(offline)", command=self.serverStatus)
 
 
@@ -353,6 +360,9 @@ class LabfluenceGUI(object):
         self.backgroundframe.lift()
 
     def serverStatus(self, event=None):
+        """
+        Invoked when the Online/(offline) server button is pressed.
+        """
         server = self.Confighandler.Singletons.get('server')
         if server is None:
             self.serverStatusChange()
@@ -366,7 +376,8 @@ class LabfluenceGUI(object):
         if server:
             self.serverstatus_btn.configure(background="green", text="Online")
             print "Server reported to be online :-)"
-            for notebook in self.ExpNotebooks:
+            print "\n\nself.ExpNotebooks:\n{}".format(self.ExpNotebooks)
+            for expid,notebook in self.ExpNotebooks.items():
                 notebook.update_info()
         else:
             self.serverstatus_btn.configure(background="red", text="(offline)")
@@ -423,9 +434,40 @@ def find_configs():
 
 if __name__ == '__main__':
 
+    #logging.basicConfig(level=logging.DEBUG)
+    # basicConfig is intended to quickly set up the logging system for
+    # If handlers are already set up, basicConfig should do nothing
+    # Invoking basicConfig will also attach default handlers to loggers.
+    # arguments are:
+    # - filename, filemode [or] stream --> switch to file-based logging, OR use stream instead of stderr
+    # - format, datefmt --> default format
+    # - level  --> set minimum level to be logged. (logging.DEBUG=10, INFO=20, WARNING=30, ERROR=40, CRITICAL=50)
+    # also interesting is: logging.root <- root logger
+    # The extended way of setting up the logging system is to instantiate one or more handlers:
+    # handler1 = logging.Steamhandler(); handler2 = logging.handlers.HTTPhandler
+    # handlers can be associated with loggers with logger.addHandler(handler), including the root loggig.RootLogger
+    # each handler can have a custom Formatter associated:
+    # formatter1 = logging.Formatter(fmt=<format string>, datefmt=<date format>)
+    # msg format use old string interpolation, %(placeholder)s, where placeholder can be a logrecord attribute:
+    # LogRecord attributes include: name, levelname, filename, lineno, funcName,
+    # debugformatter = logging.Formatter("%(levelname)s: %(filename)s:%(lineno)s %(funcName)s > %(message)")
+    # the logging module offers advanced introspection with
+    # curframe = logging.currentframe(); traceback = curframe.f_trace
+
+    # Note that attaching custom handler+formatter to a logger is still quite ok even after
+    # calling logging.basicConfig(), just make sure to set logger.propagate=0,
+    # otherwise any records will be emitted both by the custom handler and the root logger.
+
+    logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
+    logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
+    logging.basicConfig(level=logging.WARNING, format=logfmt)
+
     confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=0)
     try:
-        server = ConfluenceXmlRpcServer(autologin=True, prompt='auto', ui=None, confighandler=confighandler, VERBOSE=0)
+        serverlogger = logging.getLogger("model.server")
+        serverlogger.setLevel(logging.DEBUG)
+        #serverlogger.info("\n\nThis message is by the serverlogger, should be visible...\n")
+        server = ConfluenceXmlRpcServer(autologin=True, ui=None, confighandler=confighandler, VERBOSE=0)
     except socket.error:
         print "This should not happen; autologin is shielded by try-clause."
         server = None

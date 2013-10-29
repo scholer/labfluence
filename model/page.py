@@ -21,6 +21,9 @@ import string
 #from lxml import etree
 from datetime import datetime
 import re
+import inspect
+import logging
+logger = logging.getLogger(__name__)
 
 from confighandler import ExpConfigHandler
 from server import ConfluenceXmlRpcServer
@@ -80,9 +83,9 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         self._struct = pagestruct # Cached struct.
         if pagestruct is None:
             self.reloadFromServer()
-            print "WikiPage retrieved from server: {}".format(self.Struct)
+            logger.debug("WikiPage retrieved from server: %s", self.Struct)
         else:
-            print "WikiPage initialized with pagestruct {}".format(pagestruct)
+            logger.debug("WikiPage initialized with pagestruct %s", pagestruct)
 
 
     @property
@@ -96,16 +99,21 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             self._struct = newstruct
     @property
     def Server(self):
-        return self._server or self.Confighandler.Singletons.get('server')
+        # Edit: I cannot use return _server or confighandler.Single...
+        # Server evaluates to False if it is not connected, so check specifically against None.
+        if self._server is not None:
+            return self._server
+        else:
+            return self.Confighandler.Singletons.get('server')
 
 
     def reloadFromServer(self):
         if not self.Server:
-            print "Page.reloadFromServer() :: No server available, aborting...!"
+            logger.info("Page.reloadFromServer() :: No server available, aborting...!")
             return
         struct = self.Server.getPage(pageId=self.PageId)
         if not struct:
-            print "Something went wrong retrieving Page struct from server...!"
+            logger.warning("Page.reloadFromServer() :: Something went wrong retrieving Page struct from server...!")
             return False
         self.Struct = struct
         return True
@@ -136,7 +144,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             if char == '>':
                 surplus -= 1
             if surplus > 1:
-                print "xhtml failed at index {}".format(i)
+                logger.info("xhtml failed at index %s", i)
                 return False
         return True
 
@@ -159,11 +167,11 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            print "WikiPage.updatePage() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.updatePage() > Server is None or not connected, aborting...")
             return
         if struct_from == 'server':
             if not self.reloadFromServer():
-                print "Could not retrieve updated version from server, aborting..."
+                logger.warning("Could not retrieve updated page from server, aborting...")
                 return False
         if base == 'minimal':
             new_struct = self.minimumStruct() # using current value of self.Struct cache...
@@ -172,20 +180,18 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         if content:
             new_struct['content'] = content
         if not self.validate_xhtml(new_struct['content']):
-            print "\nPage.updatePage() :: content failed xhtml validation, aborting..."
+            logger.warning("\nPage.updatePage() :: content failed xhtml validation, aborting...")
             return False
         if title:
             new_struct['title'] = title
         #new_struct['version'] = str(int(new_struct['version'])+0) # 'version' refers to the version you are EDITING, not the version number for the version that you are submitting.
         pageUpdateOptions = dict(versionComment=versionComment, minorEdit=minorEdit)
         if self.VERBOSE or True:
-            print "new_struct:\n{}\npageUpdateOptions:\n{}".format(new_struct, pageUpdateOptions)
+            logger.debug("new_struct:\n{}\npageUpdateOptions:\n{}".format(new_struct, pageUpdateOptions) )
         page_struct = self.Server.updatePage(new_struct, pageUpdateOptions)
         if page_struct:
             self.Struct = page_struct
-        if self.VERBOSE:
-            print "\nPage.updatePage() :: Returned page struct from server:"
-            print page_struct
+        logger.debug("\nPage.updatePage() :: Returned page struct from server: %s", page_struct)
         return page_struct
 
     def movePage(self, parentId, position="append"): #struct_from='cache', base='minimal'):
@@ -198,7 +204,7 @@ below        source and target become/remain sibling pages and the source is mov
         """
 #        if struct_from == 'server':
 #            if not self.reloadFromServer():
-#                print "Could not retrieve updated version from server, aborting..."
+#                logger.debug("Could not retrieve updated version from server, aborting..."
 #                return False
 #        if base == 'minimal':
 #            new_struct = self.minimumStruct()
@@ -207,12 +213,12 @@ below        source and target become/remain sibling pages and the source is mov
 #        new_struct['parentId'] = parentId
 #        page_stuct = self.Server.updatePage(self, new_struct, pageUpdateOptions)
 #        if page_struct:
-#            print "Page moved to parent page: {}".format(parentId)
+#            logger.debug("Page moved to parent page: {}".format(parentId)
 #            self.Struct = page_struct
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            print "WikiPage.updatePage() > Server is None or not connected, aborting..."
+            logger.info("%s.Server is None or not connected, aborting...", self.__class__)
             return
         self.Server.movePage(self.PageId, targetPageId, position=position)
         return page_struct
@@ -224,7 +230,7 @@ below        source and target become/remain sibling pages and the source is mov
         """
         if updateFromServer:
             if not self.reloadFromServer():
-                print "Could not retrieve updated version from server, aborting..."
+                logger.info("Could not retrieve updated version from server, aborting...")
                 return False
         return self.Struct['content'].count(search_string)
 
@@ -239,15 +245,15 @@ below        source and target become/remain sibling pages and the source is mov
         """
         if updateFromServer:
             if not self.reloadFromServer():
-                print "Could not retrieve updated version from server, aborting..."
+                logger.info("Could not retrieve updated version from server, aborting...")
                 return False
 
         content = self.Struct['content']
         count = content.count(search_string)
         if count != 1:
-            print "Page.search_replace() :: Warning, count of search_string '{}' is '{}' (should only be exactly 1).".format(search_string, count)
+            logger.warning("Page.search_replace() :: Warning, count of search_string '{}' is '{}' (should only be exactly 1).".format(search_string, count))
             if count < 1:
-                print "search_string not found; aborting..."
+                logger.info("search_string not found; aborting...")
                 return False
         if replaceLastOccurence:
             parts = content.rsplit(search_string, 1)
@@ -267,7 +273,7 @@ below        source and target become/remain sibling pages and the source is mov
         """
         if updateFromServer:
             if not self.reloadFromServer():
-                print "Could not retrieve updated version from server, aborting..."
+                logger.info("Could not retrieve updated version from server, aborting...")
                 return False
         if appendBefore:
             self.Struct['content'] = text + self.Struct['content']
@@ -307,10 +313,10 @@ below        source and target become/remain sibling pages and the source is mov
         """
         if updateFromServer:
             if not self.reloadFromServer():
-                print "Could not retrieve updated version from server, aborting..."
+                logger.info("Could not retrieve updated version from server, aborting...")
                 return False
         if self.VERBOSE:
-            print "\nPage.insertAtRegex() :: inserting in mode '{}' with regex:\n{}\nthe following xhtml code:\n{}".format(mode, regex, xhtml)
+            logger.info("\nPage.insertAtRegex() :: inserting in mode '{}' with regex:\n{}\nthe following xhtml code:\n{}".format(mode, regex, xhtml))
         page = self.Struct['content']
         # Developing two modes; the match is easiest to implement correctly here because it is just
         # joining three strings.
@@ -330,13 +336,13 @@ below        source and target become/remain sibling pages and the source is mov
                 if matchgroups.get('after_insert', None):
                     after_insert_index = match.start('after_insert')
                 if before_insert_index is None and after_insert_index is None:
-                    print "Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is ({}, {}), aborting...\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page)
+                    logger.warning("Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is ({}, {}), aborting...\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page))
                     return False
                 if before_insert_index != after_insert_index:
-                    print "Page.insertAtRegex() :: WARNING, before_insert_index != after_insert_index; risk of content loss!\n --> (before_insert_index, after_insert_index) is ({}, {})\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page)
+                    logger.warning("Page.insertAtRegex() :: WARNING, before_insert_index != after_insert_index; risk of content loss!\n --> (before_insert_index, after_insert_index) is ({}, {})\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page) )
                 self.Struct['content'] = "\n".join([page[:before_insert_index], xhtml, page[after_insert_index:] ])
         if self.VERBOSE:
-            print "\nPage.insertAtRegex() :: {} found.".format("MATCH found" if match else "No match found")
+            logger.info("\nPage.insertAtRegex() :: {} found.".format("MATCH found" if match else "No match found") )
         if persistToServer and match:
             self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
         return self.Struct
@@ -358,27 +364,26 @@ below        source and target become/remain sibling pages and the source is mov
     def getWikiSubentryXhtml(self, subentry, regex_pat):
         #regex_pat = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
         if not regex_pat:
-            print "WikiPage.getWikiSubentryXhtml() > No regex pattern found in config, aborting..."
+            logger.warning("WikiPage.getWikiSubentryXhtml() > No regex pattern found in config, aborting...")
         regex_prog = re.compile(regex_pat, re.DOTALL)
         match = regex_prog.search(self.Struct['content'])
         if match:
             gd = match.groupdict()
-            print "matchgroups:"
-            for k in ('subentry_header', 'subentry_xhtml'):
-                print "-'{}': {}".format(k, gd[k])
-            xhtml = "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
+            logger.info("matchgroups: {}".format("  ,  ".join( "'{}': {}".format(k, gd[k]) \
+                                                    for k in ('subentry_header', 'subentry_xhtml') )) )
+            subentry_xhtml = "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
         else:
-            print "WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is:"
-            print self.Struct['content']
-            xhtml = ""
-        return xhtml
+            logger.info("WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is:\n%s",
+                        self.Struct['content'])
+            subentry_xhtml = ""
+        return subentry_xhtml
 
 
     def getRenderedHTML(self, content=None):
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
             return
         if content:
             html = self.Server.renderContent(self.PageId, content)
@@ -402,10 +407,10 @@ below        source and target become/remain sibling pages and the source is mov
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            print "WikiPage.getAttachmentInfo() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.getAttachmentInfo() > Server is None or not connected, aborting...")
             return
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getMethodData')
+            logger.info("Page {} has no server object attached (or it is not connected); aborting {} operation...".format(self, 'getMethodData'))
             return
         info = self.Server.getAttachment(self.PageId, filename, versionNumber)
         return info
@@ -414,7 +419,7 @@ below        source and target become/remain sibling pages and the source is mov
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            print "WikiPage.getAttachmentData() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.getAttachmentData() > Server is None or not connected, aborting...")
             return
         data = self.Server.getAttachmentData(self.PageId, filename, versionNumber)
         return data
@@ -426,7 +431,7 @@ below        source and target become/remain sibling pages and the source is mov
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            print "WikiPage.addAttachment() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.addAttachment() > Server is None or not connected, aborting...")
             return
         info = self.Server.addAttachment(self.PageId, attachmentInfo, attachmentData)
         return info
@@ -436,7 +441,7 @@ below        source and target become/remain sibling pages and the source is mov
         Returns all the Attachments for this page (useful to point users to download them with the full file download URL returned).
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getAttachments')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getAttachments'))
             return
         return self.Server.getAttachments(self.PageId)
 
@@ -445,7 +450,7 @@ below        source and target become/remain sibling pages and the source is mov
         Returns all the ancestors of this page (parent, parent's parent etc).
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getAncestors')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getAncestors'))
             return
         return self.Server.getAncestors(self.PageId)
 
@@ -454,7 +459,7 @@ below        source and target become/remain sibling pages and the source is mov
         returns all the direct children of this page.
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getChildren')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getChildren'))
             return
         return self.Server.getChildren(self.PageId)
 
@@ -463,7 +468,7 @@ below        source and target become/remain sibling pages and the source is mov
         Returns all the descendants of this page (children, children's children etc).
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getDescendents')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getDescendents'))
             return
         return self.Server.getDescendents(self.PageId)
 
@@ -472,7 +477,7 @@ below        source and target become/remain sibling pages and the source is mov
         returns all the comments for this page.
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getComments')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
             return
         return self.Server.getComments(self.PageId)
 
@@ -481,7 +486,7 @@ below        source and target become/remain sibling pages and the source is mov
         Returns an individual comment.
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getComments')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
             return
         return self.Server.getComment(commentId)
 
@@ -490,7 +495,7 @@ below        source and target become/remain sibling pages and the source is mov
         adds a comment to the page.
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'getComments')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
             return
         return self.Server.getComment(comment_struct)
 
@@ -499,7 +504,7 @@ below        source and target become/remain sibling pages and the source is mov
         Updates an existing comment on the page.
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'editComment')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'editComment'))
             return
         return self.Server.editComment(comment_struct)
 
@@ -508,7 +513,7 @@ below        source and target become/remain sibling pages and the source is mov
         removes a comment from the page.
         """
         if not self.Server:
-            print "Page {} has no server object attached; aborting {} operation...".format(self, 'removeComment')
+            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'removeComment'))
             return
         return self.Server.removeComment(commentId)
 
@@ -516,22 +521,22 @@ below        source and target become/remain sibling pages and the source is mov
 
     def watchPage(self):
         if not self.Server:
-            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
             return
         return self.Server.watchPage(self.PageId)
     def removePageWatch(self):
         if not self.Server:
-            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
             return
         return self.Server.removePageWatch(self.PageId)
     def isWatchingPage(self):
         if not self.Server:
-            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
             return
         return self.Server.isWatchingPage(self.PageId)
     def getPagePermissions(self):
         if not self.Server:
-            print "WikiPage.getRenderedHTML() > Server is None or not connected, aborting..."
+            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
             return
         return self.Server.getPagePermissions(self.PageId)
 
@@ -540,7 +545,7 @@ class TemplateManager(object):
 
     def __init__(self, confighandler, server=None):
         if 'templatemanager' in confighandler.Singletons:
-            print "TemplateManager.__init__() :: ERROR, a template manager is already registrered in the confighandler..."
+            logger.info("TemplateManager.__init__() :: ERROR, a template manager is already registrered in the confighandler...")
             return confighandler['templatemanager']
         self.Confighandler = confighandler
         self._server = server
@@ -571,18 +576,17 @@ class TemplateManager(object):
         ### Finally, try to get template pageids and locate the template on the server.
         template_pageids = self.Confighandler.get('wiki_templates_pageIds')
         if template_pageids:
-            print template_pageids
+            logger.info("template_pageids: %s", template_pageids)
             templatePageId = template_pageids.get(templatetype, None)
-            print "templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
+            logger.info("templatePageId: type={}, value={}".format(type(templatePageId), templatePageId))
             if not self.Server:
                 # Server might be None or a server instance with attribute _connectionok value of either
                 # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-                print "TemplateManager.getTemplate() > Server is None or not connected, aborting (after having searched locally)."
+                logger.info("TemplateManager.getTemplate() > Server is None or not connected, aborting (after having searched locally).")
                 return
             if templatePageId:
                 templatestruct = self.Server.getPage(pageId=templatePageId)
-                print "\nstruct:"
-                print templatestruct
+                logger.info("\nstruct: %s", templatestruct)
                 #new_struct = self.makeMinimalStruct(struct)
                 # Uh... in theory, I guess I could also have permissions etc be a part of a template.
                 # However that should probably be termed page_struct template and not just template
@@ -592,7 +596,7 @@ class TemplateManager(object):
                     if self.Confighandler.get('wiki_allow_template_caching', False):
                         self.Cache[templatetype] = template
                     return template
-        print "No matching pageId for given template '{}', aborting...".format(templatetype)
+        logger.info("No matching pageId for given template '{}', aborting...".format(templatetype))
         return
 
 
@@ -641,17 +645,17 @@ class WikiPageFactory(object):
 #        if template:
 #            return template
 #        if self.TemplatePagesIds:
-#            print self.TemplatePagesIds
+#            logger.info(self.TemplatePagesIds
 #            templatePageId = self.TemplatePagesIds.get(templatetype)
-#            print "templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
+#            logger.info("templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
 #            if templatePageId:
 #                templatestruct = self.Server.getPage(pageId=templatePageId)
-#                print "\nstruct:"
-#                print templatestruct
+#                logger.info("\nstruct:"
+#                logger.info(templatestruct
 #                #new_struct = self.makeMinimalStruct(struct)
 #                if templatestruct:
 #                    return templatestruct['content']
-#        print "No matching pageId for given template '{}', aborting...".format(templatetype)
+#        logger.info("No matching pageId for given template '{}', aborting...".format(templatetype)
 #        return
 
 
@@ -662,11 +666,11 @@ class WikiPageFactory(object):
         if space is None:
             space = self.Confighandler.get('wiki_exp_root_spaceKey', space, path=localdirpath)
             if space is None:
-                print "makeNewPageStruct() :: WARNING, space is still None, wiki_exp_root_spaceKey config key not found in config."
+                logger.warning("makeNewPageStruct() :: WARNING, space is still None, wiki_exp_root_spaceKey config key not found in config.")
         if parentPageId is None:
             parentPageId = self.Confighandler.get('wiki_exp_root_pageId', parentPageId)
             if parentPageId is None:
-                print "makeNewPageStruct() :: WARNING, parentPageId is still None, wiki_exp_root_pageId config key not found in config."
+                logger.warning("makeNewPageStruct() :: WARNING, parentPageId is still None, wiki_exp_root_pageId config key not found in config.")
         if title is None:
             title_fmt = self.Confighandler.get('exp_series_dir_fmt')
             if title_fmt and fmt_params:
@@ -700,11 +704,9 @@ class WikiPageFactory(object):
             templatetype = self.DefaultTemplateType
         content_template = self.getTemplate(templatetype)
         new_struct = self.makeNewPageStruct(content=content_template, fmt_params=fmt_params, localdirpath=localdirpath)
-        print "\nWikiPageFactory.new() :: new_struct:"
-        print new_struct
+        logger.info("\nWikiPageFactory.new() :: new_struct: %s", new_struct)
         saved_struct = self.Server.storePage(new_struct)
-        print "\nWikiPageFactory.new() :: saved_struct:"
-        print saved_struct
+        logger.info("\nWikiPageFactory.new() :: saved_struct: %s", saved_struct)
         pageId = saved_struct['id']
         new_page = WikiPage(pageId, self.Server, saved_struct)
         return new_page
@@ -735,7 +737,7 @@ if __name__ == '__main__':
 
     def test_factoryNew():
         ch = ExpConfigHandler(pathscheme='default1')
-        wikiserver = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, prompt='auto', autologin=True)
+        wikiserver = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=True)
         factory = WikiPageFactory(wikiserver, ch)
         expid_index = 1
         expid = ch.get('expid_fmt').format(exp_series_index=expid_index)

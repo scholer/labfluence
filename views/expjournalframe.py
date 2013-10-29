@@ -23,6 +23,8 @@ import Tix # Lots of widgets, but tix is not being developed anymore, so only us
 import htmllib, formatter
 from datetime import datetime
 from collections import OrderedDict
+import logging
+logger = logging.getLogger(__name__)
 
 #from subentrieslistbox import SubentriesListbox
 from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
@@ -187,6 +189,10 @@ class ExpJournalFrame(ExpFrame):
         self.journalentry_input.bind('<Return>', self.add_entry)
         #self.autoflushinterval_spinbox.bind('<Return>', self.autoflush_reset)
         self.autoflushinterval_spinbox.bind('<<Modified>>', self.autoflush_reset)
+        self.getConfighandler().registerEntryChangeCallback('wiki_server_status', self.on_serverstatus_change)
+
+    def after_init(self):
+        self.on_serverstatus_change()
 
     def updatewidgets(self):
         self.subentries_listbox.updatelist()
@@ -212,17 +218,17 @@ class ExpJournalFrame(ExpFrame):
         v = self.Variables['wiki_titledesc']
         ja = self.Experiment.JournalAssistant
         titledesc = self.Experiment.getSubentryRepr(subentry_idx=ja.Current_subentry_idx, default="exp")
-        print "Title desc: '{}'".format(titledesc)
+        logger.debug("Title desc: '{}'".format(titledesc))
         v.set(titledesc)
 
 
     def on_subentry_select(self, event):
         selectedsubentries = self.subentries_listbox.getSelectedSubentryIdxs()
         if not selectedsubentries:
-            print "No subentries selected: {}".format(selectedsubentries)
+            logger.debug("No subentries selected: {}".format(selectedsubentries))
             return
         subentry = selectedsubentries[0]
-        print "Switching to subentry '{}'".format(subentry)
+        logger.debug("Switching to subentry '{}'".format(subentry))
         ja = self.Experiment.JournalAssistant
         ja.Current_subentry_idx = subentry
         self.update_cacheview()
@@ -230,19 +236,19 @@ class ExpJournalFrame(ExpFrame):
         self.update_wikititledesc()
 
     def add_entry(self, event):
-        print "ExpJournalFrame.add_entry() invoked."
+        logger.debug("ExpJournalFrame.add_entry() invoked.")
         new_entry = self.journalentry_input.get()
         ja = self.Experiment.JournalAssistant
         res = ja.addEntry(new_entry)
-        print "ExpJournalFrame.add_entry() :: res = '{}'".format(res)
+        logger.debug("ExpJournalFrame.add_entry() :: res = '{}'".format(res))
         if res:
             self.journalentry_input.delete(0, tk.END)
         self.update_cacheview()
 
     def flushcache(self, event=None):
-        print "ExpJournalFrame.flushcache() invoked."
+        logger.debug("ExpJournalFrame.flushcache() invoked.")
         res = self.Experiment.JournalAssistant.flush()
-        print "ExpJournalFrame.flushcache() :: res = '{}'".format(res)
+        logger.debug("ExpJournalFrame.flushcache() :: res = '{}'".format(res))
         self.update_cacheview()
         self.update_wikiview()
 
@@ -257,17 +263,44 @@ class ExpJournalFrame(ExpFrame):
     def autoflush_reset(self):
         for identifier in self.AutoflushAfterIdentifiers:
             self.after_cancel(identifier)
-            print "afterTimer with id '{}' cancelled...".format(identifier)
+            logger.debug("afterTimer with id '{}' cancelled...".format(identifier))
         del self.AutoflushAfterIdentifiers[:]
         if not self.Boolvars['autoflush'].get():
-            print "Autoflush not active (due to checkbox...)"
+            logger.debug("Autoflush not active (due to checkbox...)")
             return
         mins = int(self.Variables['autoflush_interval'].get())
         after_identifier = self.after(mins*60*1000, self.flushallcaches)
         self.AutoflushAfterIdentifiers.append(after_identifier)
-        print "New afterTimer with id {} added for self.flushallcaches in {} ms".format(after_identifier, mins*60*1000)
+        logger.debug("New afterTimer with id {} added for self.flushallcaches in {} ms".format(after_identifier, mins*60*1000))
         self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
         self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
+
+    def on_serverstatus_change(self, ):
+        statewidgets = (
+                        self.wikiview_description,
+                        self.flush_btn,
+                        self.flushall_btn,
+                        self.createnewsubentry_btn,
+                        self.newwikipagesubentry_btn,
+                        self.autoflushall_chkbtn,
+                       )
+        bgcolorwidgets = (
+                          self.journalwiki_view.text,
+                          )
+        if self.Experiment.Server:
+            bgcolor = 'white'
+            state = 'normal'
+        else:
+            bgcolor = 'gray'
+            state = 'disabled'
+        for widget in statewidgets:
+            widget.config(state=state)
+        for widget in bgcolorwidgets:
+            widget.config(bg=bgcolor)
+
+
+
+
 
     def createnewsubentry(self, event=None):
         idx = self.Experiment.getNewSubentryIdx()
@@ -294,7 +327,7 @@ class ExpJournalFrame(ExpFrame):
                 items[0] = tk.StringVar(value=items[0])
         fieldvars['expid'][2]['state'] = 'disabled'
         dia = Dialog(self, "Create new subentry", fieldvars)
-        print dia.result
+        logger.debug("Dialog result: {}".format(dia.result))
         #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
         #self.Experiment.addNewSubentry()
 
@@ -361,15 +394,13 @@ class JournalViewer(ExpFrame):
         """
         xhtml = self.Experiment.getWikiSubentryXhtml()
         #xhtml = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
-        #print 'self["font"] is: {}'.format(self["font"])
-        print "xhtml is:"
-        print xhtml
+        logger.debug("xhtml is: \n{}".format(xhtml))
         # prepare the text widget:
         self.text.config(state="normal")
         self.text.delete("1.0", "end")
         self.text.update_idletasks()
         if not xhtml:
-            print "No xhtml, aborting..."
+            logger.debug("No xhtml, aborting...")
             self.text.config(state="disabled")
             return xhtml
         # Write the xhtml to the text widget:

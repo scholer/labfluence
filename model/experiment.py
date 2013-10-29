@@ -123,7 +123,7 @@ class Experiment(object):
         if localdir is None:
             localdir = props.get('localdir')
         if not localdir:
-            print "\n\nExperiment.__init__() :: CRITICAL: No localdir provided; functionality of this object will be greatly reduced and may break at any time.\n\n"
+            logger.error( "\n\nExperiment.__init__() :: CRITICAL: No localdir provided; functionality of this object will be greatly reduced and may break at any time.\n\n" )
             self.Localdirpath = None
             self.Foldername = None
             self.Parentdirpath = None
@@ -136,21 +136,21 @@ class Experiment(object):
                 parentdirpath = self.getConfigEntry('local_exp_subDir')
             self.Parentdirpath = parentdirpath
             if not foldername:
-                print "Experiment.__init__() :: Warning, could not determine foldername...????"
+                logger.warning( "Experiment.__init__() :: Warning, could not determine foldername...????" )
             self.Foldername = foldername
             self.Localdirpath = os.path.join(self.Parentdirpath, self.Foldername)
 
-        """ Experiment properties/config related """
-        """ Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
+        ### Experiment properties/config related
+        ### Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
         if self.VERBOSE:
-            print "Experiment.__init__() :: Props already in HierarchicalConfig cfg: \n{}".format(self.Props)
+            logger.debug( "Experiment.__init__() :: Props already in HierarchicalConfig cfg: \n{}".format(self.Props) )
         if props:
             self.Props.update(props)
             if self.VERBOSE:
-                print "Experiment self.Props updated with props argument, is now {}".format(self.Props)
+                logger.info("Experiment self.Props updated with props argument, is now {}".format(self.Props))
         if regex_match:
             gd = regex_match.groupdict()
-            """ regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)" """
+            ## regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)"
             self.Props.update(gd)
         elif not 'expid' in self.Props:
             # self.Props is still too empty. Attempt to populate it using 1) the localdirpath and 2) the wikipage.
@@ -178,7 +178,7 @@ class Experiment(object):
         #    self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
         self.JournalAssistant = JournalAssistant(self)
         if self.VERBOSE:
-            print "Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props)
+            logger.info("Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props))
 
 
 
@@ -195,7 +195,7 @@ class Experiment(object):
             if props_cache and getattr(self, '_expid', None):
                 props = props_cache.setdefault(self._expid, dict())
             else:
-                print "Warning, no localdirpath provided for this experiment and no props_cache or no self._expid."
+                logger.warning("Warning, no localdirpath provided for this experiment and no props_cache or no self._expid.")
                 if not hasattr(self, '_props'):
                     self._props = dict()
                 props = self._props
@@ -254,7 +254,11 @@ class Experiment(object):
         return self._attachments_cache
     @property
     def Server(self):
-        return self._server or self.Confighandler.Singletons.get('server', None)
+        # Server evaluates to False if it is not connected, so check specifically against None.
+        if self._server is not None:
+            return self._server
+        else:
+            return self.Confighandler.Singletons.get('server')
     @property
     def Manager(self):
         return self._manager or self.Confighandler.Singletons.get('manager')
@@ -297,7 +301,7 @@ class Experiment(object):
     def updateAttachmentsCache(self):
         structs = self.listAttachments()
         if not structs:
-            print "Experiment.updateAttachmentsCache() :: listAttachments() returned '{}', aborting".format(structs)
+            logger.info( "Experiment.updateAttachmentsCache() :: listAttachments() returned '{}', aborting".format(structs) )
         self._attachments_cache = structs
 
     ########################
@@ -363,29 +367,26 @@ class Experiment(object):
         If a confighandler is attached, allow it to do it; otherwise just persist as yaml to default location.
         """
         if self.VERBOSE:
-            print "(Experiment.saveProps() triggered; confighandler: {}".format(self.Confighandler)
+            logger.info("(Experiment.saveProps() triggered; confighandler: {}".format(self.Confighandler))
             if self.VERBOSE > 2:
-                print "self.Props: {}".format(self.Props)
+                logger.debug("self.Props: {}".format(self.Props))
         if path is None:
             path = self.Localdirpath
         if self.Confighandler:
             if not os.path.isdir(path):
                 path = os.path.dirname(path)
             if self.VERBOSE > 3:
-                print "\nself.Confighandler.updateAndPersist(path, self.Props) ->"
-                print path
-                print self.Props
-                print "\n"
+                logger.debug("Invoking self.Confighandler.updateAndPersist(path, self.Props) ->{}\n{}\n".format(path,self.Props) )
             self.Confighandler.updateAndPersist(path, self.Props)
         else:
-            print "Experiment.saveProps() :: No confighandler, saving manually..."
+            logger.debug("Experiment.saveProps() :: No confighandler, saving manually...")
             if os.path.isdir(path):
                 path = os.path.normpath(os.path.join(self.Localdirpath, self.ConfigFn))
-            print "Experiment.saveProps() :: saving directly to file '{}' (not using confighandler)".format(path)
+            logger.debug("Experiment.saveProps() :: saving directly to file '{}' (not using confighandler)".format(path))
             yaml.dump(self.Props, open(path, 'wb'))
         if self.VERBOSE > 4:
-            print "\nContent of exp config/properties file after save:"
-            print open(os.path.join(path,self.ConfigFn)).read()
+            logger.debug("\nContent of exp config/properties file after save:")
+            logger.debug(open(os.path.join(path,self.ConfigFn)).read())
 
 
     def updatePropsByFoldername(self, regex_prog=None):
@@ -445,7 +446,7 @@ class Experiment(object):
         if subentry_idx is None:
             subentry_idx = self.getNewSubentryIdx()
         if subentry_idx in self.Subentries:
-            print "Experiment.addNewSubentry() :: ERROR, subentry_idx '{}' already listed in subentries, aborting...".format(subentry_idx)
+            logger.error("Experiment.addNewSubentry() :: ERROR, subentry_idx '{}' already listed in subentries, aborting...".format(subentry_idx))
             return
         if subentry_date is None:
             subentry_datetime = datetime.now()
@@ -470,7 +471,7 @@ class Experiment(object):
 
     def makeSubentryFolder(self, subentry_idx):
         if subentry_idx not in self.Subentries:
-            print "Experiment.makeSubentryFolder() :: ERROR, subentry_idx '{}' not listed in subentries, aborting...".format(subentry_idx)
+            logger.error("Experiment.makeSubentryFolder() :: ERROR, subentry_idx '{}' not listed in subentries, aborting...".format(subentry_idx) )
             return
         subentry = self.getSubentry(subentry_idx)
         fmt_params = self.makeFormattingParams(subentry_idx=subentry_idx, props=subentry)
@@ -479,12 +480,12 @@ class Experiment(object):
         subentry_foldername = subentry_foldername_fmt.format(**fmt_params)
         newfolderpath = os.path.join(self.Localdirpath, subentry_foldername)
         if os.path.exists(newfolderpath):
-            print "\nExperiment.makeSubentryFolder() :: ERROR, newfolderpath already exists, aborting...\n--> '{}'".format(newfolderpath)
+            logger.error("\nExperiment.makeSubentryFolder() :: ERROR, newfolderpath already exists, aborting...\n--> '{}'".format(newfolderpath))
             return
         try:
             os.mkdir(newfolderpath)
         except OSError as e:
-            print "\n{}\nExperiment.makeSubentryFolder() :: ERROR, making new folder:\n--> '{}'".format(e, newfolderpath)
+            logger.error("\n{}\nExperiment.makeSubentryFolder() :: ERROR, making new folder:\n--> '{}'".format(e, newfolderpath))
             return False
         subentry['foldername'] = subentry_foldername
         if self.SavePropsOnChange:
@@ -555,7 +556,7 @@ class Experiment(object):
         else:
             regex_str = self.getConfigEntry('exp_subentry_regex') #getExpSubentryRegex()
             if not regex_str:
-                print "Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default."
+                logger.warning("Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default.")
                 regex_str = "(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
             self._subentries_regex_prog = re.compile(regex_str)
             return self._subentries_regex_prog
@@ -573,23 +574,23 @@ class Experiment(object):
         if directory is None:
             directory = self.Localdirpath
         if directory is None:
-            print "Experiment.parseLocaldirSubentries() :: ERROR, no directory provided and no localdir in Props attribute."
+            logger.error("Experiment.parseLocaldirSubentries() :: ERROR, no directory provided and no localdir in Props attribute.")
             return
         # Consider using glob.re
         regex_prog = self.Subentries_regex_prog
         localdirs = sorted([dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ])
         if self.VERBOSE:
-            print "Experiment.parseLocaldirSubentries() :: self.Props:\n{}".format(self.Props)
+            logger.debug("Experiment.parseLocaldirSubentries() :: self.Props:\n{}".format(self.Props))
         subentries = self.Props.setdefault('exp_subentries', OrderedDict())
         if self.VERBOSE:
-            print "Experiment.parseLocaldirSubentries() :: searching in directory '{}'".format(directory)
-            print "Experiment.parseLocaldirSubentries() :: regex = '{}'".format(regex_prog.pattern)
-            print "Experiment.parseLocaldirSubentries() :: localdirs = {}".format(localdirs)
-            print "Experiment.parseLocaldirSubentries() :: subentries (before read:) = \n{}\n".format(subentries)
+            logger.debug("Experiment.parseLocaldirSubentries() :: searching in directory '{}'".format(directory))
+            logger.debug("Experiment.parseLocaldirSubentries() :: regex = '{}'".format(regex_prog.pattern))
+            logger.debug("Experiment.parseLocaldirSubentries() :: localdirs = {}".format(localdirs))
+            logger.debug("Experiment.parseLocaldirSubentries() :: subentries (before read:) = \n{}\n".format(subentries))
         for foldername in localdirs:
             res = regex_prog.match(foldername)
             if self.VERBOSE:
-                print "\n\n{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", foldername, regex_prog.pattern)
+                logger.info("\n\n{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", foldername, regex_prog.pattern))
             if res:
                 props = res.groupdict()
                 # I allow for regex with multiple date entries, i.e. both first and last.
@@ -627,7 +628,7 @@ class Experiment(object):
         """
         dir_fmt = self.getConfigEntry('exp_subentry_dir_fmt')
         if not dir_fmt:
-            print "No 'exp_subentry_dir_fmt' found in config; aborting"
+            logger.warning("No 'exp_subentry_dir_fmt' found in config; aborting")
             return
         for subentry in self.Subentries.values():
             # subentry is a dict
@@ -635,10 +636,10 @@ class Experiment(object):
             newname_full = os.path.join(self.Localdirpath, newname)
             if 'dirname' in subentry:
                 oldname_full = os.path.join(self.Localdirpath, subentry['dirname'])
-                print "Renaming subentry folder: {} -> {}".format(oldname_full, newname_full)
+                logger.info("Renaming subentry folder: {} -> {}".format(oldname_full, newname_full))
                 #os.rename(oldname_full, newname_full)
             elif createNonexisting:
-                print "Making new subentry folder: {}".format(newname_full)
+                logger.info("Making new subentry folder: {}".format(newname_full))
                 #os.mkdir(newname_full)
             subentry['dirname'] = newname
 
@@ -650,13 +651,13 @@ class Experiment(object):
         """
         dir_fmt = self.getConfigEntry('exp_series_dir_fmt')
         if not dir_fmt:
-            print "No 'exp_series_dir_fmt' found in config; aborting"
+            logger.warning("No 'exp_series_dir_fmt' found in config; aborting")
             return
         newname = dir_fmt.format(self.Props)
         newname_full = os.path.join(self.Parentdirpath, newname)
         oldname = self.Foldername
         oldname_full = self.Localdirpath
-        print "Renaming exp folder: {} -> {}".format(oldname_full, newname_full)
+        logger.info("Renaming exp folder: {} -> {}".format(oldname_full, newname_full))
         #os.rename(oldname_full, newname_full)
         self.Localdirpath = newname_full
         self.Foldername = newname
@@ -672,7 +673,7 @@ class Experiment(object):
 
         Returns digestentry dict {datetime:datetime.now(), <digesttype>:digest }
         """
-        print "Experiment.hashFile() :: Not tested yet - take care ;)"
+        logger.info("Experiment.hashFile() :: Not tested yet - take care ;)")
         if not os.path.isabs(filepath):
             filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
         relpath = os.path.relpath(filepath, self.Localdirpath)
@@ -705,7 +706,7 @@ class Experiment(object):
             try:
                 os.mkdir(savetofolder)
             except OSError as e:
-                print e
+                logger.warning(e)
                 return
         fn = os.path.join(savetofolder, 'files_history.yml')
         yaml.dump(fileshistory, open(fn, 'wb'), default_flow_style=False)
@@ -722,11 +723,11 @@ class Experiment(object):
             self._fileshistory.update(yaml.load(open(fn)))
             return True
         except OSError as e:
-            print e
+            logger.warning("loadFileshistory error: {}".format(e))
         except IOError as e:
-            print e
+            logger.info("loadFileshistory error: {}".format(e))
         except yaml.YAMLError as e:
-            print e
+            logger.info("loadFileshistory error: {}".format(e))
 
     def getRelativeStartPath(self, relative):
         if relative is None or relative=='exp':
@@ -783,9 +784,9 @@ class Experiment(object):
                 ret.append( make_tuple(dirpath, filename ) )
 
         if subentry_idxs or subentries_only:
-            print "returning filelist using subentries..."
+            logger.debug("returning filelist using subentries...")
             if not self.Subentries:
-                print "getLocalFilelist() :: subentries requested, but no subentries loaded, aborting."
+                logger.warning("getLocalFilelist() :: subentries requested, but no subentries loaded, aborting.")
                 return ret
             for idx,subentry in self.Subentries.items():
                 if (subentries_only or idx in subentry_idxs) and 'foldername' in subentry:
@@ -797,7 +798,7 @@ class Experiment(object):
             return ret
         ignore_pat = self.Confighandler.get('local_exp_ignore_pattern')
         if ignore_pat:
-            print "returning filelist by ignore pattern '{}'".format(ignore_pat)
+            logger.debug("returning filelist by ignore pattern '{}'".format(ignore_pat))
             ignore_prog = re.compile(ignore_pat)
             for dirpath,dirnames,filenames in os.walk(self.Localdirpath):
                 # http://stackoverflow.com/questions/18418/elegant-way-to-remove-items-from-sequence-in-python
@@ -808,19 +809,19 @@ class Experiment(object):
                 # alternatively, use list.remove() in a for-loop, but remember to iterate backwards.
                 # or perhaps even better, iterate over a copy of the list, and remove items with list.remove().
                 # if you can control the datatype, you can also use e.g. collections.deque instead of a list.
-                print "filtered dirnames: {}".format(dirnames)
+                logger.debug("filtered dirnames: {}".format(dirnames))
                 for filename in filenames:
                     if ignore_prog.search(filename) is None:
                         appendfile(dirpath, filename)
                     else:
-                        print "filename {} matched ignore_pat {}, skipping.".format(filename, ignore_pat)
+                        logger.debug("filename {} matched ignore_pat {}, skipping.".format(filename, ignore_pat))
         else:
-            print "Experiment.getLocalFilelist() - no ignore_pat, filtering from complete filelist..."
+            logger.debug("Experiment.getLocalFilelist() - no ignore_pat, filtering from complete filelist...")
             #return [(path, os.path.relpath(path) for dirpath,dirnames,filenames in os.walk(self.Localdirpath) for filename in filenames for path in (appendfile(dirpath, filename), ) if path]
             for dirpath,dirnames,filenames in os.walk(self.Localdirpath):
                 for filename in filenames:
                     appendfile(dirpath, filename)
-        print "Experiment.getLocalFilelist() :: Returning list: {}".format(ret)
+        logger.debug("Experiment.getLocalFilelist() :: Returning list: {}".format(ret))
         return ret
 
 
@@ -830,8 +831,8 @@ class Experiment(object):
 
     def getWikiXhtml(self, ):
         if not self.WikiPage or not self.WikiPage.Struct:
-            print "\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting..."
-            print "-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage)
+            logger.warning("\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")
+            logger.warning("-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage))
             return
         content = self.WikiPage.Struct['content']
         return content
@@ -841,18 +842,18 @@ class Experiment(object):
         if subentry is None:
             subentry = getattr(self.JournalAssistant, 'Current_subentry_idx', None)
         if not subentry:
-            print "\nExperiment.getWikiSubentryXhtml() > No subentry provided, aborting...\n"
+            logger.info("\nExperiment.getWikiSubentryXhtml() > No subentry provided, aborting...\n")
             return None
         #xhtml = self.WikiPage.getWikiSubentryXhtml(subentry)
         regex_pat_fmt = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
         fmt_params = self.makeFormattingParams(subentry_idx=subentry)
         regex_pat = regex_pat_fmt.format(**fmt_params)
         if not regex_pat:
-            print "\nExperiment.getWikiSubentryXhtml() > No regex pattern found in config, aborting...\n"
+            logger.info("\nExperiment.getWikiSubentryXhtml() > No regex pattern found in config, aborting...\n")
             return
         if not self.WikiPage or not self.WikiPage.Struct:
-            print "\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting..."
-            print "-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage)
+            logger.info("\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")
+            logger.info("-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage))
             return
         content = self.WikiPage.Struct['content']
         regex_prog = re.compile(regex_pat, flags=re.DOTALL)
@@ -864,11 +865,11 @@ class Experiment(object):
             #    print "-'{}': {}".format(k, gd[k])
             return "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
         else:
-            print "\nWikiPage.getWikiSubentryXhtml() > No match found?"
-            print "regex_pat_fmt: {}".format(regex_pat_fmt)
+            logger.info("\nWikiPage.getWikiSubentryXhtml() > No match found?")
+            logger.info("regex_pat_fmt: {}".format(regex_pat_fmt))
             #print "fmt_params: {}".format(fmt_params)
-            print "regex_pat: {}".format(regex_pat)
-            print "len(self.WikiPage.Struct['content']) is: {}".format(len(self.WikiPage.Struct['content']))
+            logger.info("regex_pat: {}".format(regex_pat))
+            logger.info("len(self.WikiPage.Struct['content']) is: {}".format(len(self.WikiPage.Struct['content'])))
             return None
 
 
@@ -882,15 +883,15 @@ class Experiment(object):
             logger.warning("attachWikiPage invoked, but no (new) pageId was provided, and existing wikipage already attached, aborting. If a wrong pageId is registrered, you need to remove it manually.")
             return
         if not pageId and self.Server and dosearch:
-            print "Experiment.attachWikiPage() :: Searching on server..."
+            logger.info("Experiment.attachWikiPage() :: Searching on server...")
             pagestruct = self.searchForWikiPage(dosearch)
             if pagestruct:
                 self.Props['wiki_pageId'] = pageId = pagestruct['id']
                 if self.SavePropsOnChange:
                     self.saveProps()
-        print "Experiment.attachWikiPage() :: pageId: {}  server: {}   dosearch: {}   pagestruct: {}".format(pageId, self.Server, dosearch, pagestruct)
+        logger.debug("Experiment.attachWikiPage() :: pageId: {}  server: {}   dosearch: {}   pagestruct: {}".format(pageId, self.Server, dosearch, pagestruct))
         if not pageId:
-            print "Experiment.attachWikiPage() :: Notice - no pageId found for exp {} (dosearch={}, self.Server={})...\n".format(self.Props.get('expid'), dosearch, self.Server)
+            logger.info("Experiment.attachWikiPage() :: Notice - no pageId found for exp {} (dosearch={}, self.Server={})...\n".format(self.Props.get('expid'), dosearch, self.Server))
             return pagestruct
         self.WikiPage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
         if self.WikiPage.Struct:
@@ -902,18 +903,18 @@ class Experiment(object):
         """
         extended is used to control how much search you want to do.
         """
-        print "Experiment.searchForWikiPage() :: Searching on server..."
+        logger.info("Experiment.searchForWikiPage() :: Searching on server...")
         spaceKey = self.getConfigEntry('wiki_exp_root_spaceKey')
         pageTitle = self.Foldername # No reason to make this more complicated...
         user = self.getConfigEntry('wiki_username') or self.getConfigEntry('username')
         try:
             pagestruct = self.Server.getPage(spaceKey=spaceKey, pageTitle=pageTitle)
             pageId = pagestruct['id']
-            print "\nExperiment.searchForWikiPage() :: Exact match in space '{}' found for page '{}'".format(spaceKey, pageTitle)
+            logger.info("\nExperiment.searchForWikiPage() :: Exact match in space '{}' found for page '{}'".format(spaceKey, pageTitle))
             return pagestruct
         except xmlrpclib.Fault:
             # perhaps do some searching...?
-            print "\nExperiment.searchForWikiPage() :: No exact match found for '{}' in space '{}', searching by query...".format(pageTitle, spaceKey)
+            logger.info("\nExperiment.searchForWikiPage() :: No exact match found for '{}' in space '{}', searching by query...".format(pageTitle, spaceKey))
         if extended > 0:
             params = dict(spaceKey=spaceKey, contributor=user)
             params['type'] = 'page'
@@ -936,7 +937,7 @@ class Experiment(object):
                     return result
             else:
                 # Too many results? Perhaps two or something?
-                print "Experiment.searchForWikiPage() :: Unable to find unique page result, aborting..."
+                logger.info("Experiment.searchForWikiPage() :: Unable to find unique page result, aborting...")
                 return None
 
 
@@ -948,7 +949,7 @@ class Experiment(object):
         if not server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested) or False (last connection failed) or True (last connection succeeded).
-            print "searchForWikiPageWithQuery() > Server is None or not connected, aborting."
+            logger.info("searchForWikiPageWithQuery() > Server is None or not connected, aborting.")
             return
         results = server.search(query, 10, parameters)
         if intitle:
@@ -956,14 +957,14 @@ class Experiment(object):
         if not singleMatchOnly:
             return results
         if len(results) > 1:
-            print "\nExperiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match." # in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title'])
-            print "\n".join( "{} ({})".format(page['title'], page['id']) for page in results )
+            logger.info("\nExperiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match.") # in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title'])
+            logger.info("\n".join( "{} ({})".format(page['title'], page['id']) for page in results ))
             return False
         if len(results) < 1:
             return 0
         if len(results) == 1:
             pagestruct = results[0]
-            print "\nExperiment.searchForWikiPageWithQuery() :: A single hit found in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title'])
+            logger.info("\nExperiment.searchForWikiPageWithQuery() :: A single hit found in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title']))
             return pagestruct
 
 
@@ -973,7 +974,7 @@ class Experiment(object):
         this method creates a new wiki page and persists it to the server.
         """
         if not (self.Server and self.Confighandler):
-            print "Experiment.makeWikiPage() :: FATAL ERROR, no server and/or no confighandler."
+            logger.error("Experiment.makeWikiPage() :: FATAL ERROR, no server and/or no confighandler.")
             return
         if pagefactory is None:
             pagefactory = WikiPageFactory(self.Server, self.Confighandler)
@@ -994,7 +995,7 @@ class Experiment(object):
         content at the right location using regex'es.
         """
         if subentry_idx not in self.Subentries:
-            print "Experiment.makeWikiSubentry() :: ERROR, subentry_idx '{}' not in self.Subentries; make sure to first add the subentry to the subentries list and _then_ add a corresponding subentry on the wikipage.".format(subentry_idx)
+            logger.info("Experiment.makeWikiSubentry() :: ERROR, subentry_idx '{}' not in self.Subentries; make sure to first add the subentry to the subentries list and _then_ add a corresponding subentry on the wikipage.".format(subentry_idx))
             return
         res = self.JournalAssistant.newExpSubentry(subentry_idx, subentry_titledesc=subentry_titledesc, updateFromServer=updateFromServer, persistToServer=persistToServer)
         # pagetoken = where to insert the new subentry on the page, typically before <h2>Results and discussion</h2>.
@@ -1020,9 +1021,9 @@ class Experiment(object):
             url         String  url to download the attachment online
             comment     String  comment for the attachment (Required)
         """
-        print "Experiment.uploadAttachment() :: Not tested yet - take care ;)"
+        logger.warning("Experiment.uploadAttachment() :: Not tested yet - take care ;)")
         if not getattr(self, 'WikiPage', None):
-            print "Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self)
+            logger.error("Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self))
             return None
         if attachmentInfo is None:
             attachmentInfo = dict()
@@ -1068,9 +1069,9 @@ class Experiment(object):
         - url (string)
         """
         if not getattr(self, 'WikiPage', None):
-            print "Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self)
+            logger.info("Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self))
             return None
-        print "Experiment.listAttachments() :: Not implemented yet - take care ;)"
+        logger.warning("Experiment.listAttachments() :: Not implemented yet - take care ;)")
         attachment_structs = self.WikiPage.getAttachments()
 
 
@@ -1143,7 +1144,7 @@ if __name__ == '__main__':
         #ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
 #                '/home/scholer/Documents/labfluence_data_testsetup/.labfluence
         #ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3":
-        server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, prompt='auto', autologin=True) if useserver else None
+        server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, autologin=True) if useserver else None
         e = Experiment(confighandler=confighandler, server=server, localdir=ldir, VERBOSE=10)
         return e
 

@@ -21,6 +21,8 @@ import ttk
 import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
 import htmllib, formatter
+import logging
+logger = logging.getLogger(__name__)
 
 #from subentrieslistbox import SubentriesListbox
 from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
