@@ -46,6 +46,8 @@ def login_prompt(username=None, msg="", options=dict() ):
     logger.debug("login_prompt returning username, password: {}, {}".format(username, password))
     return username, password
 
+def display_message(message):
+    print "\n".join("\n\n", "-"*80, message, "-"*80, "\n\n")
 
 """
 Edits:
@@ -204,14 +206,14 @@ class AbstractServer(object):
             self._connectionok = True
             if self.Confighandler:
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        logger.info("\nServer: _connectionok set to: '{}' (should be True)".format(self._connectionok) )
+        logger.info("Server: _connectionok set to: '{}' (should be True)".format(self._connectionok) )
     def notok(self):
         logger.debug("server.notok() invoked, earlier value of self._connectionok is: {}".format(self._connectionok))
         if self._connectionok is not False:
             self._connectionok = False
             if self.Confighandler:
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        logger.info( "\nServer: _connectionok is now: '{}' (should be False)".format(self._connectionok) )
+        logger.info( "Server: _connectionok is now: '{}' (should be False)".format(self._connectionok) )
 
 
     def execute(self, function, *args):
@@ -246,7 +248,7 @@ class AbstractServer(object):
             self.setok()
             return ret
         except socket.error as e:
-            logger.debug("&s, socket error during execution of function %s: ", self.__class__.__name__, inspect.stack()[1][3], e)
+            logger.debug("%s, socket error during execution of function %s:\n%s", self.__class__.__name__, inspect.stack()[1][3], e)
             self.notok()
             logger.debug("self.notok() invoked?")
             #if raiseerrors is None:
@@ -256,13 +258,43 @@ class AbstractServer(object):
             #if raiseerrors:
             #    raise e
         except xmlrpclib.Fault as e:
-            logger.debug("Server: socket error during execution of function {}:".format(""))
-            logger.debug(e)
-            if self.AutologinEnabled:
-                token = self.autologin() # autologin will set connectionok status
-            else:
-                self.notok()
-        return None # Default if
+            logger.debug("%s: xmlrpclib.Fault exception raised during execution of function %s:%s", self.__class__.__name__, inspect.stack()[1][3], e)
+            cause = self.determineFaultCause(e)
+            # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
+            logger.debug("Cause of xmlrpclib.Fault determined to be: '%s'", cause)
+            if cause in ('TokenExpired', 'IncorrectUserPassword'):
+                if self.AutologinEnabled:
+                    prompt = 'force' if cause == 'IncorrectUserPassword' else 'auto'
+                    logger.debug("%s: invoking self.autologin with prompt=%s", self.__class__.__name__, prompt)
+                    token = self.autologin(prompt=prompt) # autologin will set connectionok status
+                    if self._connectionok:
+                        # try once more:
+                        #try:
+                        logger.debug("%s, attempting once more to invoke %s with args %s", self.__class__.__name__, inspect.stack()[1][3], args)
+                        ret = function(token, *args)
+                        self.setok()
+                        logger.debug("%s, %s returned %s (returning)", self.__class__.__name__, inspect.stack()[1][3], ret)
+                        return ret
+                else:
+                    self.notok()
+                    logger.debug("%s: Autologin disabled. self._connectionok set to '%s'", self.__class__.__name__, self._connectionok)
+            elif cause == 'TooManyFailedLogins':
+                self.display_message("Server ERROR, too many failed logins.\nDetermined from exception:\n{}".format(e))
+                logger.warning("%s: Server ERROR, too many failed logins. Determined from exception: %s", self.__class__.__name__, e)
+            elif cause == 'PageNotAvailable':
+                logger.info("PageNotAvailable: %s called with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
+                raise e
+        return None # Default if... But consider raising an exception instead.
+
+
+    def display_message(self, message):
+        if hasattr(self, 'UI') and hasattr(self.UI, 'display_message'):
+            try:
+                self.UI.display_message(message)
+                return
+            except AttributeError as e:
+                logger.warning("AttributeError while calling self.UI.display_message: %s", e)
+        display_message(message)
 
     def autologin(self):
         pass
@@ -344,6 +376,35 @@ class AbstractServer(object):
                 cfgs = ( pair[1] for pair in itertools.izip(*[(x for x in res)]*2) )
                 cfgtypes.add(cfgs) # only adding the first key, but should be ok I believe.
         self.Confighandler.saveConfigs(cfgtypes)
+
+
+    def determineFaultCause(self, e):
+        # For incorrect username/password, faultCode: faultString is: (and e.args and e.message are both empty)
+        # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed - incorrect username/password combination.
+        # For too many failed logins, faultCode: faultString is:
+        # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed. The maximum number of failed login attempts has been reached. Please log into the web application through the web interface to reset the number of failed login attempts.
+        # Exception during getPage invokation can look like:
+        # <Fault 0: "java.lang.Exception: com.atlassian.confluence.rpc.RemoteException: You're not allowed to view that page, or it does not exist.">
+        #import string
+        # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
+        # xmlrpclib.Fault attributes: e.faultCode, e.faultString, e.message, e.args
+        # for more rpc exceptions, search the confluence code in
+        # <source-dir>/confluence-project/confluence-core/confluence/src/java/com/atlassian/confluence/rpc
+        logger.debug("Determining cause of Fault with attributes: faultCode=%s, faultString=%s, message=%s, args=%s", e.faultCode, e.faultString, e.message, e.args)
+        import re
+        faultRegexs = [
+                ("PageNotAvailable",        "com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
+                ("IncorrectUserPassword",   "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
+                ("TooManyFailedLogins",     "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
+                ("TokenExpired",            "User not authenticated or session expired"),
+                ]
+        for cause, regexpat in faultRegexs:
+            match = re.search(regexpat, e.faultString)
+            if match:
+                logger.debug("Fault determined to be: %s", cause)
+                return cause
+        return None
+
 
 
 class ConfluenceXmlRpcServer(AbstractServer):

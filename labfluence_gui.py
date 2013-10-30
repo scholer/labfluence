@@ -458,15 +458,24 @@ if __name__ == '__main__':
     # calling logging.basicConfig(), just make sure to set logger.propagate=0,
     # otherwise any records will be emitted both by the custom handler and the root logger.
 
-    logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
-    logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
-    logging.basicConfig(level=logging.WARNING, format=logfmt)
+    # Examples of different log formats:
+    #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
+    logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+    #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
+    logging.basicConfig(level=logging.INFO, format=logfmt)
+
+    #logging.getLogger("views.expjournalframe").setLevel(logging.DEBUG)
+    #logging.getLogger("views.shared_ui_utils").setLevel(logging.DEBUG)
+    #logging.getLogger("views.explistboxes").setLevel(logging.DEBUG)
+    logging.getLogger("model.journalassistant").setLevel(logging.DEBUG)
+    #logging.getLogger("model.page").setLevel(logging.DEBUG)
+    serverlogger = logging.getLogger("model.server")
+    #serverlogger.setLevel(logging.DEBUG)
+    #serverlogger.info("\n\nThis message is by the serverlogger, should be visible...\n")
+
 
     confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=0)
     try:
-        serverlogger = logging.getLogger("model.server")
-        serverlogger.setLevel(logging.DEBUG)
-        #serverlogger.info("\n\nThis message is by the serverlogger, should be visible...\n")
         server = ConfluenceXmlRpcServer(autologin=True, ui=None, confighandler=confighandler, VERBOSE=0)
     except socket.error:
         print "This should not happen; autologin is shielded by try-clause."
@@ -475,7 +484,10 @@ if __name__ == '__main__':
     manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ), VERBOSE=0)
     confighandler.Singletons['experimentmanager'] = manager
 
+
+
     labfluencegui = LabfluenceGUI(confighandler=confighandler)
+
     # How to maximize / set window size:
     # http://stackoverflow.com/questions/15981000/tkinter-python-maximize-window
     # You can use tkroot.(wm_)state('zoomed') on windows to maximize. Does not work on unix.

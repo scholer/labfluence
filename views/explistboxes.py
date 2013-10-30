@@ -48,6 +48,7 @@ class ExpListbox(tk.Listbox):
         self.init_layout()
         self.init_bindings()
         self.after_init()
+        #logger.debug("%s.__init__() finished using experiment %s", self.__class__.__name__, experiment)
 
     def frame_defaults(self):
         return dict()
@@ -128,18 +129,20 @@ class SubentriesListbox(ExpListbox):
         #self.rowconfigure(0, weight=1)
 
     def updatelist(self):
+        #logger.debug("%s updatelist() invoked, self.Experiment is: %s", self.__class__.__name__, self.Experiment)
         exp_subentry_dir_fmt = self.Experiment.getConfigEntry('exp_subentry_dir_fmt')
         def subentryrepr(subentry):
             #return foldername if foldername in subentry else exp_subentry_dir_fmt.format(**subentry)
             return subentry.get('foldername',
                                 exp_subentry_dir_fmt.format(**self.Experiment.makeFormattingParams(subentry['subentry_idx'])) )
         lst = [ (subentryrepr(subentry),idx,subentry) for idx,subentry in self.Experiment.Subentries.items()]
-        logger.debug("updatelist() lst: {}".format(lst))
-        self.Subentrylist = zip(*lst)
+        #logger.debug("%s.updatelist() :: lst is: %s", self.__class__.__name__, lst)
+        self.Subentrylist = zip(*lst) # self.Subentrylist[0] is repr, while [1] is subentry_idx and [2] is the actual subentry dict properties.
         #self.subentrieslistbox.delete(0,tk.END)
         #self.subentrieslistbox.insert(tk.END, *self.Subentrylist[0])
         self.delete(0,tk.END)
         self.insert(tk.END, *self.Subentrylist[0])
+        #logger.debug("%s, self.get(0, tk.END) is now: %s", self.__class__.__name__, self.get(0, last=tk.END))
 
     def clearlist(self):
         #self.subentrieslistbox.delete(0,tk.END)

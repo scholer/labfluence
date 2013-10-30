@@ -21,6 +21,9 @@ import re
 import random
 import string
 import logging
+
+# Uh, this makes "from utils import *" a bit dangerous:
+# it will override any 'logger' variables in the calling modules.
 logger = logging.getLogger(__name__)
 
 try:

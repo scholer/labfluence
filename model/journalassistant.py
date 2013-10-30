@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 from server import ConfluenceXmlRpcServer
 from confighandler import ExpConfigHandler
 from page import WikiPage, WikiPageFactory, TemplateManager
-from utils import *
-
+#from utils import *  # This will override the logger with the logger defined in utils.
+from utils import random_string
 
 
 
@@ -92,7 +92,7 @@ class JournalAssistant(object):
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
             if subentry_idx is None:
-                print "JournalAssistant.flush() :: ERROR, no subentry available."
+                logger.warning("JournalAssistant ERROR, no subentry available.")
                 return False
         subentryprops = self.makeSubentryProps(subentry_idx=subentry_idx)
         journal_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFilenameFmt.format(**subentryprops))
@@ -101,7 +101,7 @@ class JournalAssistant(object):
                 journal_content = f.read()
             return journal_content
         except IOError as e:
-            print e
+            logger.debug("could not read cache content for subentry '%s' (file '%s'), probably because there is none. Error was: %s", subentry_idx, journal_path, e)
 
 
     def flushAll(self):
@@ -116,82 +116,81 @@ class JournalAssistant(object):
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
         if subentry_idx is None:
-            print "JournalAssistant.flush() :: ERROR, no subentry available."
+            logger.info( "flush invoked, but no subentry selected/available so aborting flush request and returning False.")
             return False
-        page = self.WikiPage
+        #page = self.WikiPage
+        wikipage = self.WikiPage
+        if not wikipage:
+            logger.warning("Experiment.flush() ERROR, no wikipage, aborting... (%s)", self)
+            return False
         subentryprops = self.makeSubentryProps(subentry_idx=subentry_idx)
         #for itm in ('JournalFilenameFmt', 'JournalFlushBackup', 'JournalFlushXhtml')
         journal_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFilenameFmt.format(**subentryprops))
         journal_flushed_backup_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFlushBackup.format(**subentryprops)) if self.JournalFlushBackup else None
         journal_flushed_xhtml_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFlushXhtml.format(**subentryprops)) if self.JournalFlushXhtml else None
         try:
-            journal_content = open(journal_path).read()
-            # I read and then immediately rename. In that way I dont have to keep a lock on the file.
-            # This would otherwise be required to prevent another instance from adding a journal entry to the journal
-            # which will then be erased by this instance at the end of this flush.
+            with open(journal_path) as journalfh:
+                journal_content = journalfh.read()
+                logger.debug("Journal content read from file '%s': %s", journal_path, journal_content)
+                # I read and then immediately rename. In that way I dont have to keep a lock on the file.
+                # This would otherwise be required to prevent another instance from adding a journal entry to the journal
+                # which will then be erased by this instance at the end of this flush.
+                # Edit: No, this is not a good solution. If you rename the file and the flush fails, can you then revert? No, that is even less safe.
+                # The better option is to keep a lock during the flush.
+                if os.path.exists(journal_path+'.inprogress'):
+                    print "\nJournalAssistant.flush() :: WARNING, old .inprogress file detected! Will include that in the flush also!"
+                    old_file_content = open(journal_path+'.inprogress').read()
+                    journal_content = "\n".join([old_file_content, journal_content])
+                    logger.debug("Updated journal content read from file '%s': %s", journal_path+'.inprogress', journal_content)
+                #os.rename(journal_path, journal_path+'.inprogress') # Are you sure this is a good idea? Why not just leave it for now?
+                # I think the point of renaming was that if someone else were write a log entry during the flush, then that would not be lost.
+                # but, I don't think the issues related to this justifies all that trouble.
+                # It is probably better to simply keep a lock on the file (e.g. within a with-clause)
+
+                new_xhtml = "\n<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
+                logger.debug("%s, new_xhtml:\n%s", self.__class__.__name__, new_xhtml)
+
+                """ new logic, using regex-based insertion """
+                insertion_regex_fmt = self.Confighandler.get('wiki_journal_entry_insert_regex_fmt')
+                insertion_regex = insertion_regex_fmt.format(**subentryprops)
+                versionComment = "Labfluence JournalAssistant.flush()"
+                res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
+                # Check if success:
+                if not res:
+                    logger.debug("wikipage.insertAtRegex returned '%s', probably due to failed regex matching of regex_pat '%s', derived from regex_pat_fmt '%s'. self.WikiPage.Struct['content']) is:\n%s",
+                                  res, insertion_regex, insertion_regex_fmt, wikipage.Struct if not wikipage.Struct else wikipage.Struct['content'] )
+                    logger.warning("An error occured in page.insertAtRegex causing it to return '%s'. Returning False.", res)
+                    #os.rename(journal_path+'.inprogress', journal_path)
+                    return False
+            # finally, rename the flushed file, just after releasing the file lock.
+            try:
+                os.rename(journal_path, journal_path+'.lastflush')
+            except (IOError, OSError) as e:
+                logger.info("IOError/OSError while renaming journal entry file %s to %s. Error is: %s", journal_path, journal_path+'.lastflush', e)
             if os.path.exists(journal_path+'.inprogress'):
-                print "\nJournalAssistant.flush() :: WARNING, old .inprogress file detected! Will include that in the flush also!"
-                old_file_content = open(journal_path+'.inprogress').read()
-                journal_content = "\n".join([old_file_content, journal_content])
-            os.rename(journal_path, journal_path+'.inprogress')
+                logger.info("Removing old .inprogress file, '%s'", journal_path+'.inprogress')
+                os.remove(journal_path+'.inprogress')
         except IOError as e:
-            print e
+            logger.info("IOError during flush: %s", e)
             return
         except OSError as e:
-            print e
+            logger.info("OSError during flush: %s", e)
             return
-        new_xhtml = "\n<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
-        print "new_xhtml:"
-        print new_xhtml
-
-        """ old logic, using token-based insertion """
-#        token = self.subentryToken(subentry_idx)
-#        if page.count(token) < 0:
-#            alt_token = self.findAltToken(subentry_idx)
-#            if not alt_token:
-#                print "JournalAssistant.flush() :: WARNING, no token found. alt_token returned '{}'".format(alt_token)
-#                if self.AppendAtEndIfNoTokenFound:
-#                    print "--- appending at end of page..."
-#                    return page.append(new_xhtml)
-#                return None
-#            new_xhtml = new_xhtml+"\n"+token
-#            token = alt_token
-#        success = page.appendAtToken(new_xhtml, token, appendBefore=True, replaceLastOccurence=True,
-#                                updateFromServer=True, persistToServer=True,
-#                                versionComment="Labfluence JournalAssistant.flush()", minorEdit=True)
-
-        """ new logic, using regex-based insertion """
-        insertion_regex_fmt = self.Confighandler.get('wiki_journal_entry_insert_regex_fmt')
-        insertion_regex = insertion_regex_fmt.format(**subentryprops)
-        wikipage = self.WikiPage
-        versionComment = "Labfluence JournalAssistant.flush()"
-        if not wikipage:
-            print "Experiment.makeWikiSubentry() :: ERROR, no wikipage, aborting...\n - {}".format(self)
-            return
-        res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
-
-        """ clean-up and write to local backup/log files """
-        if not res:
-            print "\n\nJournalAssistant.flush() An error occured in page.insertAtRegex! Reverting..."
-            os.rename(journal_path+'.inprogress', journal_path)
-            return False
         # This should mean that everything worked ok...
+        # Write journal entries to backup file (containing all flushed entries). Also for equivalent file with xhtml entries.
         if journal_flushed_backup_path:
             try:
                 with open(journal_flushed_backup_path, 'ab') as bak:
                     bak.write(journal_content)
             except IOError as e:
-                print e
+                logger.info("IOError while appending flushed journal entries (text) to backup file: '%s'. Error is: %s", journal_flushed_backup_path, e)
         if journal_flushed_xhtml_path:
             try:
                 with open(journal_flushed_xhtml_path, 'ab') as bak:
                     bak.write(new_xhtml)
             except IOError as e:
-                print e
+                logger.info("IOError while appending flushed journal xhtml to backup file: '%s'. Error is: %s", journal_flushed_xhtml_path, e)
         return res
-
-
-
 
     def getTemplateManager(self):
         if 'templatemanager' in self.Confighandler.Singletons:

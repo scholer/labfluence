@@ -187,11 +187,11 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         #new_struct['version'] = str(int(new_struct['version'])+0) # 'version' refers to the version you are EDITING, not the version number for the version that you are submitting.
         pageUpdateOptions = dict(versionComment=versionComment, minorEdit=minorEdit)
         if self.VERBOSE or True:
-            logger.debug("new_struct:\n{}\npageUpdateOptions:\n{}".format(new_struct, pageUpdateOptions) )
+            logger.debug("pageUpdateOptions: %s, new_struct: %s", pageUpdateOptions, new_struct )
         page_struct = self.Server.updatePage(new_struct, pageUpdateOptions)
         if page_struct:
             self.Struct = page_struct
-        logger.debug("\nPage.updatePage() :: Returned page struct from server: %s", page_struct)
+        logger.debug(" updatePage() Returned page struct from server: %s", page_struct)
         return page_struct
 
     def movePage(self, parentId, position="append"): #struct_from='cache', base='minimal'):
@@ -305,6 +305,8 @@ below        source and target become/remain sibling pages and the source is mov
         - after_insert
         xhtml will be inserted between these two locations.
 
+        coding contract: this method will only return a boolean True value if the insertion succeeded.
+
         mode controls what regex type is used.
         - match will use re.match, and regex must match entire page content, typically starting and ending with .*
         - search is very similar to re.match, but uses re.search which does not require
@@ -336,16 +338,24 @@ below        source and target become/remain sibling pages and the source is mov
                 if matchgroups.get('after_insert', None):
                     after_insert_index = match.start('after_insert')
                 if before_insert_index is None and after_insert_index is None:
-                    logger.warning("Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is ({}, {}), aborting...\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page))
+                    logger.warning("Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is %s, aborting...\n--regex: %s\n--Page content: %s",
+                                   (before_insert_index, after_insert_index), regex, page)
                     return False
                 if before_insert_index != after_insert_index:
-                    logger.warning("Page.insertAtRegex() :: WARNING, before_insert_index != after_insert_index; risk of content loss!\n --> (before_insert_index, after_insert_index) is ({}, {})\nregex: {}\nPage content:{}".format(before_insert_index, after_insert_index, regex, page) )
+                    logger.warning("Page.insertAtRegex() :: WARNING!! before_insert_index != after_insert_index; risk of content loss!\n ---> (before_insert_index, after_insert_index) is %s, aborting...\n--regex: %s\n--Page content: %s",
+                                   (before_insert_index, after_insert_index), regex, page)
                 self.Struct['content'] = "\n".join([page[:before_insert_index], xhtml, page[after_insert_index:] ])
-        if self.VERBOSE:
-            logger.info("\nPage.insertAtRegex() :: {} found.".format("MATCH found" if match else "No match found") )
-        if persistToServer and match:
-            self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
-        return self.Struct
+        # Determine return type and persist if relevant:
+        if match:
+            logger.info("match found. persistToServer=%s", persistToServer)
+            if persistToServer:
+                pageupdateret = self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
+                if not pageupdateret:
+                    logger.warning("WARNING, updatePage returned boolean '%s', type is: '%s'. It is likely that the page was not updated!!", bool(pageupdateret), type(pageupdateret))
+            return self.Struct
+        else:
+            logger.info("Page.insertAtRegex() :: No match found! Regex='%s', mode=%s", regex, mode)
+            return None
 
 
 

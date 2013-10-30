@@ -48,6 +48,7 @@ class ExpJournalFrame(ExpFrame):
         return dict(borderwidth=10)
 
     def init_variables(self):
+        #print "\n\n\n-----------------------------\nExpJournalFrame.init_variables invoked !!\n---------------------------\n"
         self.Fonts = self.getFonts()
         v = ('wiki','cache','input', 'autoflush_interval', 'wiki_titledesc')
         self.Variables = dict( (k, tk.StringVar()) for k in v )
@@ -63,7 +64,10 @@ class ExpJournalFrame(ExpFrame):
         #self.init_bindings()
 
     def after_init(self):
+        self.on_serverstatus_change()
+        #print "\n\n\n-----------------------------\nExpJournalFrame.after_init invoked !!\n---------------------------\n"
         self.updatewidgets()
+        logger.debug("%s, after_init finished, self.subentries_listbox.get(0, tk.END) is now: %s", self.__class__.__name__, self.subentries_listbox.get(0, last=tk.END))
 
 
     def init_widgets(self, ):
@@ -191,21 +195,23 @@ class ExpJournalFrame(ExpFrame):
         self.autoflushinterval_spinbox.bind('<<Modified>>', self.autoflush_reset)
         self.getConfighandler().registerEntryChangeCallback('wiki_server_status', self.on_serverstatus_change)
 
-    def after_init(self):
-        self.on_serverstatus_change()
-
     def updatewidgets(self):
         self.subentries_listbox.updatelist()
+        logger.debug("%s, subentries_listbox updated, subentries_listbox.get(0, tk.END) is now: %s", self.__class__.__name__, self.subentries_listbox.get(0, last=tk.END))
         self.update_cacheview()
         self.update_wikititledesc()
         self.update_wikiview()
 
     def update_wikiview(self):
         xhtml = self.journalwiki_view.update_wiki_subentry()
+        #subentrywiki_btns = (self.newwikipagesubentry_btn, self.flush_btn)
+        #for button in subentrywiki_btns:
         if xhtml:
             self.newwikipagesubentry_btn['state'] = 'disabled'
+            self.flush_btn['state'] = 'normal'
         else:
             self.newwikipagesubentry_btn['state'] = 'normal'
+            self.flush_btn['state'] = 'disabled'
 
     def update_cacheview(self):
         # Label-like view with variable:

@@ -31,8 +31,8 @@ from confighandler import ExpConfigHandler
 from server import ConfluenceXmlRpcServer
 from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
-from utils import *
-
+#from utils import *  # This will override the logger with the logger defined in utils.
+from utils import getmimetype, increment_idx, idx_generator
 
 
 
@@ -842,17 +842,17 @@ class Experiment(object):
         if subentry is None:
             subentry = getattr(self.JournalAssistant, 'Current_subentry_idx', None)
         if not subentry:
-            logger.info("\nExperiment.getWikiSubentryXhtml() > No subentry provided, aborting...\n")
+            logger.info("Experiment.getWikiSubentryXhtml() > No subentry set/selected/available, aborting...")
             return None
         #xhtml = self.WikiPage.getWikiSubentryXhtml(subentry)
         regex_pat_fmt = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
         fmt_params = self.makeFormattingParams(subentry_idx=subentry)
         regex_pat = regex_pat_fmt.format(**fmt_params)
         if not regex_pat:
-            logger.info("\nExperiment.getWikiSubentryXhtml() > No regex pattern found in config, aborting...\n")
+            logger.warning("Experiment.getWikiSubentryXhtml() > No regex pattern found in config, aborting...\n")
             return
         if not self.WikiPage or not self.WikiPage.Struct:
-            logger.info("\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")
+            logger.info("Experiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")
             logger.info("-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage))
             return
         content = self.WikiPage.Struct['content']
@@ -865,11 +865,8 @@ class Experiment(object):
             #    print "-'{}': {}".format(k, gd[k])
             return "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
         else:
-            logger.info("\nWikiPage.getWikiSubentryXhtml() > No match found?")
-            logger.info("regex_pat_fmt: {}".format(regex_pat_fmt))
-            #print "fmt_params: {}".format(fmt_params)
-            logger.info("regex_pat: {}".format(regex_pat))
-            logger.info("len(self.WikiPage.Struct['content']) is: {}".format(len(self.WikiPage.Struct['content'])))
+            logger.debug("No subentry xhtml found matching regex_pat '%s', derived from regex_pat_fmt '%s'. len(self.WikiPage.Struct['content']) is: %s",
+                         regex_pat, regex_pat_fmt, len(self.WikiPage.Struct['content']) )
             return None
 
 
@@ -889,10 +886,11 @@ class Experiment(object):
                 self.Props['wiki_pageId'] = pageId = pagestruct['id']
                 if self.SavePropsOnChange:
                     self.saveProps()
-        logger.debug("Experiment.attachWikiPage() :: pageId: {}  server: {}   dosearch: {}   pagestruct: {}".format(pageId, self.Server, dosearch, pagestruct))
+        logger.debug("Params are: pageId: %s  server: %s   dosearch: %s   pagestruct: %s", pageId, self.Server, dosearch, pagestruct)
         if not pageId:
-            logger.info("Experiment.attachWikiPage() :: Notice - no pageId found for exp {} (dosearch={}, self.Server={})...\n".format(self.Props.get('expid'), dosearch, self.Server))
+            logger.info("Notice - no pageId found for expid %s (dosearch=%s, self.Server=%s)...", self.Props.get('expid'), dosearch, self.Server)
             return pagestruct
+        # Does it make sense to create a wikiPage without pageId? No. The above check should take care of that.
         self.WikiPage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
         if self.WikiPage.Struct:
             self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
@@ -903,46 +901,64 @@ class Experiment(object):
         """
         extended is used to control how much search you want to do.
         """
-        logger.info("Experiment.searchForWikiPage() :: Searching on server...")
+        callinfo = logger.findCaller()
+        method_repr = "{}.{}".format(self.__class__.__name__, callinfo[2])
+        logger.info("%s :: Searching on server...", method_repr)
         spaceKey = self.getConfigEntry('wiki_exp_root_spaceKey')
         pageTitle = self.Foldername # No reason to make this more complicated...
         user = self.getConfigEntry('wiki_username') or self.getConfigEntry('username')
         try:
             pagestruct = self.Server.getPage(spaceKey=spaceKey, pageTitle=pageTitle)
-            pageId = pagestruct['id']
-            logger.info("\nExperiment.searchForWikiPage() :: Exact match in space '{}' found for page '{}'".format(spaceKey, pageTitle))
-            return pagestruct
+            logger.debug("%s :: self.Server.getPage returned pagestruct of type '%s'", method_repr, type(pagestruct))
+            if pagestruct:
+                pageId = pagestruct['id']
+                logger.info("%s :: Exact match in space '%s' found for page '%s'", method_repr, spaceKey, pageTitle)
+                return pagestruct
+            else:
+                logger.debug("%s :: pagestruct is empty: '%s'", method_repr, pagestruct)
         except xmlrpclib.Fault:
             # perhaps do some searching...?
-            logger.info("\nExperiment.searchForWikiPage() :: No exact match found for '{}' in space '{}', searching by query...".format(pageTitle, spaceKey))
+            # Edit, server.execute might catch xmlrpclib.Fault exceptions;
+            logger.info("\n%s :: xmlrpclib.Fault raised, indicating that no exact match found for '%s' in space '%s', searching by query...", method_repr, pageTitle, spaceKey)
         if extended > 0:
             params = dict(spaceKey=spaceKey, contributor=user)
             params['type'] = 'page'
             expid = self.Props['expid']
+            logger.info("%s :: performing slightly more extended search with intitle='%s' and params: %s", method_repr, expid, params)
             result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
             if result:
                 return result
             elif result is 0 and extended > 1:
-                # if this does not yield anything, try to search all spaces:
+                # searchForWikiPageWithQuery found zero matching pages, try to search all spaces:
                 params2 = params
                 params2.pop('spaceKey')
+                logger.debug("%s :: performing even more extended search with intitle='%s' and params: %s", method_repr, expid, params)
                 result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
                 if result:
+                    logger.debug("%s :: a single hit found of type '%s'", method_repr, result)
                     return result
                 # and again, now excluding user as contributor (perhaps someone else wrote the entry...)
                 params2 = params
                 params2.pop('contributor')
+                logger.debug("%s :: performing next extended search with intitle='%s' and params: %s", method_repr, expid, params)
                 result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
                 if result:
+                    logger.debug("%s :: a single hit found of type '%s'", method_repr, result)
                     return result
             else:
                 # Too many results? Perhaps two or something?
-                logger.info("Experiment.searchForWikiPage() :: Unable to find unique page result, aborting...")
+                logger.debug("Experiment.searchForWikiPage() :: Unable to find unique page result, aborting...")
                 return None
+        logger.debug("%s :: Unable to locate wiki page. Returning None...", method_repr)
 
 
     def searchForWikiPageWithQuery(self, query, parameters, intitle=None, title_regex=None, content_regex=None, singleMatchOnly=True):
         """
+        Unless singleMatchOnly is set to False, this method will return
+        no more than a single wikiPage, or fail with one of the following:
+        - 0 = Zero results found.
+        - False = More than one result found.
+
         Todo: allow for 'required' and 'optional' arguments.
         """
         server = self.Server

@@ -47,7 +47,8 @@ class ExpFilemanagerFrame(ExpFrame):
     #    self.Entries = dict()
 
     def frame_defaults(self, ):
-        return dict(borderwidth=5, relief='solid')
+        return dict(borderwidth=5)#, relief='solid')
+        #return dict()
 
 
     def init_widgets(self, ):
@@ -153,7 +154,7 @@ class FilelistFilterFrame(ExpFrame):
         self.subentries_list = SubentriesListbox(self, experiment=experiment)
         self.subentries_list.grid(row=7, column=1, columnspan=2, sticky="ew")
         self.subentries_list.configure(height=8, selectmode=tk.EXTENDED)
-        self.subentries_list.updatelist()
+        self.subentries_list.updatelist() # invoked explicitly? Why?
         self.columnconfigure(1, weight=1) # Remember to add these, otherwise sticky does not help expanding...
         self.columnconfigure(2, weight=1)
 
@@ -179,8 +180,8 @@ class FileOperationsFrame(ExpFrame):
     #    self.Confighandler = confighandler
     #    app = self.Confighandler.Singletons.get('app')
 
-    def frame_defaults(self, ):
-        return dict(borderwidth=5, relief='solid')
+    #def frame_defaults(self, ):
+    #    return dict(borderwidth=5)#, relief='solid')
 
     def init_layout(self):
         self.rename_btn = ttk.Button(self, text="Rename file...", command=self.renamefile)#, width=12)
@@ -209,8 +210,8 @@ class FileInfoFrame(ExpFrame):
     #    self.Confighandler = confighandler
     #    app = self.Confighandler.Singletons.get('app')
 
-    def frame_defaults(self):
-        return dict(borderwidth=5, relief='solid')
+    #def frame_defaults(self):
+    #    return dict(borderwidth=5)#, relief='solid')
 
     def init_layout(self, ):
 
@@ -321,8 +322,8 @@ class FilelistFrame(ExpFrame):
     def after_init(self, ):
         self.updatelist()
 
-    def frame_defaults(self):
-        return dict(borderwidth=5, relief='solid')
+    #def frame_defaults(self):
+    #    return dict(borderwidth=5)#, relief='solid')
 
     def init_widgets(self):
         self.headerlabel = ttk.Label(self, text=self.getheader())
