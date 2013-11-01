@@ -16,6 +16,9 @@
 ##
 
 import os
+import shutil
+#from codecs import open
+import codecs
 import yaml
 import re
 from datetime import datetime
@@ -34,7 +37,9 @@ from page import WikiPage, WikiPageFactory, TemplateManager
 #from utils import *  # This will override the logger with the logger defined in utils.
 from utils import random_string
 
-
+# Override default open method to provide UTF support.
+def open(fp, mode='r'):
+    return codecs.open(fp, mode, encoding='utf-8')
 
 
 class JournalAssistant(object):
@@ -65,7 +70,8 @@ class JournalAssistant(object):
         if entry_datetime is None:
             entry_datetime = datetime.now()
         fmt_props = self.makeSubentryProps(subentry_idx=subentry_idx, props=dict(datetime=entry_datetime)) # includes a datetime key
-        journal_entry_fmt = self.getConfigEntry('journal_entry_fmt', "[{datetime:%Y%m%d %H:%M:%S}] {text}")
+        ### Python 2.x only: Make sure the format string is unicode:
+        journal_entry_fmt = unicode(self.getConfigEntry('journal_entry_fmt', "[{datetime:%Y%m%d %H:%M:%S}] {text}"))
         #for itm in ('JournalFilenameFmt', 'JournalFlushBackup', 'JournalFlushXhtml')
         journal_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFilenameFmt.format(**fmt_props))
         entry_text = journal_entry_fmt.format(text=text, **fmt_props)
@@ -78,7 +84,9 @@ class JournalAssistant(object):
                 return False
         with open(journal_path, 'a') as f:
             try:
-                f.write("\n"+entry_text)
+                logger.debug("Entry text type: %s", type(entry_text))
+                logger.debug("Entry text is: %s", entry_text)
+                f.write(u"\n"+entry_text)
             except IOError as e:
                 print "\n{}\nJournalAssistant.addEntry() :: Aborting due to IOError...".format(e)
                 return False
@@ -140,7 +148,7 @@ class JournalAssistant(object):
                 if os.path.exists(journal_path+'.inprogress'):
                     print "\nJournalAssistant.flush() :: WARNING, old .inprogress file detected! Will include that in the flush also!"
                     old_file_content = open(journal_path+'.inprogress').read()
-                    journal_content = "\n".join([old_file_content, journal_content])
+                    journal_content = u"\n".join([old_file_content, journal_content])
                     logger.debug("Updated journal content read from file '%s': %s", journal_path+'.inprogress', journal_content)
                 #os.rename(journal_path, journal_path+'.inprogress') # Are you sure this is a good idea? Why not just leave it for now?
                 # I think the point of renaming was that if someone else were write a log entry during the flush, then that would not be lost.
@@ -163,6 +171,10 @@ class JournalAssistant(object):
                     #os.rename(journal_path+'.inprogress', journal_path)
                     return False
             # finally, rename the flushed file, just after releasing the file lock.
+            try:
+                os.remove(journal_path+'.lastflush')
+            except OSError as e:
+                logger.debug("OSError while removing .lastflush file for subentry_idx %s, probably it just didn't exist.", subentry_idx)
             try:
                 os.rename(journal_path, journal_path+'.lastflush')
             except (IOError, OSError) as e:
