@@ -224,7 +224,7 @@ class ExpJournalFrame(ExpFrame):
         v = self.Variables['wiki_titledesc']
         ja = self.Experiment.JournalAssistant
         titledesc = self.Experiment.getSubentryRepr(subentry_idx=ja.Current_subentry_idx, default="exp")
-        logger.debug("Title desc: '{}'".format(titledesc))
+        logger.debug(u"Title desc: '{}'".format(titledesc))
         v.set(titledesc)
 
 
@@ -250,7 +250,7 @@ class ExpJournalFrame(ExpFrame):
         new_entry = self.journalentry_input.get()
         ja = self.Experiment.JournalAssistant
         res = ja.addEntry(new_entry)
-        logger.debug("ExpJournalFrame.add_entry() :: res = '{}'".format(res))
+        logger.debug(u"ExpJournalFrame.add_entry() :: res = '{}'".format(res))
         if res:
             self.journalentry_input.delete(0, tk.END)
         self.update_cacheview()
@@ -262,7 +262,7 @@ class ExpJournalFrame(ExpFrame):
         """
         logger.debug("ExpJournalFrame.flushcache() invoked.")
         res = self.Experiment.JournalAssistant.flush()
-        logger.debug("ExpJournalFrame.flushcache() :: res = '{}'".format(res))
+        logger.debug(u"ExpJournalFrame.flushcache() :: res = '{}'".format(res))
         self.update_cacheview()
         self.update_wikiview()
 
@@ -375,7 +375,7 @@ class ExpJournalFrame(ExpFrame):
                 items[0] = tk.StringVar(value=items[0])
         fieldvars['expid'][2]['state'] = 'disabled'  # This is the third element, the dict.
         dia = Dialog(self, "Create new subentry", fieldvars)
-        logger.debug("Dialog result: {}".format(dia.result))
+        logger.debug(u"Dialog result: {}".format(dia.result))
         #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
         #self.Experiment.addNewSubentry()
         if dia.result:
@@ -464,7 +464,7 @@ class JournalViewer(ExpFrame):
         """
         xhtml = self.Experiment.getWikiSubentryXhtml()
         #xhtml = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
-        logger.debug("xhtml is: \n{}".format(xhtml))
+        logger.debug(u"xhtml is: \n{}".format(xhtml))
         self.set_xhtml(xhtml)
         return xhtml
 

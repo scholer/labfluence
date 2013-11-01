@@ -67,7 +67,7 @@ class JournalAssistant(object):
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
             if subentry_idx is None:
-                print "JournalAssistant.addEntry() :: ERROR, no subentry available."
+                logger.warning( "JournalAssistant.addEntry() :: ERROR, no subentry available. self.Current_subentry_idx is: ", subentry_idx)
                 return False
         # Make sure this is not overwritten by the default from the exp_subentry (which contains just a date)
         if entry_datetime is None:
@@ -83,7 +83,7 @@ class JournalAssistant(object):
             try:
                 os.makedirs(journal_folderpath)
             except OSError as e:
-                print "{}\nJournalAssistant.addEntry() :: Aborting due to OSError...".format(e)
+                logger.warning("JournalAssistant.addEntry() failed while doing os.makedirs(journal_folderpath) due to an OSError: %s", e)
                 return False
         with open(journal_path, 'a') as f:
             try:
@@ -91,7 +91,7 @@ class JournalAssistant(object):
                 logger.debug("Entry text is: %s", entry_text)
                 f.write(u"\n"+entry_text)
             except IOError as e:
-                print "\n{}\nJournalAssistant.addEntry() :: Aborting due to IOError...".format(e)
+                logger.warning("JournalAssistant.addEntry() failed due to an IOError: %s", e)
                 return False
         return entry_text
 
@@ -158,13 +158,13 @@ class JournalAssistant(object):
                 # but, I don't think the issues related to this justifies all that trouble.
                 # It is probably better to simply keep a lock on the file (e.g. within a with-clause)
 
-                new_xhtml = "\n<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
-                logger.debug("%s, new_xhtml:\n%s", self.__class__.__name__, new_xhtml)
+                new_xhtml = "<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
+                logger.debug("%s, new_xhtml: %s", self.__class__.__name__, new_xhtml)
 
                 """ new logic, using regex-based insertion """
                 insertion_regex_fmt = self.Confighandler.get('wiki_journal_entry_insert_regex_fmt')
                 insertion_regex = insertion_regex_fmt.format(**subentryprops)
-                versionComment = "Labfluence JournalAssistant.flush()"
+                versionComment = "Labfluence JournalAssistant.flush() for subentry {[expid]}{}".format(subentryprops, subentry_idx)
                 res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
                 # Check if success:
                 if not res:
@@ -230,14 +230,14 @@ class JournalAssistant(object):
         """
         wikipage = self.WikiPage
         if not wikipage:
-            print "Experiment.makeWikiSubentry() :: ERROR, no wikipage, aborting...\n - {}".format(self)
+            logger.warning( "Experiment.makeWikiSubentry() :: ERROR, no wikipage, self.WikiPage is '%s', aborting...", wikipage)
             return
         # get subentry and ensure it has a titledesc if none is provided here...:
         subentry = self.Experiment.getSubentry(subentry_idx)
         if subentry_titledesc is None:
             subentry_titledesc = subentry.get('subentry_titledesc', None)
             if subentry_titledesc is None:
-                print "Experiment.makeWikiSubentry() :: ERROR, no subentry_titledesc provided and none available in subentry dict either, aborting..."
+                logger.warning(  "Experiment.makeWikiSubentry() :: ERROR, no subentry_titledesc provided and none available in subentry dict either, aborting..." )
                 return
         fmtparams = self.Experiment.makeFormattingParams(subentry_idx=subentry_idx, props=dict(subentry_titledesc=subentry_titledesc))
 
@@ -259,8 +259,7 @@ class JournalAssistant(object):
         regex_pat = regex_pat_fmt.format(**fmtparams)
 
         if self.VERBOSE:
-            print "\JournalAssistant.makeWikiSubentry() :: INFO, adding the following xhtml to wikipage '{}' using regex pattern '{}'".format(wikipage, regex_pat)
-            print subentry_xhtml
+            logger.debug("JournalAssistant.makeWikiSubentry() :: INFO, adding the following xhtml to wikipage '%s' using regex pattern '%s':\n %s", wikipage, regex_pat, subentry_xhtml )
 
         # Do page substitution:
         versionComment = "JournalAssistant: Adding new subentry {expid}{subentry_idx}".format(**fmtparams)

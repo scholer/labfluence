@@ -468,7 +468,7 @@ if __name__ == '__main__':
     #logging.getLogger("views.shared_ui_utils").setLevel(logging.DEBUG)
     #logging.getLogger("views.explistboxes").setLevel(logging.DEBUG)
     logging.getLogger("model.journalassistant").setLevel(logging.DEBUG)
-    logging.getLogger("model.page").setLevel(logging.DEBUG)
+    #logging.getLogger("model.page").setLevel(logging.DEBUG)
     #logging.getLogger("model.page").setLevel(logging.DEBUG)
     serverlogger = logging.getLogger("model.server")
     #serverlogger.setLevel(logging.DEBUG)
