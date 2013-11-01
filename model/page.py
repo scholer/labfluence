@@ -95,8 +95,11 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         return self._struct
     @Struct.setter
     def Struct(self, newstruct):
-        if newstruct and not self._struct:
+        #if newstruct and not self._struct: # Uh, what? I need to be able to update the struct man? Or should I always use self._struct?
+        if newstruct:
             self._struct = newstruct
+        else:
+            logger.warning("No, I refuse to update my self._struct with something that is boolean false. That must be an error. The attempted newstruct is: %s", newstruct)
     @property
     def Server(self):
         # Edit: I cannot use return _server or confighandler.Single...
@@ -170,10 +173,12 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             logger.info("WikiPage.updatePage() > Server is None or not connected, aborting...")
             return
         if struct_from == 'server':
+            logger.debug("Obtaining page struct from server...")
             if not self.reloadFromServer():
                 logger.warning("Could not retrieve updated page from server, aborting...")
                 return False
         if base == 'minimal':
+            logger.debug("Creating new minimal page struct to use as base for the updated page...")
             new_struct = self.minimumStruct() # using current value of self.Struct cache...
         else:
             new_struct = base
@@ -191,6 +196,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         page_struct = self.Server.updatePage(new_struct, pageUpdateOptions)
         if page_struct:
             self.Struct = page_struct
+            logger.info("self.Struct updated to version %s", self.Struct['version'])
         logger.debug(" updatePage() Returned page struct from server: %s", page_struct)
         return page_struct
 
@@ -313,6 +319,7 @@ below        source and target become/remain sibling pages and the source is mov
           matching the whole page. Also, search only requries one matching group, either
           before_insert or after_insert.
         """
+        logger.debug("Inserting the following xhtml in mode '%s', using regex '%s': '%s", mode, regex, xhtml)
         if updateFromServer:
             if not self.reloadFromServer():
                 logger.info("Could not retrieve updated version from server, aborting...")
@@ -344,6 +351,12 @@ below        source and target become/remain sibling pages and the source is mov
                 if before_insert_index != after_insert_index:
                     logger.warning("Page.insertAtRegex() :: WARNING!! before_insert_index != after_insert_index; risk of content loss!\n ---> (before_insert_index, after_insert_index) is %s, aborting...\n--regex: %s\n--Page content: %s",
                                    (before_insert_index, after_insert_index), regex, page)
+                logger.debug("Inserting xhtml as positions before_insert_index=%s, after_insert_index=%s; \
+                             page[before_insert_index-30:before_insert_index+5] = '%s'\
+                             page[after_insert_index-5:after_insert_index+30] = '%s'",
+                             before_insert_index, after_insert_index,
+                             page[before_insert_index-30:before_insert_index+5], page[after_insert_index-5:after_insert_index+30]
+                             )
                 self.Struct['content'] = "\n".join([page[:before_insert_index], xhtml, page[after_insert_index:] ])
         # Determine return type and persist if relevant:
         if match:
@@ -352,6 +365,7 @@ below        source and target become/remain sibling pages and the source is mov
                 pageupdateret = self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
                 if not pageupdateret:
                     logger.warning("WARNING, updatePage returned boolean '%s', type is: '%s'. It is likely that the page was not updated!!", bool(pageupdateret), type(pageupdateret))
+                    logger.info("Page struct is (self._struct): %s", self._struct)
             return self.Struct
         else:
             logger.info("Page.insertAtRegex() :: No match found! Regex='%s', mode=%s", regex, mode)

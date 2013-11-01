@@ -106,8 +106,8 @@ class ExpJournalFrame(ExpFrame):
         self.flush_btn = ttk.Button(self.cachecontrolsframe, text="Flush cache!", command=self.flushcache)
         self.flushall_btn = ttk.Button(self.controlframe, text="Flush cache for all subentries", command=self.flushallcaches)
         self.createnewsubentry_btn = ttk.Button(self.controlframe, text="Create new subentry", command=self.createnewsubentry)
-        self.newwikipagesubentry_btn = ttk.Button(self.controlframe, text="Insert subentry xhtml",
-                                                command=self.newwikipagesubentry, state='disabled')
+        self.newwikipagesubentry_btn = ttk.Button(self.controlframe, text="Add section for selected", # "Create selected"
+                                                command=self.insert_section_for_selected_subentry, state='disabled') # newwikipagesubentry
 
         # Other option input:
         self.autoflush_frame = ttk.Frame(self.controlframe)
@@ -242,6 +242,10 @@ class ExpJournalFrame(ExpFrame):
         self.update_wikititledesc()
 
     def add_entry(self, event):
+        """
+        Used to add the content of the line-input to the JournalAssistant's cache,
+        invoked when enter is hit.
+        """
         logger.debug("ExpJournalFrame.add_entry() invoked.")
         new_entry = self.journalentry_input.get()
         ja = self.Experiment.JournalAssistant
@@ -252,6 +256,10 @@ class ExpJournalFrame(ExpFrame):
         self.update_cacheview()
 
     def flushcache(self, event=None):
+        """
+        Triggers JA.flush().
+        Invoked when pressing the "flush" button, or automatically according to timer.
+        """
         logger.debug("ExpJournalFrame.flushcache() invoked.")
         res = self.Experiment.JournalAssistant.flush()
         logger.debug("ExpJournalFrame.flushcache() :: res = '{}'".format(res))
@@ -259,6 +267,10 @@ class ExpJournalFrame(ExpFrame):
         self.update_wikiview()
 
     def flushallcaches(self):
+        """
+        Used to make sure the cache of all entries are flushed.
+        Invoked by button with similar text.
+        """
         ja = self.Experiment.JournalAssistant
         res = ja.flushAll()
         self.autoflush_reset()
@@ -281,7 +293,12 @@ class ExpJournalFrame(ExpFrame):
         self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
         self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
 
+
     def on_serverstatus_change(self, ):
+        """
+        Invoked when the server's status changes.
+        Invoked through the callback system in the confighandler.
+        """
         statewidgets = (
                         self.wikiview_description,
                         self.flush_btn,
@@ -309,6 +326,31 @@ class ExpJournalFrame(ExpFrame):
 
 
     def createnewsubentry(self, event=None):
+        """
+        Invoked when the button with same text is pressed.
+
+        Implemented using a the very generic dialog box.
+        This takes a "fieldvars" argument. This is an ordered dict of:
+            key : [ Variable, description, kwargs ]
+        The kwargs dict is passed on to the constructor and can be used to e.g.
+        change states of input widgets.
+        The default Dialog class will make a two-column grid, where the left
+        column in each row is a label with the description and the right column is the input/control widget.
+        The input widgets will adapt to the variable type:
+        Checkboxes will be used for tk.BooleanVars.
+        The dialog will additionally try to adapt the layout.
+        For example, for booleanvars displayed by checkboxes, the grid can fit two variables side-by-side,
+        one in each column.
+
+        The results of the user input after clicking 'ok' can be read in two ways, either
+        a) Using the tk.Variables in the fieldvars dict (requires you to use tk Variables)
+        b) Using the values in dialog.result, which are updated when the user presses 'ok'.
+
+        Note that dialog.result is a dict of
+            key: value
+        pairs, where the value is obtained by invoking tkVar.get(). The key is the same as that of the fieldvars input.
+
+        """
         idx = self.Experiment.getNewSubentryIdx()
         props = dict(self.Experiment.Props)
         props['subentry_idx'] = idx
@@ -323,7 +365,7 @@ class ExpJournalFrame(ExpFrame):
                     ('subentry_titledesc', "Subentry title desc"),
                     ('makefolder', "Make local folder"),
                     ('makewikientry', "Make wiki entry"),
-                    ('subentry_date', "subentry date")
+                    ('subentry_date', "Subentry date")
                     )
         fieldvars = OrderedDict( (key, [props[key], desc, dict()] ) for key,desc in entries )
         for items in fieldvars.values():
@@ -331,14 +373,36 @@ class ExpJournalFrame(ExpFrame):
                 items[0] = tk.BooleanVar(value=items[0])
             else:
                 items[0] = tk.StringVar(value=items[0])
-        fieldvars['expid'][2]['state'] = 'disabled'
+        fieldvars['expid'][2]['state'] = 'disabled'  # This is the third element, the dict.
         dia = Dialog(self, "Create new subentry", fieldvars)
         logger.debug("Dialog result: {}".format(dia.result))
         #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
         #self.Experiment.addNewSubentry()
+        if dia.result:
+            # will be None if the 'ok' button was not pressed.
+            # def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None, extraprops=None, makefolder=False, makewikientry=False)
+            dia.result.pop('expid')
+            self.Experiment.addNewSubentry(**dia.result)
 
-    def newwikipagesubentry(self):
-        pass
+        self.updatewidgets()
+
+
+        # I'm not sure how much clean-up should be done? Do I need to e.g. destroy the dialog completely when I'm done?
+
+    def insert_section_for_selected_subentry(self):
+        current_subentry_idx = self.Experiment.JournalAssistant.Current_subentry_idx
+        if not current_subentry_idx:
+            logger.info("insert_section_for_selected_subentry() invoked, but the registered Current_subentry_idx in JournalAssistant is: %s", current_subentry_idx)
+            return
+        res = self.Experiment.JournalAssistant.newExpSubentry(current_subentry_idx)
+        if res:
+            logger.debug("Updated page to version %s", res['version'])
+            self.journalwiki_view.set_xhtml(res['content'])
+            self.Parent.update_info()
+        else:
+            logger.info("self.Experiment.JournalAssistant.newExpSubentry(current_subentry_idx) returned '%s", res)
+
+
 
 
 class JournalViewer(ExpFrame):
@@ -401,6 +465,11 @@ class JournalViewer(ExpFrame):
         xhtml = self.Experiment.getWikiSubentryXhtml()
         #xhtml = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
         logger.debug("xhtml is: \n{}".format(xhtml))
+        self.set_xhtml(xhtml)
+        return xhtml
+
+
+    def set_xhtml(self, xhtml):
         # prepare the text widget:
         self.text.config(state="normal")
         self.text.delete("1.0", "end")
@@ -417,7 +486,6 @@ class JournalViewer(ExpFrame):
         parser.close()
         # Finally, disable the text widget again
         self.text.config(state="disabled")
-        return xhtml
 
 
     def set_value(self, value):
