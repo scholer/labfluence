@@ -56,6 +56,9 @@ class JournalAssistant(object):
 
 
     def addEntry(self, text, entry_datetime=None, subentry_idx=None):
+        """
+        Adds an entry/line to the journal cache (stored locally as a file on disk).
+        """
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
             if subentry_idx is None:
@@ -65,7 +68,7 @@ class JournalAssistant(object):
         if entry_datetime is None:
             entry_datetime = datetime.now()
         fmt_props = self.makeSubentryProps(subentry_idx=subentry_idx, props=dict(datetime=entry_datetime)) # includes a datetime key
-        journal_entry_fmt = self.getConfigEntry('journal_entry_fmt', "[{datetime:%Y%m%d %H:%M:%S}] {text}")
+        journal_entry_fmt = unicode(self.getConfigEntry('journal_entry_fmt', "[{datetime:%Y%m%d %H:%M:%S}] {text}"))
         #for itm in ('JournalFilenameFmt', 'JournalFlushBackup', 'JournalFlushXhtml')
         journal_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFilenameFmt.format(**fmt_props))
         entry_text = journal_entry_fmt.format(text=text, **fmt_props)
@@ -74,7 +77,7 @@ class JournalAssistant(object):
             try:
                 os.makedirs(journal_folderpath)
             except OSError as e:
-                print "\n{}\nJournalAssistant.addEntry() :: Aborting due to OSError...".format(e)
+                print "{}\nJournalAssistant.addEntry() :: Aborting due to OSError...".format(e)
                 return False
         with open(journal_path, 'a') as f:
             try:
@@ -157,7 +160,7 @@ class JournalAssistant(object):
                 res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
                 # Check if success:
                 if not res:
-                    logger.debug("wikipage.insertAtRegex returned '%s', probably due to failed regex matching of regex_pat '%s', derived from regex_pat_fmt '%s'. self.WikiPage.Struct['content']) is:\n%s",
+                    logger.debug("wikipage.insertAtRegex returned '%s', probably due to failed regex matching of regex_pat '%s', derived from regex_pat_fmt '%s'. self.WikiPage.Struct['content']) is:%s",
                                   res, insertion_regex, insertion_regex_fmt, wikipage.Struct if not wikipage.Struct else wikipage.Struct['content'] )
                     logger.warning("An error occured in page.insertAtRegex causing it to return '%s'. Returning False.", res)
                     #os.rename(journal_path+'.inprogress', journal_path)
@@ -203,8 +206,15 @@ class JournalAssistant(object):
 
     def newExpSubentry(self, subentry_idx, subentry_titledesc=None, updateFromServer=True, persistToServer=True):
         """
-        This has currently been delegated to this class, which specializes in inserting
-        content at the right location using regex'es.
+        This has currently been delegated from model.Experiment to this class,
+        since this JournalAssistant class specializes in constructing regexes
+        that can be used to insert content at the right location on wikipages.
+        Still, most of the logic is handled by wikipage.insertAtRegex.
+        Parameters:
+        - subentry_idx, subentry_titledesc : The info for the subentry to insert.
+        - updateFromServer: Update the Experiment's WikiPage object before performing the insertion. Defaults is True.
+        - updateFromServer: Persist the wikipage (struct) after performing the insertion. Defaults is True.
+
         """
         wikipage = self.WikiPage
         if not wikipage:
