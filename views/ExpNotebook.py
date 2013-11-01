@@ -84,5 +84,15 @@ class ExpNotebook(ttk.Notebook):
         self.add(self.satellitesframe, text="Satellite locations", sticky="nesw", underline=0)
         self.enable_traversal()
 
+
+    def updatewidgets(self, ):
+        for f in (self.overviewframe, self.journalframe, self.filemanagerframe):
+            f.updatewidgets()
+
+    def experiment_updated(self, ):
+        # currently just an alias, but I intend to do something with this, I swear :)
+        self.updatewidgets()
+
+
     def update_info(self):
         self.overviewframe.update_variables()

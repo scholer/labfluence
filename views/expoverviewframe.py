@@ -99,6 +99,11 @@ class ExpOverviewFrame(ExpFrame):
         for frame in self.Frames.values():
             frame.update_variables()
 
+    def updatewidgets(self, ):
+        # alias for update_variables...
+        self.update_variables()
+
+
     def hidenotebook(self, event=None):
         #self.Parent.hide(event) # nope, Notebook.hide takes a <tab-id> and hides the corresponding tab.
         self.Parent.lower()

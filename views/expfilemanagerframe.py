@@ -69,6 +69,9 @@ class ExpFilemanagerFrame(ExpFrame):
         self.wikifilelistframe = WikiFilelistFrame(self, experiment)
         self.wikifilelistframe.grid(row=4, column=1, sticky="nesw")
 
+
+    def init_layout(self, ):
+
         self.columnconfigure(0, weight=1, minsize=200)
         self.columnconfigure(1, weight=3, minsize=300)
         #self.columnconfigure(3, weight=1, minsize=200)
@@ -77,6 +80,8 @@ class ExpFilemanagerFrame(ExpFrame):
         self.rowconfigure(4, weight=1)
         #self.columnconfigure(2, weight=1, minsize=200)
 
+
+    def init_bindings(self):
         # Event bindings:
         self.filelistfilterframe.subentries_list.bind('<<ListboxSelect>>', self.on_filter_change) # self.on_subentry_select )
         #self.filelistfilterframe.fnpattern_entry.bind('<<Modified>>', self.on_filter_change) # The widget is changed.
@@ -102,6 +107,10 @@ class ExpFilemanagerFrame(ExpFrame):
         file_tuples = listbox.getSelection()
         # easy way to check if selection is local or wiki file: if 'pageId' in info_struct
         self.fileinfoframe.update_info_tuples(file_tuples)
+
+
+    def updatewidgets(self, ):
+        self.wikifilelistframe.updatelist()
 
 
 

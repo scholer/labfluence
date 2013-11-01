@@ -384,7 +384,7 @@ class ExpJournalFrame(ExpFrame):
             dia.result.pop('expid')
             self.Experiment.addNewSubentry(**dia.result)
 
-        self.updatewidgets()
+        self.Parent.updatewidgets() # will also invoke self.updatewidgets()
 
 
         # I'm not sure how much clean-up should be done? Do I need to e.g. destroy the dialog completely when I'm done?
@@ -397,7 +397,8 @@ class ExpJournalFrame(ExpFrame):
         res = self.Experiment.JournalAssistant.newExpSubentry(current_subentry_idx)
         if res:
             logger.debug("Updated page to version %s", res['version'])
-            self.journalwiki_view.set_xhtml(res['content'])
+            #self.journalwiki_view.set_xhtml(res['content'])
+            self.update_wikiview()
             self.Parent.update_info()
         else:
             logger.info("self.Experiment.JournalAssistant.newExpSubentry(current_subentry_idx) returned '%s", res)
