@@ -1,0 +1,42 @@
+
+Installing Labfluence on a new computer requires the following steps:
+1) Installing Python (if not already included on your system)
+2) Installing required python modules.
+3) Adding and customizing your configs.
+
+
+
+---------------------------------
+--- 1. Python installation ------
+---------------------------------
+
+Labfluence is currently written to use python2.7.
+
+First, check if python is already installed by opening a command line prompt / terminal and type:
+   python -V
+(note: capital -V)
+
+If Python is not installed, obtain this from www.python.org.
+
+
+---------------------------------------------------
+--  2. Installation of required python modules  ---
+---------------------------------------------------
+The required python packages are:
+- PyYAML
+- pycrypto
+
+=== Windows installation of python packages:  ===
+PyYAML: Go to https://pypi.python.org/pypi/PyYAML and download the windows installer for Python2.7.
+PyCrypto: Download installer from http://www.voidspace.org.uk/python/modules.shtml#pycrypto
+
+------------------------------------------------
+--- 3. Adding and customizing your configs -----
+------------------------------------------------
+
+You will need to place configs in the following locations:
+- <install-dir>/config/labfluence_sys.yml # if not already present
+- <home-dir>/.Labfluence/labfluence_user.yml 
+- <experiment-dir>/.labfluence.yml
+
+Note that labfluence_user.yml is responsible for defining the location of <experiment-dir>.

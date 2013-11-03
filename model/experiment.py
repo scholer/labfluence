@@ -973,14 +973,18 @@ class Experiment(object):
         if not singleMatchOnly:
             return results
         if len(results) > 1:
-            logger.info("\nExperiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match.") # in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title'])
-            logger.info("\n".join( "{} ({})".format(page['title'], page['id']) for page in results ))
+            logger.info("Experiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match:\n%s", 
+            "\n".join( "{} ({})".format(page['title'], page['id']) for page in results ) ) # in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title'])
+            #logger.info("\n".join( "{} ({})".format(page['title'], page['id']) for page in results ))
             return False
         if len(results) < 1:
             return 0
         if len(results) == 1:
             pagestruct = results[0]
-            logger.info("\nExperiment.searchForWikiPageWithQuery() :: A single hit found in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title']))
+            logger.info("pagestruct keys: %s", pagestruct.keys() )
+            # pagestruct keys returned for a server search is: 'id', 'title', 'type', 'url', 'excerpt'
+            logger.info("Experiment.searchForWikiPageWithQuery() :: A single hit found : '%s: %s: %s'", 
+                          pagestruct['title'] )
             return pagestruct
 
 

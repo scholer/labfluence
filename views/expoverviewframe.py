@@ -115,7 +115,7 @@ class ExpOverviewFrame(ExpFrame):
     def wikipage_lookup(self):
         wikipage = self.Experiment.attachWikiPage(dosearch=4)
         if wikipage:
-            self.update_variables
+            self.update_variables()
             self.saveprops()
             return wikipage
         # else, perhaps do a broader search, allowing the user to select from a list of possible matches.

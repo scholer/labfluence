@@ -47,9 +47,6 @@ class JournalAssistant(object):
 
     def __init__(self, experiment):
         self.Experiment = experiment
-        self.Confighandler = experiment.Confighandler
-        self.WikiPage = experiment.WikiPage
-        self.VERBOSE = experiment.VERBOSE
         self.JournalFilesFolder = ".labfluence"
         self.JournalFilenameFmt = "{subentry_idx}_journal.txt"
         self.JournalFlushBackup = "{subentry_idx}_journal.flushed.bak"
@@ -57,8 +54,17 @@ class JournalAssistant(object):
         self.Current_subentry_idx = None # This could also just be the self.Experiments.Subentries subentry dict directly...? Nah, it is actually good to have for reference.
         self.AppendAtEndIfNoTokenFound = False
 
+    @property
+    def WikiPage(self):
+        return self.Experiment.WikiPage
 
+    @property
+    def Confighandler(self):
+        return self.Experiment.Confighandler
 
+    @property
+    def VERBOSE(self):
+        return self.experiment.VERBOSE
 
     def addEntry(self, text, entry_datetime=None, subentry_idx=None):
         """

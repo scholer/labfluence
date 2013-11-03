@@ -50,9 +50,11 @@ class ExpJournalFrame(ExpFrame):
     def init_variables(self):
         #print "\n\n\n-----------------------------\nExpJournalFrame.init_variables invoked !!\n---------------------------\n"
         self.Fonts = self.getFonts()
+        # Init StringVars:
         v = ('wiki','cache','input', 'autoflush_interval', 'wiki_titledesc')
         self.Variables = dict( (k, tk.StringVar()) for k in v )
         self.Variables['autoflush_interval'].set(self.Experiment.getConfigEntry('app_autoflush_interval', '10'))
+        # Init BooleanVars:
         v = ('autoflush',)
         self.Boolvars = dict()# (k, tk.BooleanVar(value=False)) for k in v )
         self.Boolvars['autoflush'] = tk.BooleanVar( value=self.Experiment.getConfigEntry('app_autoflush_on', False) )
@@ -112,9 +114,9 @@ class ExpJournalFrame(ExpFrame):
         # Other option input:
         self.autoflush_frame = ttk.Frame(self.controlframe)
         self.autoflushall_chkbtn = ttk.Checkbutton(self.autoflush_frame, text="Autoflush every ",
-                                                   command=self.autoflush_reset, variable=self.Boolvars['autoflush'])
+                                                   command=self.autoflush_changed, variable=self.Boolvars['autoflush'])
         self.autoflushinterval_spinbox = tk.Spinbox(self.autoflush_frame, from_=3, to=120, width=3,
-                                                    command=self.autoflush_reset, textvariable=self.Variables['autoflush_interval'])
+                                                    command=self.autoflush_changed, textvariable=self.Variables['autoflush_interval'])
         self.autoflushinterval_lbl = ttk.Label(self.autoflush_frame, text=" minutes")
         #self.autoflushinterval_spinbox.configure()
 
@@ -191,8 +193,8 @@ class ExpJournalFrame(ExpFrame):
         # Input / keypresses:
         self.subentries_listbox.bind('<<ListboxSelect>>', self.on_subentry_select)
         self.journalentry_input.bind('<Return>', self.add_entry)
-        #self.autoflushinterval_spinbox.bind('<Return>', self.autoflush_reset)
-        self.autoflushinterval_spinbox.bind('<<Modified>>', self.autoflush_reset)
+        #self.autoflushinterval_spinbox.bind('<Return>', self.autoflush_changed)
+        self.autoflushinterval_spinbox.bind('<<Modified>>', self.autoflush_changed)
         self.getConfighandler().registerEntryChangeCallback('wiki_server_status', self.on_serverstatus_change)
 
     def updatewidgets(self):
@@ -278,6 +280,28 @@ class ExpJournalFrame(ExpFrame):
         self.update_wikiview()
 
 
+
+    def autoflush_interval_var_write(self, varname, index, mode):
+        """
+        Variable Trace based callback, 
+        is called when autoflush_interval tk.StringVar is set (written).
+        Alternative approach to control widget event binding,
+        binds directly to changes to the tk Variables.
+        C.f. http://www.astro.washington.edu/users/rowen/ROTKFolklore.html
+        """
+        varValue = self.root.globalgetvar(varname)
+        self.Experiment.setConfigEntry('app_autoflush_interval', varValue)
+
+    def autoflush_var_write(self, varname, index, mode):
+        varValue = self.root.globalgetvar(varname)
+        self.Experiment.setConfigEntry('app_autoflush_on', varValue)
+
+    def autoflush_changed(self):
+        self.autoflush_reset()
+        self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
+        self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
+        self.Experiment.Confighandler.saveConfigForEntry('app_autoflush_on')
+
     def autoflush_reset(self):
         for identifier in self.AutoflushAfterIdentifiers:
             self.after_cancel(identifier)
@@ -290,8 +314,7 @@ class ExpJournalFrame(ExpFrame):
         after_identifier = self.after(mins*60*1000, self.flushallcaches)
         self.AutoflushAfterIdentifiers.append(after_identifier)
         logger.debug("New afterTimer with id {} added for self.flushallcaches in {} ms".format(after_identifier, mins*60*1000))
-        self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
-        self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
+        return after_identifier
 
 
     def on_serverstatus_change(self, ):
@@ -466,11 +489,19 @@ class JournalViewer(ExpFrame):
         xhtml = self.Experiment.getWikiSubentryXhtml()
         #xhtml = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
         logger.debug(u"xhtml is: \n{}".format(xhtml))
-        self.set_xhtml(xhtml)
+        self.set_and_parse_xhtml(xhtml)
         return xhtml
 
 
-    def set_xhtml(self, xhtml):
+    def set_and_parse_xhtml(self, xhtml):
+        """
+        Takes a xhtml text string and parses it using the tkHTMLWriter/Parser system.
+        """
+        # Ensure the input is ok:
+        if xhtml is None:
+            xhtml = ""
+        xhtml = xhtml.replace('&nbsp;', ' ')
+        
         # prepare the text widget:
         self.text.config(state="normal")
         self.text.delete("1.0", "end")
@@ -488,6 +519,9 @@ class JournalViewer(ExpFrame):
         # Finally, disable the text widget again
         self.text.config(state="disabled")
 
+    def set_xhtml(self, xhtml):
+        logger.warning("Deprechated method! Use set_and_parse_xhtml() instead!")
+        self.set_and_parse_xhtml(xhtml)
 
     def set_value(self, value):
         #initial_state = self.configure()['state'][4]

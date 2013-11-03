@@ -385,6 +385,8 @@ class AbstractServer(object):
         # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed. The maximum number of failed login attempts has been reached. Please log into the web application through the web interface to reset the number of failed login attempts.
         # Exception during getPage invokation can look like:
         # <Fault 0: "java.lang.Exception: com.atlassian.confluence.rpc.RemoteException: You're not allowed to view that page, or it does not exist.">
+        # If XML-RPC is not enabled under Confluence General Configuration:
+        # xmlrpclib.ProtocolError: <ProtocolError for wiki.cdna.au.dk/rpc/xmlrpc: 403 Forbidden>
         #import string
         # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
         # xmlrpclib.Fault attributes: e.faultCode, e.faultString, e.message, e.args
@@ -485,6 +487,8 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         except socket.error as e:
             logger.warning("%s - socket error prevented login, probably timeout, error is: %s", self.__class__.__name__, e)
         #self._raiseerrors = oldflag
+        except xmlrpclib.ProtocolError as err:
+            logger.warning("ProtocolError raised; This is probably because XML-RPC is not enabled for your Confluence instance under general configuration. Error: %s", err )
         if self.Logintoken:
             self.setok()
         else:
@@ -517,6 +521,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         - True if token is valid.
         - False if token is not valid (or if otherwise failed to connect to server <-- should be fixed...)
         - None if no valid token was provided.
+        Note: This should not catch exceptions other than xmlrpclib.Fault and only if it is caused by an invalid token.
         """
         if logintoken is None:
             logintoken = getattr(self, 'Logintoken', None)
@@ -530,7 +535,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
                 self.setok()
             return True
         except xmlrpclib.Fault as err:
-            logger.debug("ConfluenceXmlRpcServer.test_token() : tested token '{}' did not work; {}: {}".format( logintoken, err.faultCode, err.faultString))
+            logger.debug("ConfluenceXmlRpcServer.test_token() : tested token '%s' did not work; %s: %s", logintoken, err.faultCode, err.faultString)
             return False
 
     def login(self, username=None, password=None, logintoken=None, doset=True,
@@ -603,6 +608,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
     #### Un-managed methods ######
     ##############################
 
+    # Note: These methods should NOT catch any exceptions!
     def _login(self, username,password):
         """
         Returns a login token.
