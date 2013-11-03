@@ -101,6 +101,7 @@ class ConfigHandler(object):
         config_define_new = {<cfgtype> : <path>}
         where path if relative, is loaded relative to the current config path.
         """
+        logger.info("ConfigPaths : %s", self.ConfigPaths)
 
 
     def addNewConfig(self, inputfn, cfgtype, VERBOSE=None, rememberpath=True):
@@ -398,6 +399,7 @@ class ExpConfigHandler(ConfigHandler):
         systemconfigfn = systemconfigfn or pschemedict.get('sys')
         userconfigfn = userconfigfn or pschemedict.get('user')
         expconfigfn = expconfigfn or pschemedict.get('exp')
+        # init super:
         ConfigHandler.__init__(self, systemconfigfn, userconfigfn, VERBOSE=VERBOSE)
         self.Configs['exp'] = dict()
         self.ConfigPaths['exp'] = expconfigfn
@@ -408,16 +410,16 @@ class ExpConfigHandler(ConfigHandler):
         if enableHierarchy and hierarchy_rootdir_config_key:
             rootdir = self.get(hierarchy_rootdir_config_key)
             ignoredirs = self.get(hierarchy_ignoredirs_config_key)
-            if VERBOSE:
-                logger.info("\nExpConfigHandler.__init__() :: enabling HierarchicalConfigHandler with rootdir: {}".format(rootdir) )
+            logger.debug("ExpConfigHandler.__init__() :: enabling HierarchicalConfigHandler with rootdir: {}".format(rootdir) )
             if rootdir:
                 self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs, VERBOSE=VERBOSE)
             else:
-                logger.info("rootdir is None; hierarchy_rootdir_config_key is {}; config is:\n{}".format(
-                    hierarchy_rootdir_config_key, self.printConfigs()) )
+                logger.info("rootdir is %s; hierarchy_rootdir_config_key is {}; config is:\n{}",
+                    rootdir, hierarchy_rootdir_config_key, self.printConfigs() )
 
         else:
             self.HierarchicalConfigHandler = None
+        logger.info("ConfigPaths : %s", self.ConfigPaths)
 
 
     def getHierarchicalEntry(self, key, path, traverseup=True):
