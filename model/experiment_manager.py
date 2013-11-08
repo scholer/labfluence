@@ -317,6 +317,7 @@ class ExperimentManager(object):
         # If you would like both argument-caching (like memorize) and TTL/expiration, you should try
         # the @region.cache_on_arguments() decorator provided by dogpile.
         """
+        logger.debug("invoked cache-wrapped getCurrentWikiExperiments...")
         return self.getCurrentWikiExperiments(ret='pagestructs-by-expid', useCache=False, store=None)
 
     def getCurrentWikiExperiments(self, ret='pagestruct', useCache=True, store=None):
@@ -340,6 +341,7 @@ class ExperimentManager(object):
         Todo: Implement a cache system, so that repeated calls to this method will not cause
         repeated server queries.
         """
+        logger.debug("getCurrentWikiExperiments called with ret='%s', useCache=%s, store=%s", ret, useCache, store)
         if self.Server is None:
             logging.info("No server defined.")
             return

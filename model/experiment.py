@@ -257,7 +257,6 @@ functionality of this object will be greatly reduced and may break at any time."
                 self.WikiPage.reloadFromServer()
         self.Props['wiki_pageId']
 
-
     @property
     def Attachments(self):
         """
@@ -280,6 +279,9 @@ functionality of this object will be greatly reduced and may break at any time."
     def WikiPage(self):
         if not self._wikipage:
             self.attachWikiPage()
+            if self._wikipage:
+                logger.info("Having just attached the wikipage, I will now parse wikipage subentries and merge them...")
+                self.mergeWikiSubentries(self._wikipage)
         return self._wikipage
     @WikiPage.setter
     def WikiPage(self, newwikipage):
@@ -289,6 +291,20 @@ functionality of this object will be greatly reduced and may break at any time."
         if not self._fileshistory:
             self.loadFileshistory() # Make sure self.loadFileshistory does NOT refer to self.Fileshistory (cyclic reference)
         return self._fileshistory
+    @property
+    def Subentries_regex_prog(self):
+        regex_prog = getattr(self, '_subentries_regex_prog', None)
+        if regex_prog: return regex_prog
+        else:
+            regex_str = self.getConfigEntry('exp_subentry_regex') #getExpSubentryRegex()
+            if not regex_str:
+                logger.warning("Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default.")
+                regex_str = "(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
+            self._subentries_regex_prog = re.compile(regex_str)
+            return self._subentries_regex_prog
+    @Subentries_regex_prog.setter
+    def Subentries_regex_prog(self, value):
+        self._subentries_regex_prog = value
     @property
     def Status(self, ):
         manager = self.Manager
@@ -589,21 +605,6 @@ functionality of this object will be greatly reduced and may break at any time."
         else:
             return default
 
-    @property
-    def Subentries_regex_prog(self):
-        regex_prog = getattr(self, '_subentries_regex_prog', None)
-        if regex_prog: return regex_prog
-        else:
-            regex_str = self.getConfigEntry('exp_subentry_regex') #getExpSubentryRegex()
-            if not regex_str:
-                logger.warning("Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default.")
-                regex_str = "(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
-            self._subentries_regex_prog = re.compile(regex_str)
-            return self._subentries_regex_prog
-    @Subentries_regex_prog.setter
-    def Subentries_regex_prog(self, value):
-        self._subentries_regex_prog = value
-
 
 
     def parseLocaldirSubentries(self, directory=None):
@@ -647,6 +648,72 @@ functionality of this object will be greatly reduced and may break at any time."
                 #else:
                 #    current_idx =  self.getNewSubentryIdx() # self.subentry_index_increment(current_idx)
                 subentries.setdefault(current_idx, dict()).update(props)
+        return subentries
+
+    def parseSubentriesFromWikipage(self, wikipage=None, xhtml=None, return_subentry_xhtml=False):
+        """
+        Note: wikipage is a WikiPage object, not a page struct.
+        """
+        if isinstance(wikipage, WikiPage):
+            logger.debug("wikipage is instance of WikiPage, ok.")
+        else:
+            logger.warning("wikipage is not instance of WikiPage! This has not been implemented (but should be easy to do)")
+        if xhtml is None:
+            if wikipage is None:
+                wikipage = self.WikiPage
+            #xhtml = wikipage['content']
+            xhtml = wikipage.Content
+        expsection_regex = self.getConfigEntry('wiki_experiment_section')
+        logger.debug("wiki_experiment_section is:\n%s", expsection_regex)
+        expsection_regex_prog = re.compile(expsection_regex, flags=re.DOTALL+re.MULTILINE)
+
+        subentry_regex_fmt = self.getConfigEntry('wiki_subentry_regex_fmt')
+        logger.debug("wiki_subentry_regex_fmt is\n%s", subentry_regex_fmt)
+        subentry_regex = subentry_regex_fmt.format(expid=self.Expid, subentry_idx=r"(?P<subentry_idx>[_-]{0,3}[^\s]+)" ) # alternatively, throw in **self.Props
+        logger.debug("Subentry regex after format substitution:\n%s", subentry_regex)
+        subentry_regex_prog = re.compile(subentry_regex, flags=re.DOTALL+re.MULTILINE)
+
+        expsection_match = expsection_regex_prog.match(xhtml) # consider using search instead of match?
+        if not expsection_match:
+            logger.warning("NO MATCH ('%s') for expsubsection_regex '%s' in xhtml of length %s, aborting",
+                           expsection_match, expsection_regex, len(xhtml))
+            logger.debug("xhtml is:\n%s", xhtml)
+            return
+        exp_xhtml = expsection_match.groupdict().get('exp_section_body')
+        if not exp_xhtml:
+            logger.warning("Aborting, exp_section_body is empty: %s", emp_xhtml)
+            return
+        wiki_subentries = OrderedDict()
+        for match in subentry_regex_prog.finditer(exp_xhtml):
+            gd = match.groupdict()
+            logger.debug("Match groupdict: %s", gd)
+            datestring = gd.pop('subentry_date_string')
+            if not return_subentry_xhtml:
+                subentry_xhtml = gd.pop('subentry_xhtml')
+            if datestring:
+                gd['date'] = datetime.strptime(datestring, "%Y%m%d")
+            if gd['subentry_idx'] in wiki_subentries:
+                logger.warning("Duplicate subentry_idx '%s' encountered while parsing xhtml", gd['subentry_idx'])
+            wiki_subentries[gd['subentry_idx']] = gd
+        return wiki_subentries
+
+
+    def mergeWikiSubentries(self, wikipage=None):
+        if wikipage is None:
+            wikipage = self.WikiPage
+        wiki_subentries = self.parseSubentriesFromWikipage(wikipage)
+        # OrderedDict returned
+        subentries = self.Subentries
+        for subentry_idx, subentry_props in wiki_subentries.items():
+            if subentry_idx in subentries:
+                logger.debug("Subentry '%s' from wikipage already in Subentries", subentry_idx)
+            else:
+                subentries[subentry_idx] = subentry_props
+                logger.debug("Subentry '%s' from wikipage added to Subentries, props are: %s",
+                             subentry_idx, subentry_props)
+
+
+
 
 
     def getNewSubentryIdx(self):
@@ -931,10 +998,10 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.info("Notice - no pageId found for expid %s (dosearch=%s, self.Server=%s)...", self.Props.get('expid'), dosearch, self.Server)
             return pagestruct
         # Does it make sense to create a wikiPage without pageId? No. The above check should take care of that.
-        self.WikiPage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
-        if self.WikiPage.Struct:
+        self.WikiPage = wikipage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
+        if wikipage.Struct:
             self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
-        return self.WikiPage
+        return wikipage
 
 
     def searchForWikiPage(self, extended=0):
@@ -971,7 +1038,7 @@ functionality of this object will be greatly reduced and may break at any time."
         except xmlrpclib.Fault:
             # perhaps do some searching...?
             # Edit, server.execute might catch xmlrpclib.Fault exceptions;
-            logger.info("\n%s :: xmlrpclib.Fault raised, indicating that no exact match found for '%s' in space '%s', searching by query...", method_repr, pageTitle, spaceKey)
+            logger.info("%s :: xmlrpclib.Fault raised, indicating that no exact match found for '%s' in space '%s', searching by query...", method_repr, pageTitle, spaceKey)
         # Query manager for current wiki pages:
         expid = self.Expid  # uses self.Props
         if self.Manager:
@@ -1028,8 +1095,13 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.info("searchForWikiPageWithQuery() > Server is None or not connected, aborting.")
             return
         results = server.search(query, 10, parameters)
+        # Unfortunately, server results only contains: title, url, excerpt, type, id.
         if intitle:
             results = filter(lambda page: intitle in page['title'], results)
+        #if len(results) > 1:
+        #    logger.debug("Results before filtering by parentId: %s", len(results))
+        #    results = filter(lambda page: page['parentId']==preferparentid, results)
+        #    logger.debug("Results after filtering by parentId: %s", len(results))
         if not singleMatchOnly:
             return results
         if len(results) > 1:
@@ -1211,9 +1283,17 @@ functionality of this object will be greatly reduced and may break at any time."
 
 if __name__ == '__main__':
     import glob
+
+
+    logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
+    logging.basicConfig(level=logging.INFO, format=logfmt)
+    logging.getLogger("__main__").setLevel(logging.DEBUG)
+    #logging.getLogger("server").setLevel(logging.DEBUG)
+
+
     def setup1(useserver=True):
         confighandler = ExpConfigHandler( pathscheme='default1', VERBOSE=1 )
-        em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
+        #em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
         print "----"
         rootdir = confighandler.get("local_exp_subDir")
         print "rootdir: {}".format(rootdir)
@@ -1221,7 +1301,9 @@ if __name__ == '__main__':
         ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
         print "ldir: {}".format(ldir)
         ldir2 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS105*"))[0] )
+        ldir3 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS177*"))[0] )
         print "ldir2: {}".format(ldir2)
+        ldir = ldir3
         #ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
 #                '/home/scholer/Documents/labfluence_data_testsetup/.labfluence
         #ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3":
@@ -1248,6 +1330,7 @@ if __name__ == '__main__':
         if not e:
             e = setup1()
         print e
+        print "\n------------finished test_1() ----------------------\n"
         return e
 
     def test_saveProps(e=None):
@@ -1257,7 +1340,6 @@ if __name__ == '__main__':
         print "\n\nSaving props:"
         e.saveProps()
         return e
-
 
     """
     Wiki page tests:
@@ -1411,21 +1493,37 @@ if __name__ == '__main__':
             e.getWikiSubentryXhtml(s)
         #print "\nInvoked without subentry:"
         #e.getWikiSubentryXhtml()
+        print "\n<<<<<<<<<<<<<< test_getWikiSubentryXhtml() finished <<<<<<<<<<<<"
+        return e
+
+    def test_parseSubentriesFromWikipage(e=None):
+        print "\n>>>>>>>>>>>>>> test_getWikiSubentryXhtml() started >>>>>>>>>>>>>"
+        if not e:
+            e = setup1()
+            wikipage = e.attachWikiPage()
+        print "\n\n"
+        print e.Server
+        print "wikipage: {}".format(wikipage)
+        wiki_subentries = e.parseSubentriesFromWikipage(wikipage)
+        print "wiki_subentries:"
+        print wiki_subentries
+        #print "\nInvoked without subentry:"
+        #e.getWikiSubentryXhtml()
+        print "\n<<<<<<<<<<<<<< test_getWikiSubentryXhtml() finished <<<<<<<<<<<<"
+        return e
 
 
 
-        print "<<<<<<<<<<<<<< test_getWikiSubentryXhtml() finished <<<<<<<<<<<<"
 
 
     print "\n\n---------------- STARTING EXPERIMENT.PY MAIN TESTS --------------\n\n"
     #e=test_1()
-    print "\n------------finished test_1() ----------------------\n"
 
     #e=test_saveProps(e)
     #print "\n------------finished test_saveProps() ----------------------\n"
 
     #e=test_attachWikiPage(e)
-    print "\n------------finished test_attachWikiPage() ----------------------\n"
+#    print "\n------------finished test_attachWikiPage() ----------------------\n"
 
     #e=test_makeNewWikiPage(e)
     #print "\n------------finished test_makeNewWikiPage() ----------------------\n"
@@ -1435,7 +1533,7 @@ if __name__ == '__main__':
 #    e=test_addNewSubentry2(e)
 #    e=test_addNewSubentry3(e)
     #e=test_addNewSubentry4(e)
-    print "\n------------finished test_addNewSubentry() ----------------------\n"
+#    print "\n------------finished test_addNewSubentry() ----------------------\n"
 
 
 #    e=test_makeSubentryFolder(e, 'a')
@@ -1447,7 +1545,8 @@ if __name__ == '__main__':
 
     #e = None
     #e = test_getRepr()
-    e = test_getWikiSubentryXhtml()
+    #e = test_getWikiSubentryXhtml()
+    e = test_parseSubentriesFromWikipage()
     print "\n\n"
     print e
 

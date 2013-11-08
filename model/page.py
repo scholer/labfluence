@@ -101,6 +101,11 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         else:
             logger.warning("No, I refuse to update my self._struct with something that is boolean false. That must be an error. The attempted newstruct is: %s", newstruct)
     @property
+    def Content(self, ):
+        if self.Struct:
+            return self.Struct.get('content')
+
+    @property
     def Server(self):
         # Edit: I cannot use return _server or confighandler.Single...
         # Server evaluates to False if it is not connected, so check specifically against None.

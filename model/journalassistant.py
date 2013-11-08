@@ -64,7 +64,7 @@ class JournalAssistant(object):
 
     @property
     def VERBOSE(self):
-        return self.experiment.VERBOSE
+        return self.Experiment.VERBOSE
 
     def addEntry(self, text, entry_datetime=None, subentry_idx=None):
         """
