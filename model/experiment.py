@@ -936,6 +936,10 @@ functionality of this object will be greatly reduced and may break at any time."
     STUFF RELATED TO WIKI PAGE HANDLING
     """
 
+    def reloadWikipage(self):
+        self.WikiPage.reloadFromServer()
+
+
     def getWikiXhtml(self, ):
         if not self.WikiPage or not self.WikiPage.Struct:
             logger.warning("\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")

@@ -49,12 +49,14 @@ class ExpWikipageFrame(ExpFrame):
         self.controlframe = ttk.Frame(self)
         self.xhtmlbtn = ttk.Button(self.controlframe, text="View xhtml", command=self.update_wiki_xhtml)
         self.htmlbtn = ttk.Button(self.controlframe, text="View HTML")
+        self.getupdatedstructbtn  = ttk.Button(self.controlframe, text="Reload page from server", command=self.reload_pagestruct)
 
 
     def init_layout(self, ):
         self.controlframe.grid(row=1, column=1, sticky="news")
         self.xhtmlbtn.grid(row=1, column=2, sticky="news")
         self.htmlbtn.grid(row=1, column=1, sticky="news")
+        self.getupdatedstructbtn.grid(row=1, column=3, sticky="news")
 
         self.pageview.grid(row=2, column=1, sticky="news")
 
@@ -67,3 +69,6 @@ class ExpWikipageFrame(ExpFrame):
 
     def update_wiki_xhtml(self, ):
         self.pageview.update_wiki_xhtml()
+
+    def reload_pagestruct(self):
+        self.Experiment.reloadWikipage()

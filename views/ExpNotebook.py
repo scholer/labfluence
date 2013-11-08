@@ -39,8 +39,8 @@ class BackgroundFrame(tk.Frame):
         #self.grid(row=0, column=0, sticky="nesw") # No, ui elements should rarely configure this themselves, it should be the parent that decides this.
         startinfo = """
 Open an experiment in the list to the left.
-Click "Select" to add experiments to the active experiments list.
-Click "New" to create a new experiment.
+Click "Select..." to add experiments to the active experiments list.
+Click "Create..." to create a new experiment.
 """
         self.label = ttk.Label(self, text=startinfo, justify=tk.CENTER)
         #self.configure(relief='raised', borderwidth=2)
