@@ -1,0 +1,11 @@
+(?P<exp_section_header><h2>Experimental section</h2>)(?P<exp_section_body>.*?)(?=<h[1-2]>.+?</h[1-2]>|\Z)
+
+(<h4>RS105(?P<subentry_idx>[^\s])(?P<subentry_titledesc>).+?(\((?P<subentry_date>\d{8})\))?</h4>)(?P<subentry_xhtml>.*?)(?=<h[1-4]>.+?</h[1-4]>|\Z)
+(<h4>RS177(?P<subentry_idx>[^\s])(?P<subentry_titledesc>).+?(\((?P<subentry_date>\d{8})\))?</h4>)(?P<subentry_xhtml>.*?)(?=<h[1-4]>.+?</h[1-4]>|\Z)
+fixed:
+(<h4>RS177(?P<subentry_idx>[^\s])(?P<subentry_titledesc>.+?)(\((?P<subentry_date>\d{8})\))?</h4>)(?P<subentry_xhtml>.*?)(?=<h[1-4]>.+?</h[1-4]>|\Z)
+
+
+xhtml sample for RS177:
+
+<h6>Gallery:</h6><p></p><h2>Experimental section</h2><h4>RS177a TR mix and anneal</h4><h6>Plan, setup, mixing schemes, etc</h6><p>PEG staples from&nbsp;<ac:link><ri:page ri:content-title="RS176 Peg5k-ddUTP-TR-D staples TdT" /></ac:link>.</p><p>&nbsp;</p><h6>Journal, 20131105</h6><p>&nbsp;</p><h4>RS177b Amicon</h4><h6><span style="color: rgb(0,0,0);">Plan, setup, mixing schemes, etc</span></h6><h6>Journal, 20131105</h6><h4>RS177c S400</h4><h6><span style="color: rgb(0,0,0);">Plan, setup, mixing schemes, etc</span></h6><p><span style="color: rgb(0,0,0);">Applying 2x 100 ul for RS177a-1 and 2 x 75 ul for a-2.</span></p><h6>Journal, 20131105</h6><h2>Results and discussion</h2><h6>Gallery</h6><p><ac:macro ac:name="gallery"><ac:parameter ac:name="sort">date</ac:parameter></ac:macro></p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons learned</h6><h6>Outlook</h6><h2>Attachments</h2><p><ac:macro ac:name="attachments"><ac:parameter ac:name="old">true</ac:parameter><ac:parameter ac:name="upload">true</ac:parameter></ac:macro></p><ac:macro ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter><ac:rich-text-body><p>Add your username as a label together with &quot;current experiment&quot; to make this page appear on your dashboard under &quot;current projects&quot;. Change &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate. (Note that it takes about 15 minutes before the server registers the changes.) You can also label particularly interesting attachments for easy inclusion in other pages.</p></ac:rich-text-body></ac:macro>
