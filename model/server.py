@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 # Labfluence modules and classes:
 from confighandler import ConfigHandler, ExpConfigHandler
 
+# Decorators:
+from decorators.cache_decorator import cached_property
+
 
 def login_prompt(username=None, msg="", options=dict() ):
     """
@@ -621,7 +624,8 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
 
     def _testConnection(self, token=None):
         """
-        returns a list of dicts with space info for spaces that the user can see.
+        Used mostly to see if a token is valid.
+        This method should be wrapped in a try-except clause.
         """
         if token is None:
             token = self._logintoken
@@ -641,6 +645,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         ret = self.execute(self.RpcServer.confluence2.logout)
         self.clearToken()
         return ret
+
 
     def getServerInfo(self):
         """

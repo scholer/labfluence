@@ -22,6 +22,29 @@ import Tix # Lots of widgets, but tix is not being developed anymore, so only us
 import logging
 logger = logging.getLogger(__name__)
 
+"""
+Some general-purpose listboxes that all requires some interaction with and experiment object.
+(Yes, I refuse the C in MVC)
+
+- ExpListBox: Base class with reference to a single Experiment instance
+  |- FilelistListbox
+  |- LocalFilelistListbox
+  |- WikiFilelistListbox
+  |- SubentriesListbox
+
+
+- ExpManagerListBox: List box to display lists of experiments
+  |- ActiveExpsListbox:
+  |- RecentExpsListbox:
+
+Notice: The logic for ActiveExpsListbox and RecentExpsListbox have also been implemented using controllers.
+        See controllers/listboxcontrollers.py
+
+
+"""
+
+
+
 class ExpListbox(tk.Listbox):
     """
     Base frame for most list widgets that has a direct control over an experiment.
@@ -141,7 +164,10 @@ class SubentriesListbox(ExpListbox):
         #self.subentrieslistbox.delete(0,tk.END)
         #self.subentrieslistbox.insert(tk.END, *self.Subentrylist[0])
         self.delete(0,tk.END)
-        self.insert(tk.END, *self.Subentrylist[0])
+        if lst:
+            self.insert(tk.END, *self.Subentrylist[0])
+        else:
+            logger.info("%s, empty list: %s", self.__class__.__name__, lst)
         #logger.debug("%s, self.get(0, tk.END) is now: %s", self.__class__.__name__, self.get(0, last=tk.END))
 
     def clearlist(self):
@@ -155,3 +181,150 @@ class SubentriesListbox(ExpListbox):
     def getSelectedSubentries(self):
         curselection = [int(i) for i in self.curselection()]
         return [self.Subentrylist[2][i] for i in curselection] # Subentrylist[1] is list of subentry_idxs
+
+
+
+
+
+"""
+- ExpManagerListBox: List box to display lists of experiments
+  |- ActiveExpsListbox:
+  |- RecentExpsListbox:
+
+Notice: ActiveExpsListbox and RecentExpsListbox are implemented using controllers!
+
+"""
+
+class ExpManagerListBox(tk.Listbox):
+
+    def __init__(self, parent, confighandler, **kwargs):
+        self.before_init(kwargs)
+        kwargs.setdefault('selectmode', 'multiple') # tk.MULTIPLE or tk.EXTENDED
+        tk.Listbox.__init__(self, parent, **kwargs)
+        #self.ExperimentManager = experimentmanager # Property now...
+        self.Confighandler = confighandler
+        self.TupleList= list() ## list of (<display>, <identifier>, <full object>) tuples.
+        self.init_variables()
+        self.init_widgets()
+        self.init_layout()
+        self.updatelist()
+        # standard bindings, enabling on_select and on_doubleclick for sub classes.
+        # subclasses should add more in the init_bindings method.
+        self.bind('<<ListboxSelect>>', self.on_select ) # Will throw the event to the show_notebook
+        self.bind("<Double-Button-1>", self.on_doubleclick)
+        self.init_bindings()
+        self.after_init()
+
+    @property
+    def ExperimentManager(self, ):
+        return self.Confighandler.Singletons.get('experimentmanager')
+
+    def before_init(self, kwargs):
+        pass
+    def after_init(self):
+        pass
+    def init_variables(self):
+        pass
+    def init_widgets(self):
+        pass
+    def init_layout(self):
+        pass
+    def init_bindings(self):
+        pass
+    def on_select(self, event):
+        #lst = event.widget
+        lst = self
+        curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
+        selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
+        logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
+        #experiment = self.ExperimentByListIndex[int(curselection[0])]
+        expids = [self.TupleList[int(i)][1] for i in self.curselection()]
+        #logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
+    def on_doubleclick(self, event):
+        pass
+
+    def update_widget(self, ):
+        pass
+
+
+    def getSelectedIds(self, ):
+        # self.curselection() returns tuple with selected indices.
+        # This makes it easier to get the corresponding identifiers,
+        # based on self.getExpByListIndices
+        return [self.TupleList[int(i)][1] for i in self.curselection()]
+
+    def getExpIds(self, ):
+        # OVERRIDE IN SUBCLASSES:
+        return list()
+
+    def getExperiments(self):
+        return self.getTupleList()
+    def getTupleList(self):
+        # returns the familiar list of (<display>, <identifier>, <full object>) tuples.
+        # You can override this in subclasses, or choose to just override self.getExpsByIds()
+        # where display is the text to show in list and identifier is e.g. an expid.
+        # Reference implementation provided here:
+        expids = self.getExpIds()
+        experiments = self.ExperimentManager.getExpsById(expids)
+        display = (repr(exp) for exp in experiments )
+        return zip(display, expids, experiments)
+
+    def populatelist(self, experiments):
+        # For manual external use. And reference. This is not used internally.
+        self.insert(tk.END, *experiments)
+    def clearlist(self):
+        self.delete(0, tk.END)
+
+    def updatelist(self, event=None):
+        tuples = self.getTupleList()
+        self.clearlist()
+        if tuples:
+            logger.debug("Updating %s listbox with experiment tuples:\n%s",
+                         self.__class__.__name__,
+                         "\n".join("{e}".format(e=e) for e in tuples))
+            # Note: The list will get the string representation from the experiment ( __repr__ method).
+            # This is also what is returned upon querying.
+            self.TupleList = tuples # This list should be consolidated to match the (<display>, <identifier>, <full object>) tuple list structure
+            self.insert(tk.END, *[tup[0] for tup in tuples]) # Nope, keyword arguments cannot be used as far as I can tell...
+        else:
+            logger.info("getTupleList() returned a boolean false result: %s", tuples)
+
+
+class ActiveExpsListbox(ExpManagerListBox):
+
+    def getExpIds(self, ):
+        """
+        Using the default getTupleList and just overriding getExpsIds method:
+        """
+        return self.ExperimentManager.ActiveExperimentIds
+
+    def init_bindings(self, ):
+        self.Confighandler.registerEntryChangeCallback('app_active_experiments', self.updatelist)
+
+
+class LocalExpsListbox(ExpManagerListBox):
+
+
+    def getTupleList(self):
+        """
+        returns the familiar list of (<display>, <identifier>, <full object>) tuples.
+        In this case, it is more efficient to re-implement the getTupleList:
+        Several implementation options:
+        1) Simply use ExperimentManager.ExperimentsById cached object list
+        2) Call ExperimentManager.getLocalExperiments(ret='expid') to get an updated list.
+        """
+        logger.info("self.ExperimentManager.ExperimentsById: %s", self.ExperimentManager.ExperimentsById)
+        expids, experiments = zip(*self.ExperimentManager.ExperimentsById.items())
+        display = ( getattr(exp, 'Foldername', "") for exp in experiments )
+        return zip(display, expids, experiments)
+
+
+
+class WikiExpsListbox(ExpManagerListBox):
+
+    def getTupleList(self):
+        """
+        returns the familiar list of (<display>, <identifier>, <full object>) tuples.
+        In this case, it is more efficient to re-implement the getTupleList:
+        """
+        return self.ExperimentManager.getCurrentWikiExperiments(ret='display-tuple')

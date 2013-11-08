@@ -33,7 +33,8 @@ from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
 #from utils import *  # This will override the logger with the logger defined in utils.
 from utils import getmimetype, increment_idx, idx_generator
-
+#from experiment_manager import ExperimentManager # Uh, that won't fly, circular import!
+# This is why you should move to separate testing setup for anything but the most basic of tests.
 
 
 class Experiment(object):
@@ -89,9 +90,10 @@ class Experiment(object):
     """
 
 
-    def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None, VERBOSE=0,
+    def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None,
                  doparseLocaldirSubentries=True, subentry_regex_prog=None, loadYmlFn='.labfluence.yml',
-                 autoattachwikipage=True, doserversearch=False, savepropsonchange=True):
+                 autoattachwikipage=True, doserversearch=False, savepropsonchange=True, VERBOSE=0,
+                 makelocaldir=False, makewikipage=False):
         """
         Arguments:
         - localdir: path string
@@ -112,18 +114,21 @@ class Experiment(object):
         self._manager = manager
         self.Confighandler = confighandler
         self._wikipage = wikipage
+        self._autoattachwikipage = autoattachwikipage
+        # NOTICE: Attaching wiki pages is done lazily using a property (unless makewikipage is not False)
         self.SavePropsOnChange = savepropsonchange
         self.PropsChanged = False # Flag,
         self.Subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
         self.ConfigFn = loadYmlFn
         self._attachments_cache = None # cached list of wiki attachment_structs. None = <not initialized>
         self._fileshistory = dict()
-        self._props = None
+        self._props = dict()
         self._expid = None
         if localdir is None:
             localdir = props.get('localdir')
+        if makelocaldir:
+            localdir = self.makeLocaldir(props, localdir, wikipage) # only props currently supported...
         if not localdir:
-            logger.error( "\n\nExperiment.__init__() :: CRITICAL: No localdir provided; functionality of this object will be greatly reduced and may break at any time.\n\n" )
             self.Localdirpath = None
             self.Foldername = None
             self.Parentdirpath = None
@@ -160,6 +165,10 @@ class Experiment(object):
             if not regex_match and wikipage: # equivalent to 'if wikipage and not regex_match', but better to check first:
                 regex_match = self.updatePropsByWikipage(exp_regex_prog)
 
+        if not localdir:
+            logger.warning( "NOTICE: No localdir provided for expid '%s';\
+functionality of this object will be greatly reduced and may break at any time.", self.Expid)
+
         """ Subentries related..."""
         # Subentries is currently an element in self.Props, makes it easier to save info...
         self.Subentries = self.Props.setdefault('exp_subentries', OrderedDict())
@@ -176,6 +185,11 @@ class Experiment(object):
         #    wikipage = self.attachWikiPage(dosearch=doserversearch)
         #if self.WikiPage and self.WikiPage.Struct:
         #    self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
+        if makewikipage:
+            page_test = self.WikiPage # will do auto-attaching.
+            if not page_test:
+                self.makeWikiPage()
+
         self.JournalAssistant = JournalAssistant(self)
         if self.VERBOSE:
             logger.info("Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props))
@@ -344,7 +358,8 @@ class Experiment(object):
         if cfgkey in self.Props:
             return self.Props.get(cfgkey)
         else:
-            return self.Confighandler.get(cfgkey, default=default, path=self.Localdirpath)
+            p = getattr(self, 'Localdirpath', None)
+            return self.Confighandler.get(cfgkey, default=default, path=p)
 
     def setConfigEntry(self, cfgkey, value):
         if cfgkey in self.Props:
@@ -467,6 +482,31 @@ class Experiment(object):
             self.makeWikiSubentry(subentry_idx)
         self.saveIfChanged()
         return subentry
+
+
+    def makeLocaldir(self, props, localdir=None, wikipage=None):
+        """
+        Alternatively, 'makeExperimentFolder' ?
+        props:      Dict with props required to generate folder name.
+        localdir:   Not supported yet.
+        wikipage:   Not supported yet.
+        """
+        try:
+            foldername_fmt = self.getConfigEntry('exp_series_dir_fmt')
+            foldername = foldername_fmt.format(**props)
+            localexpsubdir = self.getConfigEntry('local_exp_subDir')
+            localdirpath = os.path.join(localexpsubdir, foldername)
+            os.mkdir(localdirpath)
+        except KeyError as e:
+            logger.warning("KeyError making new folder: %s", e)
+        except TypeError as e:
+            logger.warning("TypeError making new folder: %s", e)
+        except OSError as e:
+            logger.warning("OSError making new folder: %s", e)
+        except IOError as e:
+            logger.warning("IOError making new folder: %s", e)
+        logger.info("Created new localdir for experiment: %s", localdirpath)
+        return foldername
 
 
     def makeSubentryFolder(self, subentry_idx):
@@ -870,7 +910,7 @@ class Experiment(object):
             return None
 
 
-    def attachWikiPage(self, pageId=None, pagestruct=None, dosearch=0):
+    def attachWikiPage(self, pageId=None, pagestruct=None, dosearch=1):
         if pageId is None:
             if pagestruct and 'id' in pagestruct:
                 pageId = pagestruct['id']
@@ -900,6 +940,17 @@ class Experiment(object):
     def searchForWikiPage(self, extended=0):
         """
         extended is used to control how much search you want to do.
+        Search strategy:
+        1) Find page on wiki in space with pageTitle matching self.Foldername.
+        2) Query manager for CURRENT wiki experiment pages and see if there is one that has matching expid.
+        3) Query exp manager for ALL wiki experiment pages and see if there is one that has matching expid.
+        3) Find pages in space with user as contributor and expid in title.
+           # If multiple results are returned, filter pages by parentId matching wiki_exp_root_pageId? No, would be found by #2.
+        4) Find pages in all spaces with user as contributor and ...?
+        5) Find pages in user's space without user as contributor and expid in title?
+        Hmm... being able to define list with multiple spaceKeys and wiki_exp_root_pageId
+        would make it a lot easier for users with wikipages scattered in several spaces...?
+        Also, for finding e.g. archived wikipages...
         """
         callinfo = logger.findCaller()
         method_repr = "{}.{}".format(self.__class__.__name__, callinfo[2])
@@ -908,6 +959,7 @@ class Experiment(object):
         pageTitle = self.Foldername # No reason to make this more complicated...
         user = self.getConfigEntry('wiki_username') or self.getConfigEntry('username')
         try:
+            # First try to find a wiki page with an exactly matching pageTitle.
             pagestruct = self.Server.getPage(spaceKey=spaceKey, pageTitle=pageTitle)
             logger.debug("%s :: self.Server.getPage returned pagestruct of type '%s'", method_repr, type(pagestruct))
             if pagestruct:
@@ -920,10 +972,18 @@ class Experiment(object):
             # perhaps do some searching...?
             # Edit, server.execute might catch xmlrpclib.Fault exceptions;
             logger.info("\n%s :: xmlrpclib.Fault raised, indicating that no exact match found for '%s' in space '%s', searching by query...", method_repr, pageTitle, spaceKey)
+        # Query manager for current wiki pages:
+        expid = self.Expid  # uses self.Props
+        if self.Manager:
+            currentwikipagesbyexpid = self.Manager.CurrentWikiExperimentsPagestructsByExpid # cached_property
+            if expid in currentwikipagesbyexpid:
+                return currentwikipagesbyexpid[expid]
+        else:
+            logger.warning("Experiment %s has no ExperimentManager.", expid)
+        # Perform various searches on the wiki:
         if extended > 0:
             params = dict(spaceKey=spaceKey, contributor=user)
             params['type'] = 'page'
-            expid = self.Props['expid']
             logger.info("%s :: performing slightly more extended search with intitle='%s' and params: %s", method_repr, expid, params)
             result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
             if result:
@@ -973,7 +1033,7 @@ class Experiment(object):
         if not singleMatchOnly:
             return results
         if len(results) > 1:
-            logger.info("Experiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match:\n%s", 
+            logger.info("Experiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match:\n%s",
             "\n".join( "{} ({})".format(page['title'], page['id']) for page in results ) ) # in space '{}', pageTitle '{}'".format(spaceKey, pagestruct['title'])
             #logger.info("\n".join( "{} ({})".format(page['title'], page['id']) for page in results ))
             return False
@@ -983,7 +1043,7 @@ class Experiment(object):
             pagestruct = results[0]
             logger.info("pagestruct keys: %s", pagestruct.keys() )
             # pagestruct keys returned for a server search is: 'id', 'title', 'type', 'url', 'excerpt'
-            logger.info("Experiment.searchForWikiPageWithQuery() :: A single hit found : '%s: %s: %s'", 
+            logger.info("Experiment.searchForWikiPageWithQuery() :: A single hit found : '%s: %s: %s'",
                           pagestruct['title'] )
             return pagestruct
 
@@ -1153,6 +1213,7 @@ if __name__ == '__main__':
     import glob
     def setup1(useserver=True):
         confighandler = ExpConfigHandler( pathscheme='default1', VERBOSE=1 )
+        em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
         print "----"
         rootdir = confighandler.get("local_exp_subDir")
         print "rootdir: {}".format(rootdir)
@@ -1167,6 +1228,21 @@ if __name__ == '__main__':
         server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, autologin=True) if useserver else None
         e = Experiment(confighandler=confighandler, server=server, localdir=ldir, VERBOSE=10)
         return e
+
+    # You cannot import or use ExprimentManager here due to circular imports.
+    # You will need to create a separate test environment for that.
+    #def setup2():
+    #    confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+    #    em = ExperimentManager(confighandler=confighandler, VERBOSE=1, autoinit=False)
+    #    server = ConfluenceXmlRpcServer(autologin=True, ui=None, confighandler=confighandler, VERBOSE=0)
+    #    confighandler.Singletons['server'] = server
+    #    rootdir = confighandler.get("local_exp_subDir")
+    #    print "experiment rootdir: {}".format(rootdir)
+    #    print "glob res for RS102: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
+    #    ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
+    #    e = Experiment(confighandler=confighandler, server=server, localdir=ldir, manager=em, VERBOSE=10)
+    #    return e
+
 
     def test_1(e=None):
         if not e:
@@ -1326,7 +1402,7 @@ if __name__ == '__main__':
     def test_getWikiSubentryXhtml(e=None):
         print "\n>>>>>>>>>>>>>> test_getWikiSubentryXhtml() started >>>>>>>>>>>>>"
         if not e:
-            e = setup1(useserver=True)
+            e = setup1()
             e.attachWikiPage()
         print "\n\n"
         print e.Server

@@ -268,7 +268,7 @@ class ConfigHandler(object):
         logger.warning("saveConfigForEntry invoked with key '{}', but key not found in any of the loaded configs ({})!".format(key, ",".join(self.Configs)))
 
     def saveConfigs(self, what='all', VERBOSE=None):
-        logger.debug("saveConfigs invoked with configtosave '{}'".format(what))
+        logger.info("saveConfigs invoked with configtosave '%s'", what)
         if VERBOSE is None:
             VERBOSE = self.VERBOSE
         #for (outputfn, config) in zip(self.getConfigPath(what='all'), self.getConfig(what='all')):

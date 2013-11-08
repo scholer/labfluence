@@ -28,18 +28,48 @@ logger = logging.getLogger(__name__)
 # or just configure the listbox manually...
 # See views/experimentmanagerframes.py for widgets that implement this approach
 
+"""
+
+Okay, so I'm reconsidering the C in the MVC approach:
+Using controllers allows you to have the same controller controlling
+multiple widgets, which can be used to sync widgets and share data.
+
+
+"""
+
+
+
 class ExpListBoxController(object):
 
-    def __init__(self, listbox, confighandler, app=None):
+    def __init__(self, listbox, confighandler, app=None, **kwargs):
+        self.before_init(kwargs)
         self.Listbox = listbox
+        self.init_variables()
         self.Confighandler = confighandler
         self._app = app
         self.ExperimentByListIndex = list()
         # You could also just assume the list is immutable and simply rely on the indices.
         #self.EntryMap = dict() # Maps an entry
         self.updateList()
+
         self.Listbox.bind('<<ListboxSelect>>', self.on_select ) # Will throw the event to the show_notebook
         self.Listbox.bind("<Double-Button-1>", self.on_doubleclick)
+        self.init_bindings() # Other bindings.
+
+        self.after_init()
+
+
+
+    def before_init(self, kwargs):
+        pass
+    def after_init(self):
+        pass
+    def init_variables(self):
+        pass
+    def init_bindings(self):
+        pass
+
+
 
     @property
     def App(self):
@@ -92,8 +122,10 @@ class ExpListBoxController(object):
 
 class ActiveExpListBoxController(ExpListBoxController):
 
-    def __init__(self, listbox, confighandler, app=None):
-        super(ActiveExpListBoxController, self).__init__(listbox, confighandler, app)
+    #def __init__(self, listbox, confighandler, app=None):
+    #    super(ActiveExpListBoxController, self).__init__(listbox, confighandler, app)
+
+    def init_bindings(self):
         self.Confighandler.registerEntryChangeCallback('app_active_experiments', self.updateList)
 
     @property
@@ -108,8 +140,10 @@ class ActiveExpListBoxController(ExpListBoxController):
 
 class RecentExpListBoxController(ExpListBoxController):
 
-    def __init__(self, listbox, confighandler, app=None):
-        super(RecentExpListBoxController, self).__init__(listbox, confighandler, app)
+    #def __init__(self, listbox, confighandler, app=None):
+    #    super(RecentExpListBoxController, self).__init__(listbox, confighandler, app)
+
+    def init_bindings(self):
         self.Confighandler.registerEntryChangeCallback('app_recent_experiments', self.updateList)
 
     @property

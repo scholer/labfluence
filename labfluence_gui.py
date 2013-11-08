@@ -24,6 +24,8 @@ import tkFont
 
 # Other standard lib modules:
 import socket
+from datetime import datetime
+from collections import OrderedDict
 import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
@@ -36,6 +38,9 @@ from model.experiment import Experiment
 from model.server import ConfluenceXmlRpcServer
 
 from views.expnotebook import ExpNotebook, BackgroundFrame
+from views.experimentselectorframe import ExperimentSelectorWindow
+from views.dialogs import Dialog
+
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 from controllers.filemanagercontroller import ExpFilemanagerController
 from ui.fontmanager import FontManager
@@ -60,6 +65,7 @@ class LabfluenceGUI(object):
             print "LabfluenceGUI.__init__ >> Instantiating new ExperimentManager!"
             self.Confighandler.Singletons['experimentmanager'] = ExperimentManager(confighandler=self.Confighandler, autoinit=('localexps', ), VERBOSE=self.VERBOSE)
         self.init_ui()
+        self.init_layout()
         self.init_bindings()
         self.init_fonts()
         self.connect_controllers()
@@ -160,7 +166,9 @@ class LabfluenceGUI(object):
     ## STARTUP METHODS ##
     #####################
     def start_loop(self):
+        logger.info("starting tk.mainloop()...")
         self.tkroot.mainloop()
+        logger.info("tk.mainloop() finished.")
 
     def init_fonts(self):
         """
@@ -215,6 +223,8 @@ class LabfluenceGUI(object):
         self.mainframe.rowconfigure(1, weight=1) # expand row 1
 
 
+    def init_layout(self):
+
         #############################
         #### LEFT FRAME layout ######
         #############################
@@ -265,6 +275,7 @@ class LabfluenceGUI(object):
         #self.add_notebook()
 
     def init_bindings(self):
+        self.tkroot.protocol("WM_DELETE_WINDOW", self.exitApp)
         self.Confighandler.registerEntryChangeCallback("wiki_server_status", self.serverStatusChange)
         # Edit, these bindings are currently handled by the relevant controllers...
         #self.Confighandler.registerEntryChangeCallback("app_active_experiments", self.activeExpsChanged)
@@ -384,19 +395,71 @@ class LabfluenceGUI(object):
             print "Server reported to be offline :-("
             print "server._connectionok: {}".format(server._connectionok)
 
-    def createNewExperiment(self, event):
-        print "Not implemented yet..."
+    def createNewExperiment(self, event=None):
+        logger.info("Not implemented yet: createNewExperiment()")
 
-    def selectExperiments(self, event):
+        exp_idx = self.ExperimentManager.getNewExpid()
+        expid_fmt = self.Confighandler.get('expid_fmt')
+        try:
+            expid = expid_fmt.format(exp_series_index=exp_idx)
+        except (TypeError, KeyError, AttributeError) as e:
+            logger.warning("Failed to generate expid using format in config: %s", e)
+            expid = ""
+
+        #items are: variable, description, entry widget, kwargs for widget
+        # edit:     ( key, description, value, kwargs_for_widget, entry_widget_class )
+        entries = ( ('expid', "Experiment ID", expid),
+                    ('exp_titledesc', "Experiment title desc", ""),
+                    ('date', "Experiment date", "{:%Y%m%d}".format(datetime.now())),
+                    ('makelocaldir', "Make local folder", True),
+                    ('makewikipage', "Make wiki page", True),
+                    )
+        # casting to a mutable type...:
+        fieldvars = OrderedDict( (key, [value, desc, dict()] ) for key,desc,value in entries )
+        # dict with key : (value, description, tk-parameters-dict)
+        # convert the value to a tk variable (the first item, index=0)
+        for items in fieldvars.values(): # i.e. props[key] above
+            if isinstance(items[0], bool):
+                items[0] = tk.BooleanVar(value=items[0])
+            else:
+                items[0] = tk.StringVar(value=items[0])
+        # to disable items:
+        #fieldvars['expid'][2]['state'] = 'disabled'  # This is the third element, the dict.
+        dia = Dialog(self.tkroot, "Create new subentry", fieldvars)
+        logger.debug(u"Dialog result: {}".format(dia.result))
+        #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
+        #self.Experiment.addNewSubentry()
+        if dia.result:
+            # will be None if the 'ok' button was not pressed.
+            # def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None, extraprops=None, makefolder=False, makewikientry=False)
+            #dia.result.pop('expid')
+            logger.info("Create Experiment Dialog results: %s", dia.result)
+            exp = self.ExperimentManager.addNewExperiment(**dia.result)
+        logger.debug("Experiment created: %s", exp)
+
+
+
+    def selectExperiments(self, event=None):
         #print "Not implemented yet..."
-        experiment_selector_window = tk.Toplevel(self.tkroot)
+        logger.info("Opening ExperimentSelectorWindow")
+        experiment_selector_window = ExperimentSelectorWindow(self.Confighandler)
 
     def activeExpsChange(self, event=None):
+        # I guess this is not really needed; this is managed via callbacks
+        # in the confighandler.
         self.activeexps_list.reload()
 
 
     def exitApp(self):
-        print "Not implemented yet..."
+        """
+        Registrered with root.protocol("WM_DELETE_WINDOW", ask_quit)
+        You can also get a similar effect with code that follows
+        labfluence.start_loop() / tkroot.mainloop()
+        (e.g. in the if __name__ == '__main__' section...)
+        """
+        logger.info("VM_DELETE_WINDOW called for tk root.")
+        #self.Confighandler.saveConfigs()
+        self.tkroot.destroy()
 
 
 
@@ -466,9 +529,10 @@ if __name__ == '__main__':
 
     #logging.getLogger("views.expjournalframe").setLevel(logging.DEBUG)
     #logging.getLogger("views.shared_ui_utils").setLevel(logging.DEBUG)
-    #logging.getLogger("views.explistboxes").setLevel(logging.DEBUG)
+    logging.getLogger("views.explistboxes").setLevel(logging.DEBUG)
     logging.getLogger("model.journalassistant").setLevel(logging.DEBUG)
-    #logging.getLogger("model.page").setLevel(logging.DEBUG)
+    logging.getLogger("model.experiment").setLevel(logging.DEBUG)
+    logging.getLogger("model.experiment_manager").setLevel(logging.DEBUG)
     #logging.getLogger("model.page").setLevel(logging.DEBUG)
     serverlogger = logging.getLogger("model.server")
     #serverlogger.setLevel(logging.DEBUG)
@@ -520,7 +584,7 @@ if __name__ == '__main__':
         print "\n\nNo active experiments? -- {}".format(exps)
 
     labfluencegui.start_loop()
-
+    # uh... after initiating start_loop, it will not go further until tkroot is destroyed.
 
 
 """
