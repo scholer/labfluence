@@ -791,5 +791,22 @@ Adding tokens:
 ** Or (extended scope), <span>, <div> or similar?
 
 
+Regarding using the pageId as unique identifier of a page:
+First, I through this when seeing the page history:
+  Uh, wait. PageIds cannot be used the way you are using them.
+  They are unique to a particular *version* of a page, and should
+  not be used to refer to a page in the normal "latest version" sense.
+  Perhaps implement a server.getLatestPageVersion(pageId) which employs
+  the Vector<PageHistorySummary> getPageHistory(String token, String pageId) xmlrpc method
+  to return the latest version of a particular page.
+  (This could also be implemented at the Page model level)
+  On the other hand, judging by the last comment on this page,
+  https://confluence.atlassian.com/pages/viewpage.action?pageId=85655797
+  it might be that a pageId for the latest page always refer to that page?
+But then I actually tested it, and as you can tell from the page
+ http://10.14.40.245:8090/display/~scholer/_exp_subentry_template
+using pageId to uniquely identify the latest page works just fine :-)
+Just tested updating the subentry template to see whether the lastest page will then get a new pageId. The current pageId is 524306.
+Edit: And after editing, the pageId is still 524306. That means that only historical versions get a new pageId, the pageId of the latest version will always be the same.
 
 """
