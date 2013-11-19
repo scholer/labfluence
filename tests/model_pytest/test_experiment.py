@@ -15,9 +15,14 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-from ... import model
+#from ... import model
 
 from model.experiment import Experiment
-from model.confighandler import ConfigHandler
+from model.confighandler import ExpConfigHandler
 from model.experiment_manager import ExperimentManager
 from model.server import ConfluenceXmlRpcServer
+import logging
+logger = logging.getLogger(__name__)
+#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
+#logging.basicConfig(level=logging.INFO, format=logfmt)
+logging.getLogger("__main__").setLevel(logging.DEBUG)

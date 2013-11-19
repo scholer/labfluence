@@ -131,6 +131,12 @@ class AbstractServer(object):
             return True
 
     @property
+    def UI(self, ):
+        if self.Confighandler:
+            return self.Confighandler.getSingleton("ui")
+
+
+    @property
     def Serverparams(self):
         params = self._defaultparams or dict()
         if self.Confighandler:
@@ -209,14 +215,14 @@ class AbstractServer(object):
             self._connectionok = True
             if self.Confighandler:
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        logger.info("Server: _connectionok set to: '{}' (should be True)".format(self._connectionok) )
+        logger.debug( "Server: _connectionok is now: %s", self._connectionok)
     def notok(self):
         logger.debug("server.notok() invoked, earlier value of self._connectionok is: {}".format(self._connectionok))
         if self._connectionok is not False:
             self._connectionok = False
             if self.Confighandler:
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        logger.info( "Server: _connectionok is now: '{}' (should be False)".format(self._connectionok) )
+        logger.debug( "Server: _connectionok is now: %s", self._connectionok)
 
 
     def execute(self, function, *args):
@@ -382,33 +388,10 @@ class AbstractServer(object):
 
 
     def determineFaultCause(self, e):
-        # For incorrect username/password, faultCode: faultString is: (and e.args and e.message are both empty)
-        # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed - incorrect username/password combination.
-        # For too many failed logins, faultCode: faultString is:
-        # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed. The maximum number of failed login attempts has been reached. Please log into the web application through the web interface to reset the number of failed login attempts.
-        # Exception during getPage invokation can look like:
-        # <Fault 0: "java.lang.Exception: com.atlassian.confluence.rpc.RemoteException: You're not allowed to view that page, or it does not exist.">
-        # If XML-RPC is not enabled under Confluence General Configuration:
-        # xmlrpclib.ProtocolError: <ProtocolError for wiki.cdna.au.dk/rpc/xmlrpc: 403 Forbidden>
-        #import string
-        # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
-        # xmlrpclib.Fault attributes: e.faultCode, e.faultString, e.message, e.args
-        # for more rpc exceptions, search the confluence code in
-        # <source-dir>/confluence-project/confluence-core/confluence/src/java/com/atlassian/confluence/rpc
-        logger.debug("Determining cause of Fault with attributes: faultCode=%s, faultString=%s, message=%s, args=%s", e.faultCode, e.faultString, e.message, e.args)
-        import re
-        faultRegexs = [
-                ("PageNotAvailable",        "com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
-                ("IncorrectUserPassword",   "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
-                ("TooManyFailedLogins",     "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
-                ("TokenExpired",            "User not authenticated or session expired"),
-                ]
-        for cause, regexpat in faultRegexs:
-            match = re.search(regexpat, e.faultString)
-            if match:
-                logger.debug("Fault determined to be: %s", cause)
-                return cause
-        return None
+        """
+        Subclass this
+        """
+        pass
 
 
 
@@ -429,7 +412,7 @@ https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
 https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
 https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
     """
-    def __init__(self, ui=None, **kwargs):
+    def __init__(self, **kwargs):
                  #serverparams=None, username=None, password=None, logintoken=None,
                  #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
@@ -438,7 +421,7 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
         super(ConfluenceXmlRpcServer, self).__init__(**kwargs) # Remember, super takes current class as first argument.
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
-        self.UI = ui
+        #self.UI = ui # Is now a property that goes through confighandler.
         appurl = self.AppUrl
         logger.info("%s - Making server with url: %s", self.__class__.__name__, appurl)
         if not appurl:
@@ -607,6 +590,80 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         return token
 
 
+    def determineFaultCause(self, e):
+        """
+        A convenient source of information regarding Confluence's xmlrpc interface can be found in the confluence
+        source code, in
+        confluence-5.3.1-source/confluence-project/confluence-plugins/confluence-misc-plugins/confluence-rpc-plugin/src/java/com/atlassian/confluence/rpc/xmlrpc
+        - ConfluenceXmlRpcHandler provides a convenient overview
+        - ConfluenceXmlRpcHandlerImpl includes most of the source required to understand the confluence xmlrpc interface.
+
+        Most actual calls are relayed through ConfluenceSoapService soapServiceDelegator, from
+        confluence-5.3.1-source/confluence-project/confluence-plugins/confluence-misc-plugins/confluence-rpc-plugin/src/java/com/atlassian/confluence/rpc/soap
+        although most actual controls are implemented in XhtmlSoapService.java, which in return connects to the following (in soap/services):
+            private SpacesSoapService spacesService;
+            private PagesSoapService pagesService;
+            private UsersSoapService usersService;
+            private BlogsSoapService blogsService;
+            private AdminSoapService adminSoapService;
+            private LabelsSoapService labelsSoapService;
+            private AttachmentsSoapService attachmentsService;
+            private NotificationsSoapService notificationsService;
+        All of these then uses one of the following (from confluence-project/confluence-core/confluence/src/java/com/atlassian/confluence/)
+            protected SpaceManager spaceManager;
+            protected PermissionManager permissionManager;
+            protected PageManager pageManager; - in pages/
+            protected LinkManager linkManager;
+            protected UserAccessor userAccessor;
+            protected ContentEntityManager contentEntityManager;
+        Note that these are interface specifications. The actual implementations are usually named in form of:
+            DefaultPageManager
+        These again uses e.g.
+            private AbstractPageDao abstractPageDao; (from com.atlassian.confluence.pages.persistence.dao.AbstractPageDao)
+                only interface, implemented by e.g.
+        Generally, to find implementations rather than interfaces, search for  grep -nR -P "public class .*PageDao" (to find implementations of AbstractPageDao)
+        (use grep -lRZP <regex> <dir> | xargs -0 <command> to open easily)
+
+        It appears there are only three types of exceptions from the xmlrpc:
+        * InvalidSessionException
+        * NotPermittedException
+        * RemoteException
+        Additionally, the soap part provides the following:
+        * AuthenticationFailedException
+        * AlreadyExistsException
+
+        """
+        # For incorrect username/password, faultCode: faultString is: (and e.args and e.message are both empty)
+        # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed - incorrect username/password combination.
+        # For too many failed logins, faultCode: faultString is:
+        # 0: java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: Attempt to log in user 'scholer' failed. The maximum number of failed login attempts has been reached. Please log into the web application through the web interface to reset the number of failed login attempts.
+        # Exception during getPage invokation can look like:
+        # <Fault 0: "java.lang.Exception: com.atlassian.confluence.rpc.RemoteException: You're not allowed to view that page, or it does not exist.">
+        # If XML-RPC is not enabled under Confluence General Configuration:
+        # xmlrpclib.ProtocolError: <ProtocolError for wiki.cdna.au.dk/rpc/xmlrpc: 403 Forbidden>
+        #import string
+        # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
+        # xmlrpclib.Fault attributes: e.faultCode, e.faultString, e.message, e.args
+        # for more rpc exceptions, search the confluence code in
+        # <source-dir>/confluence-project/confluence-core/confluence/src/java/com/atlassian/confluence/rpc
+        logger.debug("Determining cause of Fault with attributes: faultCode=%s, faultString=%s, message=%s, args=%s", e.faultCode, e.faultString, e.message, e.args)
+        import re
+        faultRegexs = [
+                ("PageNotAvailable",        "com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
+                ("IncorrectUserPassword",   "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
+                ("TooManyFailedLogins",     "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
+                ("TokenExpired",            "User not authenticated or session expired"),
+                ]
+        for cause, regexpat in faultRegexs:
+            match = re.search(regexpat, e.faultString)
+            if match:
+                logger.debug("Fault determined to be: %s", cause)
+                return cause
+        return None
+
+
+
+
     ##############################
     #### Un-managed methods ######
     ##############################
@@ -696,6 +753,20 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
     ################################
 
     def getPages(self, spaceKey):
+        """
+        returns all the summaries in the space.
+        PageSummary datastructs are dicts, with:
+
+Key         Type   Value
+-----------------------------------------------------------------------
+id          long   the id of the page
+space       String the key of the space that this page belongs to
+parentId    long   the id of the parent page
+title       String the title of the page
+url         String the url to view this page online
+permissions int    the number of permissions on this page (deprecated: may be removed in a future version)
+
+        """
         return self.execute(self.RpcServer.confluence2.getPages, spaceKey)
 
     def getPage(self, pageId=None, spaceKey=None, pageTitle=None):
@@ -704,6 +775,26 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         Takes pageId as long (not int but string!).
         Edit: xmlrpc only supports 32-bit long ints and confluence uses 64-bit, all long integers should
         be transmitted as strings, not native ints.
+        Page datastructs are dicts, with:
+
+Key           Type    Value
+---------------------------------------------------------------------------
+id            long    the id of the page
+space         String  the key of the space that this page belongs to
+parentId      long    the id of the parent page
+title         String  the title of the page
+url           String  the url to view this page online
+version       int     the version number of this page
+content       String  the page content
+created       Date    timestamp page was created
+creator       String  username of the creator
+modified      Date    timestamp page was modified
+modifier      String  username of the page's last modifier
+homePage      Boolean whether or not this page is the space's homepage
+permissions   int     the number of permissions on this page (deprecated: may be removed in a future version)
+contentStatus String  status of the page (eg. current or deleted)
+current       Boolean whether the page is current and not deleted
+
         """
         if pageId:
             pageId = str(pageId) # getPage method takes a long int.
@@ -717,6 +808,11 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         """
         Removes a page, returns None.
         takes pageId as string.
+        server side raises:
+         - no view permit:   RemoteException("You're not allowed to view that page, or it does not exist.")
+         - no remove permit: NotPermittedException("You do not have permission to remove this page")
+         - if pageId is not latest version: RemoteException("You can't remove an old version of the page - remove the current version.")
+         -
         """
         pageId = str(pageId)
         return self.execute(self.RpcServer.confluence2.removePage, pageId)
@@ -746,14 +842,6 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         pageId = str(pageId)
         return self.execute(self.RpcServer.confluence2.getPageHistory, pageId)
 
-    def getAttachments(self, pageId):
-        """
-        Returns list of page attachments,
-        takes pageId as string.
-        """
-        pageId = str(pageId)
-        return self.execute(self.RpcServer.confluence2.getAttachments, pageId)
-
     def getAncestors(self, pageId):
         """
         # Returns list of page attachments
@@ -777,6 +865,11 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
         """
         pageId = str(pageId)
         return self.execute(self.RpcServer.confluence2.getDescendents, pageId)
+
+
+    ##############################
+    #### Comment  methods   ######
+    ##############################
 
     def getComments(self, pageId):
         """
@@ -815,6 +908,14 @@ https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (u
     ######################################
     #### Attachment-level methods   ######
     ######################################
+
+    def getAttachments(self, pageId):
+        """
+        Returns list of page attachments,
+        takes pageId as string.
+        """
+        pageId = str(pageId)
+        return self.execute(self.RpcServer.confluence2.getAttachments, pageId)
 
     def getAttachment(self, pageId, fileName, versionNumber=0):
         # Returns get information about an attachment.
@@ -953,7 +1054,6 @@ contributor:
 
     #def getPageAttachments(self, pageId):
     #    return self.getAttachments(self.Logintoken, pageId)
-
 
 
     def storePageContent(self, pageId, spaceKey, newContent, contentformat='xml'):

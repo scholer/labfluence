@@ -19,6 +19,7 @@ import yaml
 import os
 import os.path
 from datetime import datetime
+import collections
 from collections import OrderedDict
 import logging
 logger = logging.getLogger(__name__)
@@ -79,7 +80,10 @@ class ConfigHandler(object):
         self.ConfigPaths = OrderedDict()
         self.Configs = OrderedDict()
         # For retrieving paths via config entries...
-        self.Config_path_entries = dict(system='system_config_path', user='user_config_path') # maps e.g. "system_config_path" to 'system'.
+        self.Config_path_entries = dict(system='system_config_path', user='user_config_path')
+        # Config_path_entries is used to map config entries to a config type,
+        # for instance, with the setting above, the config key "system_config_path" can be used to
+        # specify a file path for the 'system' config.
         self.ConfigPaths['system'] = systemconfigfn
         self.ConfigPaths['user'] = userconfigfn
         self.Configs['system'] = dict()
@@ -102,6 +106,14 @@ class ConfigHandler(object):
         where path if relative, is loaded relative to the current config path.
         """
         logger.info("ConfigPaths : %s", self.ConfigPaths)
+
+    def getSingleton(self, key):
+        return self.Singletons.get(key)
+
+    def setSingleton(self, key, value):
+        if key in self.Singletons:
+            logger.info("key '%s' already in self.Singletons, overriding with new singleton object '%s'.", key, value)
+        self.Singletons[key] = value
 
 
     def addNewConfig(self, inputfn, cfgtype, VERBOSE=None, rememberpath=True):
@@ -163,7 +175,9 @@ class ConfigHandler(object):
         is set to True then update the config where entry is found. (RECOMMENDED)
         If key is not already set, store in config specified by <cfgtype> arg.
         If cfgtype is not provided, use default config (type), e.g. 'user'.
-        Returns the cfgtype where the key was persisted, e.g. 'user'.
+
+        PLEASE NOTE THAT setkey IS DIFFERENT FROM A NORMAL set METHOD, IN THAT setkey()
+        returns the cfgtype where the key was persisted, e.g. 'user'.
         """
         if check_for_existing_entry:
             for cfgtyp, config in self.Configs.items():
@@ -188,6 +202,7 @@ class ConfigHandler(object):
         for cfgtype, config in self.Configs.items():
             val = config.pop(key, None)
             res = res + (val, cfgtype)
+            logger.debug("popped value '%s' from config '%s'. res is now: '%s'", val, cfgtype, res)
             if val and not check_all_configs:
                 break
         return res
@@ -239,16 +254,20 @@ class ConfigHandler(object):
         return newconfig
 
 
-    def autoRead(self, VERBOSE=None):
-        if VERBOSE is None:
-            VERBOSE = self.VERBOSE
-        if VERBOSE:
-            logger.debug("ConfigPaths:\n{}".format("\n".join("- {} :\t {}".format(k,v) for k,v in self.ConfigPaths.items())) )
+    def autoRead(self):
+        """
+        autoRead is used to read all config files defined in self.ConfigPaths.
+        autoRead and the underlying readConfig() methods uses AutoreadNewFnCache attribute to
+        keep track of which configs has been loaded and make sure to avoid cyclic config imports.
+        (I.e. avoid the situation where ConfigA says "load ConfigB" and ConfigB says "load ConfigA).
+        """
+        VERBOSE = self.VERBOSE
+        logger.debug("ConfigPaths:\n{}".format("\n".join("- {} :\t {}".format(k,v) for k,v in self.ConfigPaths.items())) )
         for (cfgtype, inputfn) in self.ConfigPaths.items():
             if inputfn:
-                logger.debug("autoRead() :: Will read config '{}' to current dict: {}".format(inputfn, cfgtype) )
+                logger.debug("autoRead() :: Will read config '%s' to current dict: %s", inputfn, cfgtype)
                 self.readConfig(inputfn, cfgtype)
-                logger.debug("autoRead() :: Finished read config '{}' to dict: {}".format(inputfn, cfgtype) )
+                logger.debug("autoRead() :: Finished read config '%s' to dict: %s", inputfn, cfgtype)
             logger.debug("autoRead() :: Autoreading done, chained with new filenames: {}".format(self.AutoreadNewFnCache) )
         self.ConfigPaths.update(self.AutoreadNewFnCache)
         self.AutoreadNewFnCache.clear()
@@ -346,6 +365,9 @@ class ConfigHandler(object):
         """
         if args is None:
             args = list()
+        elif not isinstance(args, collections.Iterable):
+            logger.debug("registerEntryChangeCallback received 'args' argument with non-iterable value '%s', will convert to tuple.", args)
+            args = (args, )
         if kwargs is None:
             kwargs = dict()
         # I would have liked this to be a set, but hard to implement set for dict-type kwargs and no frozendict in python2.
@@ -357,6 +379,41 @@ class ConfigHandler(object):
         # and invoke with:
         # for function, (args, kwargs) in self.EntryChangeCallbacks[configentry].items():
         #     function(*args, **kwargs)
+
+    def unregisterEntryChangeCallback(self, configentries=None, function=None, args=None, kwargs=None):
+        """
+        Notice that a function may be registered multiple times.
+        self.EntryChangeCallbacks[configentry] = list of (function, args, kwargs) tuples.
+
+        The unregister call is powerful and generic: callbacks can be removed based not only on the function,
+        but also on the arguments passed to the function as well as the configentries.
+        This means that, for instance, all callbacks that receives the keyword arguments {'hello': 'there'}
+        can be removed by calling:
+            unregisterEntryChangeCallback(configentries=None, function=None, args=None, kwargs={'hello': 'there'} )
+        This is because all callbacks satisfying the filter:
+            all( criteria in (None, callbacktuple[i]) for i,criteria in enumerate( (function, args, kwargs) ) )
+        will be removed.
+        Thus, if unregisterEntryChangeCallback() is called without arguments,
+        ALL REGISTRERED CALLBACKS WILL BE REMOVED!
+        """
+        if all(a is None for a in (function, args, kwargs) ):
+            if configentries is None:
+                logger.warning("NOTICE: unregisterEntryChangeCallback called without any arguments. All registrered callbacks will be removed.")
+            else:
+                logger.info("Removing all registrered callbacks for configentries '%s' - since unregisterEntryChangeCallback was called with configentries as only argument.", configentries)
+        if configentries is None:
+            configentries = self.EntryChangeCallbacks.keys()
+        elif isinstance(configentries, basestring):
+            configentries = (configentries, )
+        def callbackfilter(callbacktuple):
+            return all( criteria in (None, callbacktuple[i]) for i,criteria in enumerate( (function, args, kwargs) ) )
+
+        for configentry in configentries:
+            removelist = filter(callbackfilter, self.EntryChangeCallbacks[configentry])
+            logger.debug("Removing callbacks from self.EntryChangeCallbacks[%s]: %s", configentry, removelist)
+            for callbacktuple in removelist:
+                self.EntryChangeCallbacks[configentry].remove(callbacktuple)
+
 
     def invokeEntryChangeCallback(self, configentry=None):
         """
@@ -370,9 +427,12 @@ class ConfigHandler(object):
         if configentry:
             if configentry in self.EntryChangeCallbacks:
                 for function, args, kwargs in self.EntryChangeCallbacks[configentry]:
+                    logger.debug("invoking callback for configentry '%s': %s(*%s, **%s)", configentry, function, args, kwargs)
                     function(*args, **kwargs)
-                    logger.debug("callback invoked for configentry '{}': {}(*{}, **{})".format(configentry, function, args, kwargs))
-                self.ChangedEntriesForCallbacks.discard(configentry) # Erase this entry if registrered here.
+                # Erase this entry if registrered here. (discard does not do anything if the item is not a member of the set)
+                self.ChangedEntriesForCallbacks.discard(configentry)
+            else:
+                logger.info("invokeEntryChangeCallback called with configentry '%s', but no callbacks are registrered for that entry...", configentry)
         elif self.ChangedEntriesForCallbacks:
             # Use the self.ChangedEntriesForCallbacks set to determine what to call.
 #            for entry in self.ChangedEntriesForCallbacks:
@@ -389,13 +449,37 @@ class ConfigHandler(object):
 
 
 
-
 class ExpConfigHandler(ConfigHandler):
+    """
+    ExpConfigHandler adds four functionalities:
+    1)  It enables a default 'exp' config, specifying an 'exp_config_path' config key,
+        which specifies an 'exp' config file to be read.
+    2)  It implements "Hierarchical" path-based configurations,
+        by relaying many "path augmented" calls to a HierarchicalConfigHandler object.
+        This makes it possible to have different configs for different experiment folders,
+        i.e. for different years or for different projects or different experiments.
+        In other words, if calling get(key=<a config key>, path=<dir>) with a <dir> value of
+        '2013/ProjectB/ExpAB123 Important experiment v11', then the search path for a config with key <a config key>
+        will be:
+        1) '2013/ProjectB/ExpAB123 Important experiment v11/.labfluence.yml'
+        2) '2013/ProjectB/.labfluence.yml'
+        3) '2013/.labfluence.yml'
+        4) Search the already loaded config types in order, e.g. 4.1) 'exp', 4.2) 'user', 4.3) 'sys'.
+    3)  Relative experiment paths will be returned as absolute paths, i.e. for the config keys:
+        if local_exp_rootDir = '2013' --> return os.path.join(exp_path, cfg[key]
+        and equivalent for local_exp_subDir and local_exp_ignoreDirs (which is a list of paths).
+    4)  It employs a PathFinder to automatically locate config paths by searching local directories,
+        according to a specified path scheme.
+        The default path scheme, 'default1', will e.g. search for the user config in '~/.Labfluence/',
+        while the path scheme 'test1' will search for both 'sys' and 'user' configs
+        in the relative directory 'setup/configs/test_configs/local_test_setup_1'.
+
+    """
     def __init__(self, systemconfigfn=None, userconfigfn=None, expconfigfn=None, VERBOSE=0,
                 readfiles=True, pathscheme='default1', hierarchy_rootdir_config_key='local_exp_rootDir',
                 enableHierarchy=True, hierarchy_ignoredirs_config_key='local_exp_ignoreDirs'):
         self.Pathfinder = PathFinder()
-        pschemedict = self.Pathfinder.getScheme(pathscheme)
+        pschemedict = self.Pathfinder.getScheme(pathscheme) if pathscheme else dict()
         systemconfigfn = systemconfigfn or pschemedict.get('sys')
         userconfigfn = userconfigfn or pschemedict.get('user')
         expconfigfn = expconfigfn or pschemedict.get('exp')
@@ -451,11 +535,14 @@ class ExpConfigHandler(ConfigHandler):
         # Optimized, and accounting for the fact that later added cfgs overrides the first added
         for cfgtype, cfg in reversed(self.Configs.items()):
             if key in cfg:
-                exp_path = self.getConfigDir('exp')
-                # special cases, e.g. paths:
+                ## special cases, e.g. paths: ##
+                # Case 1, config keys specifying a single path:
                 if pathsrelativetoexp and key in ('local_exp_rootDir', 'local_exp_subDir') and cfg[key][0] == '.':
+                    exp_path = self.getConfigDir('exp')
                     return os.path.normpath(os.path.join(exp_path, cfg[key]))
+                # Case 2, config keys specifying a list of paths:
                 elif pathsrelativetoexp and key in ('local_exp_ignoreDirs'):
+                    exp_path = self.getConfigDir('exp')
                     return [os.path.join(exp_path, ignoreDir) for ignoreDir in cfg[key] ]
                 return cfg[key]
         return default
@@ -789,6 +876,17 @@ class HierarchicalConfigHandler(object):
 
 
 class PathFinder(object):
+    """
+    Class used to find config files.
+    Takes a 'defaultscheme' argument in init.
+    This can be used to easily change the behavior of the object.
+    I.e., if 'defaultscheme' is st to 'default1', then the following search paths are used:
+    - sys config: '.', './config/', './setup/default/', '..', '../config' (all relative to the current working directory)
+    - user config: '~/.Labfluence'.
+    - exp config: path should be defined in the user config.
+    If defaultscheme='test1':
+    - sys config: setup/configs/test_configs/local_test_setup_1
+    """
     def __init__(self, defaultscheme='default1', npathsdefault=3, VERBOSE=0):
         self.VERBOSE = VERBOSE
         self.Schemes = dict()
@@ -797,10 +895,14 @@ class PathFinder(object):
         self.Npathsdefault = npathsdefault
         # defautl1 scheme: sysconfig in 'config' folder in current dir;
         self._schemeSearch = dict()
-        self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml', ('.', 'config', '..', '../config') ),
+        self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml',  ('.', 'config', 'setup/configs/default/', '..', '../config') ),
                                               user= ('labfluence_user.yml', (os.path.expanduser(os.path.join('~', '.Labfluence')), ) )
                                               )
-        self.mkschemedict()
+        self._schemeSearch['test1'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/test_configs/local_test_setup_1',) ),
+                                              user= ('labfluence_user.yml', ('setup/configs/test_configs/local_test_setup_1', ) )
+                                              )
+
+        #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
         if VERBOSE > 2:
             logger.debug("PathFinder: Schemedicts --> \n{}".format( self.printSchemes() ) )
 #        self.Schemes['default1'] = ('config/labfluence_sys.yml', os.path.expanduser(os.path.join('~', '.Labfluence', 'labfluence_user.yml')), None )
@@ -808,16 +910,31 @@ class PathFinder(object):
 
 
     def mkschemedict(self):
+        """
+        This will find all configs for all schemes defined in _schemeSearch.
+        It might be a bit overkill to do this at every app start.
+        Could be optimized so you only find the config filepaths when a particular scheme is requested.
+        """
         for scheme, schemesearch in self._schemeSearch.items():
             self.Schemedicts[scheme] = dict( (cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in schemesearch.items()  )
 
 
-    def getScheme(self, scheme):
-#        return self.Schemes.get(scheme, (None, )*self.Npathsdefault)
-        return self.getSchemedict(scheme)
+    def getScheme(self, scheme=None, update=True):
+        """
+        I have updated this method, so instead of invoking mkschemedict() which will find configs for *all* schemes defined in _schemeSearch,
+        it will only make a scheme for the specified scheme.
+        Note that this is designed to fail with a KeyError if scheme is not specified in self._schemeSearch.
+        """
+        if scheme is None:
+            scheme = self.Defaultscheme
+        if update:
+            self.Schemedicts[scheme] = dict( (cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in self._schemeSearch[scheme].items()  )
+        return self.Schemedicts[scheme]
+
 
     def getSchemedict(self, scheme):
         return self.Schemedicts.get(scheme, dict())
+
 
     def findPath(self, filename, dircands):
         #print "filename '{}', dircands: {}".format(filename, dircands)
@@ -834,8 +951,7 @@ class PathFinder(object):
                 # could also be allowed to be a glob pattern, and do
                 # matches = glob.glob(os.join(dircand, filename))
                 # if matches: return matches[0]
-        if self.VERBOSE:
-            logger.debug("Warning, no config found for config filename: '{}'\ntested:{}".format(filename, dircands) )
+        logger.debug("Warning, no config found for config filename: '{}'\ntested:{}".format(filename, dircands) )
 
     def printSchemes(self, what='all', doprint=False):
         ret = "\n".join( "scheme '{}': {}".format(scheme, ", ".join("{}='{}'".format(k,v) \
@@ -847,122 +963,12 @@ class PathFinder(object):
 
 if __name__ == '__main__':
 
-    scriptdir = os.path.dirname(os.path.abspath(__file__))
-    configtestdir = os.path.join(scriptdir, '../test/config')
-    paths = [ os.path.join(configtestdir, cfg) for cfg in ('system_config.yml', 'user_config.yml', 'exp_config.yml') ]
 
-    def test1():
-        ch = ExpConfigHandler(*paths)
-        logger.info("\nEnd ch confighandler init...\n\n" )
-        return ch
-
-    def printPaths():
-        logger.info("os.path.curdir:            {}".format(os.path.curdir) )
-        logger.info("os.path.realpath(curdir) : {}".format(os.path.realpath(os.path.curdir)) )
-        logger.info("os.path.abspath(__file__): {}".format(os.path.abspath(__file__)) )
-        #print "os.path.curdir: {}".format(os.path.curdir)
-
-    printPaths()
-
-    def test_makedata(ch=None):
-        if ch is None:
-            ch = test1()
-        logger.info('ch.Configs:\n{}'.format(ch.Configs))
-        ch.Configs['system']['install_version_str'] = '0.01'
-        ch.Configs['user']['username'] = 'scholer'
-        ch.Configs['user']['exp_config_path'] = os.path.join(os.path.expanduser("~"), 'Documents', 'labfluence_data_testsetup', '.labfluence.yml')
-        usr = ch.setdefault('wiki_username', 'scholer')
-        logger.info("Default user: {}".format(usr) )
-        ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
-        logger.info("ch.get('wiki_username') --> {}".format(ch.get('wiki_username')) )
-        logger.info("Config, combined:" )
-        logger.info(ch.getConfig(what='combined') )
-        return ch
-
-    def testConfigTypeChain():
-        ch2 = ExpConfigHandler('../test/config/system_config.yml', VERBOSE=10)
-        logger.info('ch2.Configs:\n{}'.format(ch2.Configs) )
-        ch2.Configs
-        ch2.Configs['system']['user_config_path'] = os.path.join(configtestdir, 'user_config.yml')
-        ch2.saveConfigs()
-        ch3 = ExpConfigHandler('../test/config/system_config.yml')
-        logger.info('ch3.Configs:\n{}'.format( ch3.Configs ))
+    logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+    logging.basicConfig(level=logging.INFO, format=logfmt)
 
 
-    def test_save1():
-        ch = test_makedata()
-        ch.saveConfigs()
 
-    def test_readdata():
-        ch.autoReader()
-        for cfg in ('system', 'user', 'exp'):
-            logger.info("{} config: \n{}".format(cfg, ch.Configs[cfg]))
-
-
-    def testPfAndChain():
-        ch3 = ExpConfigHandler( pathscheme='default1', VERBOSE=10 )
-        ch3.printConfigs()
-        logger.info("\nch3.HierarchicalConfigHandler.Configs:\n{}".format( ch3.HierarchicalConfigHandler.printConfigs() ))
-        return ch3
-
-    def testPathFinder1():
-        pf = PathFinder(VERBOSE=10)
-
-    def test_addNewConfig():
-        ch = ExpConfigHandler( pathscheme='default1', VERBOSE=10 )
-        ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
-        logger.info("ch.get('exp_subentry_template'):" )
-        logger.info(ch.get('exp_subentry_template'))
-
-    def test_cfgNewConfigDef():
-        ch = ExpConfigHandler( pathscheme='default1', VERBOSE=10 )
-        #ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
-        # I have added the following to the 'exp' config:
-        # config_define_new:
-        #   templates: ./.labfluence/templates.yml
-        logger.info("ch.get('exp_subentry_template'):" )
-        logger.info(ch.get('exp_subentry_template') )
-
-
-    def testExpConfig1():
-        ch = ExpConfigHandler(pathscheme='default1')
-        logger.info("\nch.HierarchicalConfigHandler.Configs:" )
-        ch.HierarchicalConfigHandler.printConfigs()
-        path = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
-        cfg = ch.loadExpConfig(path)
-        if cfg is None:
-            logger.info("cfg is None; using empty dict.")
-            cfg = dict()
-        cfg['test_key'] = datetime.now().strftime("%Y%m%d-%H%M%S") # you can use strptime to parse a formatted date string.
-        logger.info("\n\nSaving config for path '{}'".format(path) )
-        ch.saveExpConfig(path)
-
-
-    def test_registerEntryChangeCallback():
-        logger.info("\n\n>>>>>>>>>>>> starting test_registerEntryChangeCallback(): >>>>>>>>>>>>>>>>>>>>" )
-        #registerEntryChangeCallback invokeEntryChangeCallback
-        ch = ExpConfigHandler(pathscheme='default1')
-        ch.setkey('testkey', 'random string')
-        def printHej(who, *args):
-            logger.info("hi {}, other args: {}".format(who, args) )
-        def printNej():
-            logger.info("no way!" )
-        def argsAndkwargs(arg1, arg2, hej, der, **kwargs):
-            logger.info("{}, {}, {}, {}, {}".format(arg1, arg2, hej, der, kwargs) )
-        ch.registerEntryChangeCallback('app_active_experiments', printHej, ('morten', ) )
-        ch.registerEntryChangeCallback('app_recent_experiments', printNej)
-        ch.registerEntryChangeCallback('app_recent_experiments', argsAndkwargs, ('word', 'up'), dict(hej='tjubang', der='sjubang', my='cat') )
-        ch.ChangedEntriesForCallbacks.add('app_active_experiments')
-        ch.ChangedEntriesForCallbacks.add('app_recent_experiments')
-
-        logger.info("\nRound one:")
-        ch.invokeEntryChangeCallback('app_active_experiments')
-        ch.invokeEntryChangeCallback() # invokes printNej and argsAndkwargs
-        logger.info("\nRound two:")
-        ch.invokeEntryChangeCallback('app_active_experiments') # still invokes printHej
-        ch.invokeEntryChangeCallback() # does not invoke anything...
-
-        logger.info("\n<<<<<<<<<<<<< completed test_registerEntryChangeCallback(): <<<<<<<<<<<<<<<<<<<<")
 
 
 
