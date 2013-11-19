@@ -133,30 +133,4 @@ def getnearestfile(startpath=None):
 
 
 if __name__ == '__main__':
-    def test_increment_idx():
-        idxs = ['a', 'RS123a', 1, 'RS123', 'A', 'RS123A', 'RS123a1', 'RS123A1']
-        incremented = [increment_idx(i) for i in idxs]
-        print "  ".join( "( {}->{} )".format(*pair) for pair in zip(idxs, incremented) )
-
-    def test_idx_generator():
-        idxs = ['d', 'RS123d', 4, 'RS123', 'D', 'RS123D', 'RS123a4', 'RS123A4']
-        print "\n".join( "{}: {}".format(idx, list(idx_generator(idx))) for idx in idxs )
-
-    def test_random_string():
-        print "Random string: {}".format(random_string(16))
-
-    def test_getarandomfile():
-        print "Random file in/near current directory: {}".format(getnearestfile())
-
-    def test_getmimetype():
-        print "Magic_available: {}".format(magic_available)
-        f = getnearestfile()
-        print "filepath: {}".format(f)
-        print "filetype: {}".format(getmimetype(f))
-
-
-    test_increment_idx()
-    test_idx_generator()
-    test_random_string()
-    test_getarandomfile()
-    test_getmimetype()
+    logging.basicConfig(level=logging.INFO)

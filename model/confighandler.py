@@ -981,4 +981,4 @@ if __name__ == '__main__':
     #testExpConfig1()
     #test_addNewConfig()
     #test_cfgNewConfigDef()
-    test_registerEntryChangeCallback()
+    #test_registerEntryChangeCallback()

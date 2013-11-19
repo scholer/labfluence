@@ -336,36 +336,4 @@ class JournalAssistant(object):
 
 if __name__ == '__main__':
 
-    from experiment import Experiment
-    if True:
-        ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
-        ch = ExpConfigHandler(pathscheme='default1')
-        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=1, autologin=True)
-        e = Experiment(confighandler=ch, server=server, localdir=ldir, VERBOSE=10)
-        e.attachWikiPage(dosearch=True)
-        ja = e.JournalAssistant
-        ja.Current_subentry_idx = 'c'
-
-
-    def test_addEntry():
-        ja.addEntry("Buffer: 10/100 mM HEPES/KCl pH with 0.5 mM biotin."+random_string(5))
-        ja.addEntry("""Adding 100 ul buffer to RS102b and running through amicon 3k filter. I dont dilute to 400 ul because I want to be able to trace unreacted DBCO-ddUTP.
-Washing retentate 4 more times with 400 ul buffer, collecting filt2-3 and filt4-6.""")
-        ja.addEntry("""Doing UVvis quant on nanodrop (if it is still running during the chemists move).
-- EDIT: Nanodrop is down due to move, so no quant. I will assume we have 75% yield and recovery during synthesis, so 1.5 nmol in 30 ul giving a concentration of 1500pmol/30ul = 50 uM. (?)""")
-
-    def test_getCacheContent():
-        print ja.getCacheContent()
-
-    def test_flush():
-        ja.addEntry("test entry for flush test"+random_string(10))
-        ja.flush()
-
-
-    print " ----- test addEntry() -------------- "
-    test_addEntry()
-    print " ------test getCacheContent() ------- "
-    test_getCacheContent()
-    print " ------test flush() ----------------- "
-    test_flush()
-    print " ------journalassistant testing finished ------- "
+    pass

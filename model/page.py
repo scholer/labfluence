@@ -763,21 +763,7 @@ if __name__ == '__main__':
 
 
     """
-
-    def test_factoryNew():
-        ch = ExpConfigHandler(pathscheme='default1')
-        wikiserver = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=True)
-        factory = WikiPageFactory(wikiserver, ch)
-        expid_index = 1
-        expid = ch.get('expid_fmt').format(exp_series_index=expid_index)
-        current_datetime = datetime.now()
-        fmt_params = dict(expid=expid,
-                          exp_titledesc="First test page "+"".join(random.sample(string.ascii_letters, 5)),
-                          datetime=current_datetime,
-                          date=current_datetime)
-        newpage = factory.new('exp_page', fmt_params=fmt_params)
-
-    test_factoryNew()
+    logging.basicConfig(level=logging.INFO)
 
 
 """
