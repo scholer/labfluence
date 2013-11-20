@@ -25,12 +25,7 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
-from model.page import WikiPage, WikiPageFactory
-#from model.experiment import Experiment
-#from model.experiment_manager import ExperimentManager
-#from model.confighandler import ExpConfigHandler
-#from model.server import ConfluenceXmlRpcServer
-
+from model.page import WikiPageFactory
 
 ## Test doubles:
 from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
@@ -41,7 +36,7 @@ from tests.model_testdoubles.fake_server import FakeConfluenceServer as Confluen
 
 
 def test_factoryNew():
-    ch = ExpConfigHandler(pathscheme='default1')
+    ch = ExpConfigHandler(pathscheme='test1')
     wikiserver = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=True)
     factory = WikiPageFactory(wikiserver, ch)
     expid_index = 1

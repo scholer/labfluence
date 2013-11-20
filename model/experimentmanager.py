@@ -14,6 +14,11 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+"""
+experiment_manager module with ExperimentManager class,
+handles logic related to managing experiment objects.
+"""
 
 #import glob
 import os
@@ -25,8 +30,8 @@ logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-lo
 
 # Model classes:
 from experiment import Experiment
-from confighandler import ExpConfigHandler
-from server import ConfluenceXmlRpcServer
+#from confighandler import ExpConfigHandler
+#from server import ConfluenceXmlRpcServer
 
 # Decorators:
 from decorators.cache_decorator import cached_property
@@ -57,6 +62,7 @@ class ExperimentManager(object):
         self._experimentsbyid = None #
         self._autoinit = autoinit
         self._experimentsources = experimentsources
+        self._experiments = list()
         if autoinit:
             logger.info("Auto-initiating experiments for ExperimentManager...")
             # Can be done by invoking the ExperimentsById property:
@@ -74,31 +80,46 @@ class ExperimentManager(object):
         # - Pro:
 
     @property
+    def Experiments(self):
+        """property"""
+        return self._experiments
+
+    @property
     def ExperimentsById(self):
+        """
+        Returns a dictionary map, mapping [expid] -> expriment object.
+        """
         if self._experimentsbyid is None:
             #if 'local' in self._experimentsources:
-            self._experimentsbyid = self.makeExperimentByExpIdMap(self.getLocalExperiments(), updateSelf=False)
+            exps = self.Experiments or self.getLocalExperiments()
+            self._experimentsbyid = self.makeExperimentByExpIdMap(exps, updateSelf=False)
         return self._experimentsbyid
     @ExperimentsById.setter
     def ExperimentsById(self, value):
+        """property setter"""
         self._experimentsbyid = value
 
-    """ Properties: """
     @property
     def Server(self):
+        """
+        Returns server registrered in confighandler's singleton registry.
+        """
         return self.Confighandler.Singletons.get('server', None)
     @Server.setter
     def Server(self, value):
-        # Do NOT override existing server if set, so using setdefault...
+        """
+        Set server in confighandler, if not already set.
+        I do not allow overriding existing server if set, so using setdefault...
+        """
         self.Confighandler.Singletons.setdefault('experimentmanager', value)
 
-    @property
-    def ExperimentPropsById(self):
-        return self.Confighandler.setdefault('experiments_by_id', dict())
-    @ExperimentPropsById.setter
-    def ExperimentPropsById(self, value):
-        # Do NOT override existing experiments_by_id if set, so using setdefault...
-        self.Confighandler.setdefault('experiments_by_id', value)
+    #@property
+    #def ExperimentPropsById(self):
+    #    return self.Confighandler.setdefault('experiments_by_id', dict())
+    #@ExperimentPropsById.setter
+    #def ExperimentPropsById(self, value):
+    #    # Do NOT override existing experiments_by_id if set, so using setdefault...
+    #    self.Confighandler.setdefault('experiments_by_id', value)
 
 
     """
@@ -138,6 +159,10 @@ class ExperimentManager(object):
         return self.getExpsById(expids)
 
     def archiveExperiment(self, exp):
+        """
+        Marks an experiment as archived by removing it from the active experiments list,
+        and adding it to the list of recent experiments instead.
+        """
         if not isinstance(exp, basestring):
             expid = exp.Props['expid'] # When you eventually implement file: and wiki: notations in addition to expid:, use try-except clause
         else:
@@ -155,6 +180,11 @@ class ExperimentManager(object):
         self.Confighandler.saveConfigForEntry('app_recent_experiments')
 
     def addActiveExperiments(self, exps, removeFromRecent=True):
+        """
+        Adds an experiment to the list of active experiments.
+        The active experiments list is only maintained as a list of expids,
+        and not for actual experiment objects.
+        """
         for exp in exps:
             if not isinstance(exp, basestring):
                 exp = exp.Props['expid']
@@ -165,25 +195,36 @@ class ExperimentManager(object):
         self.Confighandler.saveConfigForEntry('app_active_experiments')
 
     def addActiveExperimentId(self, expid, removeFromRecent=True):
+        """
+        Adds an experiment ID to the list of active experiments (expids).
+        """
         self.ActiveExperimentIds.append(expid)
         logger.debug("Appending expid '{}' to RecentExperimentIds".format(expid))
         # possibly do:
         self.Confighandler.ChangedEntriesForCallbacks.add('app_active_experiments') # it is a set.
         if removeFromRecent:
             logger.debug("Removing expid '{}' from RecentExperimentIds".format(expid))
-            for i in range(self.RecentExperimentIds.count(expid)):
+            for _ in range(self.RecentExperimentIds.count(expid)):
                 self.RecentExperimentIds.remove(expid)
             self.Confighandler.ChangedEntriesForCallbacks.add('app_recent_experiments')
 
     def sortActiveExprimentIds(self):
-        # Sort "in place", just in case there are direct references to the list in other places...:
+        """
+        Sort "in place", just in case there are direct references to the list in other places...:
+        """
         self.ActiveExperimentIds.sort()
         logger.debug("Sorted ActiveExperimentIds: ".format(self.ActiveExperimentIds))
     def sortRecentExprimentIds(self):
+        """
+        Sorts the list of recent experiment ids.
+        """
         self.RecentExperimentIds.sort()
         logger.debug("Sorted RecentExperimentIds: ".format(self.RecentExperimentIds))
 
     def initExpIds(self, expids):
+        """
+        Instantiate experiment objects for all experiment ids in expids.
+        """
         for expid in expids:
             if not expid:
                 logger.warning("expid '%s' present in expids for initExpIds()", expid)
@@ -194,6 +235,10 @@ class ExperimentManager(object):
                 logger.debug( "Experiment initialized: %s with props %s", exp, exp.Props)
 
     def getExpsById(self, expids):
+        """
+        Given a list of experiment ids, return a list of
+        corresponding experiment objects.
+        """
         # Make sure all expids are initialized.
         # This is a lot faster if you have already initialized all experiments in the exp_local_subdir
         self.initExpIds(expids)
@@ -201,21 +246,26 @@ class ExperimentManager(object):
 
 
 
-    """ CONFIG RELATED """
+    ### CONFIG RELATED ###
 
     def getConfigEntry(self, key):
+        """relays to confighandler"""
         return self.Confighandler.get(key)
 
     def getWikiExpRootSpaceKey(self):
+        """relays to confighandler"""
         return self.Confighandler.get('wiki_exp_root_spaceKey')
 
     def getWikiExpRootPageId(self):
+        """relays to confighandler"""
         return self.Confighandler.get('wiki_exp_root_pageId')
 
     def getLocalExpRootDir(self):
+        """relays to confighandler"""
         return self.Confighandler.get('local_exp_rootDir') # e.g. the "_experiment_data/" dir
 
     def getLocalExpSubDir(self):
+        """relays to confighandler"""
         return self.Confighandler.get('local_exp_subDir') # E.g. the "2013_Aarhus/" dir
 
     def getExpSeriesRegex(self):
@@ -226,22 +276,23 @@ class ExperimentManager(object):
         return self.Confighandler.get('exp_series_regex')
 
     def getExpSubentryRegex(self):
+        """relays to confighandler"""
         return self.Confighandler.get('exp_subentry_regex')
 
 
-    def getRealLocalExpRootDir(self):
-        #return os.path.join(self.Confighandler.getConfigDir('exp'), self.getLocalExpRootDir() )
-        # edit: I have updated ExpConfigHandler to account for this:
-        path = self.getLocalExpRootDir()
-        # perhaps perform some kind of check...
-        if not path:
-            logger.warning("LocalExpRootDir is '%s'", path)
-        return path
-
-    def getRealLocalExpSubDir(self):
-        #return os.path.join(self.Confighandler.getConfigDir('exp'), self.getLocalExpRootDir(), self.getLocalExpSubDir() )
-        # edit: I have updated ExpConfigHandler to account for this:
-        return self.getLocalExpSubDir()
+    #def getRealLocalExpRootDir(self):
+    #    #return os.path.join(self.Confighandler.getConfigDir('exp'), self.getLocalExpRootDir() )
+    #    # edit: I have updated ExpConfigHandler to account for this:
+    #    path = self.getLocalExpRootDir()
+    #    # perhaps perform some kind of check...
+    #    if not path:
+    #        logger.warning("LocalExpRootDir is '%s'", path)
+    #    return path
+    #
+    #def getRealLocalExpSubDir(self):
+    #    #return os.path.join(self.Confighandler.getConfigDir('exp'), self.getLocalExpRootDir(), self.getLocalExpSubDir() )
+    #    # edit: I have updated ExpConfigHandler to account for this:
+    #    return self.getLocalExpSubDir()
 
 
 
@@ -261,16 +312,16 @@ class ExperimentManager(object):
         - 'display-tuple'       -> (<display>, <identifier>, <full object>) tuples. Well, currently not with the full object.
         """
         if directory is None:
-            directory = self.getRealLocalExpSubDir()
+            directory = self.getLocalExpSubDir()
         # Consider using glob.re
         if not directory:
             logger.warning("ExperimentManager.getLocalExperiments initiated with directory: %s, aborting...", directory)
             return False
         localdirs = sorted([dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ]) #os.listdir(directory)
-        logger.debug( "ExperimentManager.getLocalExperiments() :: searching in directory '%s'",directory )
+        logger.debug( "ExperimentManager.getLocalExperiments() :: searching in directory '%s'", directory )
         logger.debug( "ExperimentManager.getLocalExperiments() :: localdirs = %s", localdirs)
         regex_str = self.getExpSeriesRegex()
-        logger.debug( "Regex and localdirs: %s, %s", regex_str, localdirs )
+        logger.debug( "Parsing with regex: %s", regex_str )
         if not regex_str:
             logger.warning( "ExperimentManager.getLocalExperiments() :: ERROR, no exp_series_regex entry found in config!" )
             return
@@ -297,9 +348,9 @@ class ExperimentManager(object):
                     experiments.append( ( localdir, match.groupdict().get('expid'), None ) )
                 else:
                     logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
-        if store and ret=='experiment-object':
+        if store and ret == 'experiment-object':
             logger.debug("Persisting experiments list as self.Experiments")
-            self.Experiments = experiments
+            self._experiments = experiments
         logger.debug("Number of local experiments (matching regex): %s", len(experiments))
         return experiments
 
@@ -371,7 +422,7 @@ class ExperimentManager(object):
             match = regex_prog.match(page['title'])
             logger.debug( "%s found when testing '%s' wiki page against regex '%s'", "MATCH" if match else "No match", page['title'], regex_str)
             if match:
-                gd = d = match.groupdict()
+                gd = match.groupdict()
                 #props = dict(localdir=localdir)
                 if ret == 'experiment-object':
                     # not sure how well experiment objects work without
@@ -395,7 +446,7 @@ class ExperimentManager(object):
                     experiments[gd['expid']] = page
                 else:
                     logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
-        if store and ret=='experiment-object':
+        if store and ret == 'experiment-object':
             # You will need to implement a lot more complex logic to merge input from wikipages
             # with that from the local directory. Alternatively keep two separate experiment lists,
             # one for the local directory and another for the wiki?
@@ -405,7 +456,7 @@ class ExperimentManager(object):
 
 
 
-    def makeExperimentByExpIdMap(self, experiments=None, updateSelf=True, ret='experiment-object'):
+    def makeExperimentByExpIdMap(self, experiments=None, updateSelf=True):
         """
         This is a convenience method complementing the
         getLocalExperiments, getCurrentWikiExperiments, etc methods.
@@ -425,13 +476,13 @@ class ExperimentManager(object):
         for experiment in experiments:
             expid = experiment.Props.get('expid')
             if not expid:
-                logger.warning("Non-True expid '%s' provided; exp foldername is '%s'", expid, experiment.Foldername)
+                logger.warning("Non-True expid '%s' provided; exp foldername is '%s', exp.Props is: %s", expid, experiment.Foldername, experiment.Props)
             # probably do some testing if there is already an exp with this expid !
             if expid in expByIdMap:
                 if experiment == expByIdMap[expid]:
                     logger.info( "ExperimentManager, identical experiment during makeExperimentByExpIdMap(), %s", expid )
                 else:
-                     "ExperimentManager.makeExperimentByExpIdMap() :: WARNING: Duplicate expId '{}'".format(expid)
+                    logger.info( "ExperimentManager.makeExperimentByExpIdMap() :: WARNING: Duplicate expId '%s'", expid)
                     #expByIdMap[expId].update(experiment) # Not implemented; and should probably do some thorough checking before simply merging.
             else:
                 expByIdMap[expid] = experiment
@@ -440,6 +491,11 @@ class ExperimentManager(object):
 
 
     def getExperimentsIndices(self, expByIdMap=None):
+        """
+        Returns a list of experiment indices, i.e. for expids list:
+            ['RS102','RS104','RS105']
+        return [102, 104, 105]
+        """
         if expByIdMap is None:
             expByIdMap = self.ExperimentsById
         regex_str = self.getConfigEntry('expid_regex')
@@ -447,20 +503,25 @@ class ExperimentManager(object):
             logger.info( "No expid regex in config, aborting." )
         logger.debug( "Regex: %s", regex_str )
         regex_prog = re.compile(regex_str)
-        def matchgroupdummy(*args):
-            # Used to avoid calling .group() method of None object:
-            return None
-        def intConv(str_number):
-            try:
-                return int(str_number)
-            except ValueError:
-                return None
+        #def matchgroupdummy(*args):
+        #    """ Used to avoid calling .group() method of None object: """
+        #    return None
+        #def intConv(str_number):
+        #    """convert string to number or return None (instead of raising ValueErroor)"""
+        #    try:
+        #        return int(str_number)
+        #    except ValueError:
+        #        return None
         #f = itemgetter('expid'), g = itemgetter('Props') # allows using f(g(exp)) to get exp id, but does not deal well with KeyError exceptions
         #f = methodcaller(1) # does not work, f(a) will call a.1(), not a(1)
         #return [ intConv(getattr(regex_prog(getattr(exp, 'Props', dict()).get('expid', "")), 'group', matchgroupdummy)(1)) for exp in self.Experiments ]
         #return [ getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) for expid in self.ExperimentsById.keys() ]
-        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
-        # The above is basically just a list comprehension of the following:
+        #return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
+
+        return sorted( (x for x in  (int(match.group(1)) for match in (regex_prog.match(expid) for expid in expByIdMap.keys() ) )
+                        if x is not None) )
+
+#        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
 
 
 
@@ -499,7 +560,7 @@ class ExperimentManager(object):
         exp = Experiment(props=props, makelocaldir=makelocaldir, makewikipage=makewikipage,
                          manager=self, confighandler=self.Confighandler,
                          doparseLocaldirSubentries=False)
-        logger.info("New experiment created: %s, with localdir: %s, and wikipage: ", exp, exp.Localdirpath, exp.PageId)
+        logger.info("New experiment created: %s, with localdir: %s, and wikipage: %s", exp, exp.Localdirpath, exp.PageId)
         logger.debug("Adding newly created experiment to list of active experiments...")
         self.ExperimentsById[expid] = exp
         self.addActiveExperimentId(expid)

@@ -19,9 +19,6 @@
 
 
 from model.experiment import Experiment
-#from model.confighandler import ExpConfigHandler
-from model.experiment_manager import ExperimentManager
-#from model.server import ConfluenceXmlRpcServer
 
 ## Test doubles:
 from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler

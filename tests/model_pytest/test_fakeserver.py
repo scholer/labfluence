@@ -14,23 +14,21 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-
-#from ... import model
-
-#from model.experiment import Experiment
-#from model.confighandler import ConfigHandler, PathFinder, ExpConfigHandler
-#from model.experiment_manager import ExperimentManager
-#from model.server import ConfluenceXmlRpcServer
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0111,W0613
+"""
+Test module for fake server.
+"""
 
 
 ## Test doubles:
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler
+# from tests.model_testdoubles.fake_confighandler import FakeConfighandler
 from tests.model_testdoubles.fake_server import FakeConfluenceServer
 
 
-import os
+#import os
 import copy
-from datetime import datetime
+#from datetime import datetime
 import logging
 logger = logging.getLogger(__name__)
 logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
@@ -40,19 +38,15 @@ logging.getLogger("tests.model_testdoubles.fake_server").setLevel(logging.DEBUG)
 
 
 
-def test_fakeserver_init():
-    server = FakeConfluenceServer()
-
-
 def test_fakeserver_basics():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     assert isinstance(s.getServerInfo(), dict)
     assert isinstance( s.getSpaces(), list )
     assert isinstance( s.getPages('~scholer'), list )
 
 
 def test_fakeserver_getpage():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     pid = '524296'
     p = s.getPage(pid)
     assert p['id'] == pid
@@ -68,15 +62,17 @@ def test_fakeserver_removepage():
     """
     This is not yet complete, I need to define what happens when removing a non-existing page...
     """
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     pid = '524296'
     p = s.getPage(pid)
     assert p['id'] == pid
-    assert s.removePage(pid) == None
+    #assert s.removePage(pid) == None
+    assert s.removePage(pid) == True
     assert s.getPage(pid) == None
+    assert s.removePage(pid) == False
 
 def test_fakeserver_getAttachments():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     pid = '917518'
     attachments = s.getAttachments(pid)
     assert isinstance(attachments , list )
@@ -84,7 +80,7 @@ def test_fakeserver_getAttachments():
     assert 'fileSize' in attachments[0]
 
 def test_fakeserver_getComments():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     pid = '917518'
     comments = s.getComments(pid)
     assert isinstance(comments , list )
@@ -92,7 +88,7 @@ def test_fakeserver_getComments():
     assert 'id' in comments[0]
 
 def test_fakeserver_getAttachment():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     #aid = '1081345'
     pid = '917518'
     fileName = '2013-11-15 12.00.32_2.jpg'
@@ -102,7 +98,7 @@ def test_fakeserver_getAttachment():
     assert 'fileSize' in attachment
 
 def test_fakeserver_getComment():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     aid = '917540'
     comment = s.getComment(aid)
     assert isinstance(comment , dict )
@@ -110,7 +106,7 @@ def test_fakeserver_getComment():
     assert 'id' in comment
 
 def test_fakeserver_removeComment():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     aid = '917540'
     comment = s.getComment(aid)
     assert isinstance(comment , dict )
@@ -119,7 +115,7 @@ def test_fakeserver_removeComment():
     assert s.removeComment(aid) == False
 
 def test_fakeserver_editComment():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     aid = '917540'
     comment = s.getComment(aid)
     assert isinstance(comment , dict )
@@ -132,7 +128,7 @@ def test_fakeserver_editComment():
 
 
 def test_fakeserver_storePage():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     # Updating an existing page:
     pid = '524296'
     p1 = s.getPage(pid)
@@ -161,7 +157,7 @@ def test_fakeserver_storePage():
 
 
 def test_fakeserver_updatePage():
-    s = server = FakeConfluenceServer()
+    s = FakeConfluenceServer()
     # Updating an existing page:
     pid = '524296'
     p1 = s.getPage(pid)
@@ -173,4 +169,3 @@ def test_fakeserver_updatePage():
     assert p3['content'] == "New content"
     assert p3['modifier'] == s.Username
     assert int(p3['version']) == int(p1_org['version']) + 1
-

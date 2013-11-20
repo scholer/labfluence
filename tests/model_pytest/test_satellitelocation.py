@@ -15,8 +15,8 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-
-
+import pytest
+import os
 import logging
 logger = logging.getLogger(__name__)
 #logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
@@ -25,11 +25,6 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
-#from model.page import WikiPage, WikiPageFactory
-#from model.experiment import Experiment
-#from model.experiment_manager import ExperimentManager
-#from model.confighandler import ExpConfigHandler
-#from model.server import ConfluenceXmlRpcServer
 from model.satellite_location import SatelliteFileLocation
 
 ## Test doubles:
@@ -49,6 +44,11 @@ from tests.model_testdoubles.fake_server import FakeConfluenceServer as Confluen
 satpath = "/home/scholer/Documents/labfluence_satellite_tests/cdnaafm_cftp"
 #sfl = SatelliteFileLocation(satpath, ch)
 #
+
+
+@pytest.fixture
+def satellitelocation1():
+    sl = SatelliteFileLocation("/home/scholer/Documents/labfluence_satellite_tests/cdnaafm_cftp")
 
 def test_init():
     print "\n>>>>> test_init() -----------------"

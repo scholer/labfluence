@@ -14,6 +14,30 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# messages:
+#   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
+#   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   R0904: Too many public methods (20 max); R0913: Too many arguments;
+#   W0221: Arguments differ from overridden method,
+#   W0402: Use of deprechated module (e.g. string)
+#   E1101: Instance of <object> has no <dynamically obtained attribute> member.
+#   R0921: Abstract class not referenced. Pylint thinks any class that raises a NotImplementedError somewhere is abstract.
+#   E0102: method already defined in line <...> (pylint doesn't understand properties well...)
+#   E0202: An attribute affected in <...> hide this method (pylint doesn't understand properties well...)
+#   C0303: Trailing whitespace (happens if you have windows-style \r\n newlines)
+#   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
+#   W0201: Attribute "_underscore_first_marks_insternal" defined outside __init__ -- yes, I use it in my properties.
+# Regarding pylint failure of python properties: should be fixed in newer versions of pylint.
+"""
+Experiment module and its primary Experiment class
+is the center for all "Experiment" related functionality.
+It ties together two important helper objects:
+* WikiPage
+* JournalAssistant
+"""
+
+
 
 import os
 import yaml
@@ -27,14 +51,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from confighandler import ExpConfigHandler
-from server import ConfluenceXmlRpcServer
 from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
-#from utils import *  # This will override the logger with the logger defined in utils.
 from utils import getmimetype, increment_idx, idx_generator
-#from experiment_manager import ExperimentManager # Uh, that won't fly, circular import!
-# This is why you should move to separate testing setup for anything but the most basic of tests.
 
 
 class Experiment(object):
@@ -92,7 +111,7 @@ class Experiment(object):
 
     def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None,
                  doparseLocaldirSubentries=True, subentry_regex_prog=None, loadYmlFn='.labfluence.yml',
-                 autoattachwikipage=True, doserversearch=False, savepropsonchange=True, VERBOSE=0,
+                 autoattachwikipage=True, doserversearch=False, savepropsonchange=True,
                  makelocaldir=False, makewikipage=False):
         """
         Arguments:
@@ -108,11 +127,10 @@ class Experiment(object):
           If not provided, will call confighandler.getEntry() to retrieve a regex.
         - loadYmlFn: filename to use when loading and persisting experiment props; only used if confighandler is not provided.
         """
-
-        self.VERBOSE = VERBOSE
+        self.VERBOSE = 0
+        self.Confighandler = confighandler
         self._server = server
         self._manager = manager
-        self.Confighandler = confighandler
         self._wikipage = wikipage
         self._autoattachwikipage = autoattachwikipage
         # NOTICE: Attaching wiki pages is done lazily using a property (unless makewikipage is not False)
@@ -133,6 +151,11 @@ class Experiment(object):
             self.Foldername = None
             self.Parentdirpath = None
         else:
+            # We have a localdir. Local dirs may be of many formats, e.g.:
+            #   /some/abosolute/unix/folder
+            #   C:\some\absolute\windows\folder
+            #   relative/unix/folder
+            #   relative\windows\folder
             # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
             parentdirpath, foldername = os.path.split(localdir)
             if not parentdirpath:
@@ -169,17 +192,16 @@ class Experiment(object):
             logger.warning( "NOTICE: No localdir provided for expid '%s';\
 functionality of this object will be greatly reduced and may break at any time.", self.Expid)
 
-        """ Subentries related..."""
+        ### Subentries related...###
         # Subentries is currently an element in self.Props, makes it easier to save info...
         self.Subentries = self.Props.setdefault('exp_subentries', OrderedDict())
         if doparseLocaldirSubentries and self.Localdirpath:
             self.parseLocaldirSubentries()
 
-        """
-        I plan to allow for saving file histories, having a dict
-        Fileshistory['RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'] -> list of {datetime:<datetime>, md5:<md5digest>} dicts.
-        This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
-        """
+        ###I plan to allow for saving file histories, having a dict
+        ###Fileshistory['RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'] -> list of {datetime:<datetime>, md5:<md5digest>} dicts.
+        ###This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
+
         #self.loadFileshistory()
         #if not self.WikiPage:
         #    wikipage = self.attachWikiPage(dosearch=doserversearch)
@@ -196,7 +218,7 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
 
-    """ ATTRIBUTE PROPERTIES: """
+    ### ATTRIBUTE PROPERTIES: ###
     @property
     def Props(self):
         """
@@ -221,15 +243,19 @@ functionality of this object will be greatly reduced and may break at any time."
         return props
     @property
     def Subentries(self):
+        """Should always be located one place and one place only: self.Props."""
         return self.Props.setdefault('exp_subentries', OrderedDict())
     @Subentries.setter
     def Subentries(self, subentries):
+        """property setter"""
         self.Props['exp_subentries'] = subentries
     @property
-    def Expid(self, ):
+    def Expid(self):
+        """Should always be located one place and one place only: self.Props."""
         return self.Props.get('expid')
     @Expid.setter
     def Expid(self, expid):
+        """property setter"""
         if expid == self.Expid:
             logger.info("Trying to set new expid '{0}', but that is the same as the existing self.Expid '{1}', localpath='{2}'".format(expid, self.Expid, self.Localdirpath))
             return
@@ -238,9 +264,11 @@ functionality of this object will be greatly reduced and may break at any time."
         self.Props['expid'] = expid
     @property
     def Wiki_pagetitle(self):
+        """Should always be located one place and one place only: self.Props."""
         return self.Props.get('wiki_pagetitle')
     @property
     def PageId(self, ):
+        """Should be located only as a property of self.WikiPage"""
         if self.WikiPage and self.WikiPage.PageId:
             self.Props.setdefault('wiki_pageId', self.WikiPage.PageId)
             return self.WikiPage.PageId
@@ -251,11 +279,15 @@ functionality of this object will be greatly reduced and may break at any time."
             return pageid
     @PageId.setter
     def PageId(self, pageid):
+        """
+        Will update self.Props['wiki_pageId'], and make sure that self.WikiPage
+        reflects the update.
+        """
         if self.WikiPage:
             if self.WikiPage.PageId != pageid:
                 self.WikiPage.PageId = pageid
                 self.WikiPage.reloadFromServer()
-        self.Props['wiki_pageId']
+        self.Props['wiki_pageId'] = pageid
 
     @property
     def Attachments(self):
@@ -267,16 +299,24 @@ functionality of this object will be greatly reduced and may break at any time."
         return self._attachments_cache
     @property
     def Server(self):
-        # Server evaluates to False if it is not connected, so check specifically against None.
+        """
+        Server evaluates to False if it is not connected, so check specifically against None.
+        """
         if self._server is not None:
             return self._server
         else:
             return self.Confighandler.Singletons.get('server')
     @property
     def Manager(self):
+        """
+        Retrieve manager from confighandler singleton registry if not specified manually.
+        """
         return self._manager or self.Confighandler.Singletons.get('manager')
     @property
     def WikiPage(self):
+        """
+        Attempts to lazily attach a wikipage if none is attached.
+        """
         if not self._wikipage:
             self.attachWikiPage()
             if self._wikipage:
@@ -285,50 +325,67 @@ functionality of this object will be greatly reduced and may break at any time."
         return self._wikipage
     @WikiPage.setter
     def WikiPage(self, newwikipage):
+        """property setter"""
         self._wikipage = newwikipage
     @property
     def Fileshistory(self):
+        """
+        Invokes loadFilesHistory() lazily if self._fileshistory has not been loaded.
+        """
         if not self._fileshistory:
             self.loadFileshistory() # Make sure self.loadFileshistory does NOT refer to self.Fileshistory (cyclic reference)
         return self._fileshistory
     @property
     def Subentries_regex_prog(self):
+        """
+        Returns self._subentries_regex_prog if defined and not None, otherwise obtain from confighandler.
+        """
         regex_prog = getattr(self, '_subentries_regex_prog', None)
-        if regex_prog: return regex_prog
+        if regex_prog:
+            return regex_prog
         else:
             regex_str = self.getConfigEntry('exp_subentry_regex') #getExpSubentryRegex()
             if not regex_str:
                 logger.warning("Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default.")
-                regex_str = "(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
+                regex_str = r"(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
             self._subentries_regex_prog = re.compile(regex_str)
             return self._subentries_regex_prog
     @Subentries_regex_prog.setter
     def Subentries_regex_prog(self, value):
+        """property setter"""
         self._subentries_regex_prog = value
     @property
-    def Status(self, ):
+    def Status(self):
+        """
+        Returns whether experiment is 'active' or 'recent'.
+        Returns None if neither.
+        """
         manager = self.Manager
         if self.Expid in manager.ActiveExperimentIds:
             return 'active'
         elif self.Expid in manager.RecentExperimentIds:
             return 'recent'
-    def isactive(self, ):
+    def isactive(self):
+        """Returns whether experiment is listed in the active experiments list."""
         return self.Expid in self.Manager.ActiveExperimentIds
-    def isrecent(self, ):
+    def isrecent(self):
+        """Returns whether experiment is listed in the recent experiments list."""
         return self.Expid in self.Manager.RecentExperimentIds
     ## Non-property getters:
-    def getUrl(self, ):
+    def getUrl(self):
+        """get wikipage url"""
         url = self.Props.get('url', None)
         if not url:
-            if self.WikiPage and self.WikiPage.PageStruct:
-                url = self.WikiPage.PageStruct.get('url', None)
-        if not url:
-            # perhaps use the pageId to generate a url (via the server and the wiki_url or perhaps wiki_url_bypageId_fmt).
-            pass
+            if self.WikiPage and self.WikiPage.Struct:
+                url = self.WikiPage.Struct.get('url', None)
+        # if no url is found, perhaps use the pageId to generate a url (via the server and the wiki_url or perhaps wiki_url_bypageId_fmt).
         return url
 
 
     def updateAttachmentsCache(self):
+        """
+        Updates the attachments cache. Consider using the cache decorator instead!
+        """
         structs = self.listAttachments()
         if not structs:
             logger.info( "Experiment.updateAttachmentsCache() :: listAttachments() returned '{}', aborting".format(structs) )
@@ -338,7 +395,10 @@ functionality of this object will be greatly reduced and may break at any time."
     ### MANAGER methods: ###
     ########################
 
-    def archive(self, ):
+    def archive(self):
+        """
+        archive this experiment, relays through self.Manager.
+        """
         self.Manager.archiveExperiment(self)
 
 
@@ -378,13 +438,21 @@ functionality of this object will be greatly reduced and may break at any time."
             return self.Confighandler.get(cfgkey, default=default, path=p)
 
     def setConfigEntry(self, cfgkey, value):
+        """
+        Sets config entry. If cfgkey is listed in self.Props, then set/update that,
+        otherwise relay through to self.Confighandler.
+        Notice: does not currently check the hierarchical config,
+        only the explicidly loaded 'system', 'user', 'exp', 'cache', etc.
+        """
         if cfgkey in self.Props:
             self.Props[cfgkey] = value
         else:
-            # does not currently check the hierarchical config, only the explicidly loaded 'system', 'user', 'exp', 'cache', etc.
             self.Confighandler.setkey(cfgkey, value)
 
     def getAbsPath(self):
+        """
+        Returns the absolute path of self.Localdirpath. Not sure this is required?
+        """
         return os.path.abspath(self.Localdirpath)
 
     def saveIfChanged(self):
@@ -925,7 +993,7 @@ functionality of this object will be greatly reduced and may break at any time."
         else:
             logger.debug("Experiment.getLocalFilelist() - no ignore_pat, filtering from complete filelist...")
             #return [(path, os.path.relpath(path) for dirpath,dirnames,filenames in os.walk(self.Localdirpath) for filename in filenames for path in (appendfile(dirpath, filename), ) if path]
-            for dirpath,dirnames,filenames in os.walk(self.Localdirpath):
+            for dirpath, dirnames, filenames in os.walk(self.Localdirpath):
                 for filename in filenames:
                     appendfile(dirpath, filename)
         logger.debug("Experiment.getLocalFilelist() :: Returning list: {}".format(ret))
@@ -937,10 +1005,16 @@ functionality of this object will be greatly reduced and may break at any time."
     """
 
     def reloadWikipage(self):
+        """
+        Reload the attached wiki page from server.
+        """
         self.WikiPage.reloadFromServer()
 
 
     def getWikiXhtml(self, ):
+        """
+        Get xhtml for wikipage.
+        """
         if not self.WikiPage or not self.WikiPage.Struct:
             logger.warning("\nExperiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")
             logger.warning("-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage))
@@ -950,20 +1024,24 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def getWikiSubentryXhtml(self, subentry=None):
+        """
+        Get xhtml (journal) for a particular subentry on the wiki page.
+        subentry defaults to self.JournalAssistant.Current_subentry_idx.
+        """
         if subentry is None:
             subentry = getattr(self.JournalAssistant, 'Current_subentry_idx', None)
         if not subentry:
-            logger.info("Experiment.getWikiSubentryXhtml() > No subentry set/selected/available, aborting...")
+            logger.info("No subentry set/selected/available, aborting...")
             return None
         #xhtml = self.WikiPage.getWikiSubentryXhtml(subentry)
         regex_pat_fmt = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
         fmt_params = self.makeFormattingParams(subentry_idx=subentry)
         regex_pat = regex_pat_fmt.format(**fmt_params)
         if not regex_pat:
-            logger.warning("Experiment.getWikiSubentryXhtml() > No regex pattern found in config, aborting...\n")
+            logger.warning("No regex pattern found in config, aborting...\n")
             return
         if not self.WikiPage or not self.WikiPage.Struct:
-            logger.info("Experiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")
+            logger.info("WikiPage or WikiPage.Struct is None, aborting...")
             logger.info("-- {} is {}\n".format('self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage))
             return
         content = self.WikiPage.Struct['content']
@@ -982,6 +1060,13 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def attachWikiPage(self, pageId=None, pagestruct=None, dosearch=1):
+        """
+        Searches the server for a wiki page using the experiment's metadata,
+        if pageid is already stored in the Props, then using that, otherwise
+        searching the servier using e.g. expid, title, etc.
+        A WikiPage is only attached (and returned) if a page was found on the server
+        (yielding a correct pageid).
+        """
         if pageId is None:
             if pagestruct and 'id' in pagestruct:
                 pageId = pagestruct['id']
@@ -998,11 +1083,12 @@ functionality of this object will be greatly reduced and may break at any time."
                 if self.SavePropsOnChange:
                     self.saveProps()
         logger.debug("Params are: pageId: %s  server: %s   dosearch: %s   pagestruct: %s", pageId, self.Server, dosearch, pagestruct)
+        # Does it make sense to create a wikiPage without pageId? No. This check should take care of that:
         if not pageId:
             logger.info("Notice - no pageId found for expid %s (dosearch=%s, self.Server=%s)...", self.Props.get('expid'), dosearch, self.Server)
             return pagestruct
-        # Does it make sense to create a wikiPage without pageId? No. The above check should take care of that.
         self.WikiPage = wikipage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
+        # Update self.Props for offline access to the title of the wiki page:
         if wikipage.Struct:
             self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
         return wikipage
@@ -1034,7 +1120,6 @@ functionality of this object will be greatly reduced and may break at any time."
             pagestruct = self.Server.getPage(spaceKey=spaceKey, pageTitle=pageTitle)
             logger.debug("%s :: self.Server.getPage returned pagestruct of type '%s'", method_repr, type(pagestruct))
             if pagestruct:
-                pageId = pagestruct['id']
                 logger.info("%s :: Exact match in space '%s' found for page '%s'", method_repr, spaceKey, pageTitle)
                 return pagestruct
             else:
@@ -1264,12 +1349,6 @@ functionality of this object will be greatly reduced and may break at any time."
                     if regex_prog is None or regex_prog.match(struct['fileName']) ]
 
 
-
-
-
-
-
-
     """ Other stuff... """
 
     def __repr__(self):
@@ -1280,8 +1359,8 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         Update this experiment with the content from other_exp.
         """
-        raise NotImplementedError("Experiment.update is not implemented...")
-
+        #raise NotImplementedError("Experiment.update is not implemented...")
+        print "update not impleemnted..."
 
 
 
@@ -1293,25 +1372,3 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format=logfmt)
     logging.getLogger("__main__").setLevel(logging.DEBUG)
     #logging.getLogger("server").setLevel(logging.DEBUG)
-
-
-
-
-"""
-
-Cut out parts, here as trash-bin:
-
-# hashing... don't think I will ever need this anyways...
-                # My own implementation using python's fast hash function...
-                if digesttype == 'python-hash':
-                    # 16k byte block sizes:
-                    lasthash = hash('')
-                    for chunk in iter(lambda: f.read(128*128), b''):
-                        lasthash = lasthash + hash(chunk)
-                    digestentry[digesttype] = lasthash
-                    hexdigest = lasthash # well, not actually hex, perhaps do some base64 encoding?
-                else:
-                    # assume the digesttype is available in hashlib:
-
-
-"""

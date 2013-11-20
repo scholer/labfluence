@@ -14,14 +14,12 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0111,W0613
 
-#from ... import model
 
-#from model.experiment import Experiment
 from model.confighandler import ConfigHandler, PathFinder, ExpConfigHandler
-#from model.experiment_manager import ExperimentManager
-#from model.server import ConfluenceXmlRpcServer
 
+import pytest
 import os
 from datetime import datetime
 import logging
@@ -32,6 +30,10 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
+@pytest.fixture
+def confighandler1():
+    ch = ExpConfigHandler( pathscheme='test1' )
+    return ch
 
 
 def test_defaultscheme_test1():
@@ -130,9 +132,3 @@ def test_registerEntryChangeCallback():
     ch.invokeEntryChangeCallback() # does not invoke anything...
 
     logger.info("\n<<<<<<<<<<<<< completed test_registerEntryChangeCallback(): <<<<<<<<<<<<<<<<<<<<")
-
-
-
-
-
-

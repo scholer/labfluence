@@ -14,12 +14,11 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+"""
+fake_confighandler module, provides Fake Confighandler class, used in test cases.
+"""
 
 import yaml
-import os
-import os.path
-from datetime import datetime
-from collections import OrderedDict
 import logging
 logger = logging.getLogger(__name__)
 
@@ -28,10 +27,17 @@ from model.confighandler import ExpConfigHandler
 
 
 class FakeConfighandler(ExpConfigHandler):
-    def __init__(self):
+    """
+    Fake Confighandler class, used in test cases.
+
+    Note that there are quite a lot of things that does not work if e.g.
+    the 'exp' ConfigPath is not set.
+
+    """
+    def __init__(self, pathscheme, enableHierarchy=False, readfiles=False):
         ExpConfigHandler.__init__(self, pathscheme=None, enableHierarchy=False, readfiles=False)
 
-        expconfigyaml = """
+        expconfigyaml = r"""
 exp_series_dir_fmt: '{expid} {exp_titledesc}'
 exp_series_regex: (?P<expid>RS[0-9]{3})[_ ]+(?P<exp_titledesc>.+)
 exp_subentry_dir_fmt: '{expid}{subentry_idx} {subentry_titledesc} ({datetime:%Y%m%d})'
@@ -66,9 +72,6 @@ wiki_template_string_interpolation_mode: 'old'
 wiki_template_string_interpolation_mode_comment: can be 'new', 'old' and 'template'. 'new' is curly-braced based string.format; 'old' is %-based moduli substitution and 'template' uses string templates only.
 wiki_allow_template_caching: true
 wiki_default_newpage_template: 'exp_page'
-config_define_new:
-  templates: ./.labfluence/templates.yml
-  cache: ./.labfluence/experiment_cache.yml
 """
         userconfigyaml = """
 app_active_experiments:
@@ -92,6 +95,7 @@ wiki_username: scholer
             #else:
             #    self.Configs[cfg] = newconfig
             logger.debug("Config '%s' loaded.", cfg)
+        self.__expconfigs = dict()
 
 
     #############################
@@ -119,7 +123,7 @@ wiki_username: scholer
     ################################
 
     def getExpConfig(self, path):
-        pass
+        return self.__expconfigs.setdefault(path, dict())
 
     def loadExpConfig(self, path):
         pass

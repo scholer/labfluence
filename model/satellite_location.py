@@ -14,8 +14,26 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-
-
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# messages:
+#   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
+#   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   R0904: Too many public methods (20 max); R0913: Too many arguments;
+#   W0221: Arguments differ from overridden method,
+#   W0402: Use of deprechated module (e.g. string)
+#   E1101: Instance of <object> has no <dynamically obtained attribute> member.
+#   R0921: Abstract class not referenced. Pylint thinks any class that raises a NotImplementedError somewhere is abstract.
+#   E0102: method already defined in line <...> (pylint doesn't understand properties well...)
+#   E0202: An attribute affected in <...> hide this method (pylint doesn't understand properties well...)
+#   C0303: Trailing whitespace (happens if you have windows-style \r\n newlines)
+#   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
+#   W0201: Attribute "_underscore_first_marks_insternal" defined outside __init__ -- yes, I use it in my properties.
+# Regarding pylint failure of python properties: should be fixed in newer versions of pylint.
+"""
+Code for dealing with satellite locations.
+Consider using virtualfs python module to normalize external locations,
+rather than implementing ftp, etc...
+"""
 import os
 import re
 import shutil
@@ -28,7 +46,9 @@ logger = logging.getLogger(__name__)
 
 
 class SatelliteLocation(object):
-
+    """
+    Base class for satellite locations, treats the location as if it is a locally available file system.
+    """
     def __init__(self, uri, confighandler):
         self.URI = uri
         self.Confighandler = confighandler

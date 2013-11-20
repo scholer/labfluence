@@ -14,35 +14,37 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0111,W0613,W0621
 
-
+import pytest
+import os
+import time
+start = time.clock()
+def report():
+    print "Clock: {}".format(time.clock()-start)
 
 import logging
 logger = logging.getLogger(__name__)
 #logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
 #logging.basicConfig(level=logging.INFO, format=logfmt)
 logging.getLogger("__main__").setLevel(logging.DEBUG)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
+logging.getLogger("tests.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
+logging.getLogger("model.experimentmanager").setLevel(logging.DEBUG)
+logging.getLogger("model.experiment").setLevel(logging.DEBUG)
 
 
 
-from model.page import WikiPage, WikiPageFactory
-from model.experiment import Experiment
-from model.experiment_manager import ExperimentManager
-#from model.confighandler import ExpConfigHandler
-#from model.server import ConfluenceXmlRpcServer
+#from model.page import WikiPage, WikiPageFactory
+#from model.experiment import Experiment
+from model.experimentmanager import ExperimentManager
 
 
 ## Test doubles:
 from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
+FakeConfighandler = ExpConfigHandler
 from tests.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
-
-
-
-import sys
-import time
-start = time.clock()
-def report():
-    print "Clock: {}".format(time.clock()-start)
 
 logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
 #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
@@ -60,27 +62,70 @@ logging.basicConfig(level=logging.INFO, format=logfmt)
 #logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
-def setup1():
-    confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
-    em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
-    return em, confighandler
+@pytest.fixture
+def fakeconfighandler(monkeypatch):
+    ch = FakeConfighandler(pathscheme='test1')
+    testdir = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup')
+    monkeypatch.setattr(ch, 'getConfigDir', lambda x: testdir)
+    return ch
 
-def setup2():
-    confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
-    em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
+
+@pytest.fixture
+def experimentmanager_with_confighandler(monkeypatch, fakeconfighandler):
+    confighandler = fakeconfighandler
+    em = ExperimentManager(confighandler=confighandler)
+    return em
+
+@pytest.fixture
+def em_with_ch_localexpparsing_disabled(monkeypatch, fakeconfighandler):
+    confighandler = fakeconfighandler
+    em = ExperimentManager(confighandler=confighandler)
+    return em
+
+
+@pytest.fixture
+def em_with_ch_and_autoloaded_exps(fakeconfighandler):
+    confighandler = fakeconfighandler
+    em = ExperimentManager(confighandler=confighandler)
+    return em
+
+
+@pytest.fixture
+def em_with_ch_with_fakeserver():
+    confighandler = ExpConfigHandler(pathscheme='test1')
     server = ConfluenceXmlRpcServer(autologin=True, ui=None, confighandler=confighandler, VERBOSE=0)
     confighandler.Singletons['server'] = server
+    em = ExperimentManager(confighandler=confighandler)
     return em, confighandler, server
 
 
-def test_getLocalExperiments(store=True):
-    em, ch = setup1()
-    exps = em.getLocalExperiments(store=store)
+
+def test_getLocalExperiments(experimentmanager_with_confighandler):
+    em = experimentmanager_with_confighandler
+    expdir = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '2013_Aarhus')
+    assert em.getLocalExpSubDir() == expdir
+    exps = em.getLocalExperiments(store=True)  # Store just specifies whether to remember the parsed experiments.
     print "Experiments:"
     print "\n".join( "{exp.Foldername} : props={exp.Props}".format(exp=exp) for exp in exps )
-    return em, exps
+    assert isinstance(exps, list)
+    expbyidmap = em.ExperimentsById
+    assert isinstance(expbyidmap, dict)
+    assert em.Server == None
+    aexpids = ['RS102', 'RS134', 'RS135']
+    rexpids = ['RS103']
+    assert em.ActiveExperimentIds == aexpids
+    assert em.RecentExperimentIds == rexpids
+    assert isinstance(em.ActiveExperiments, list)
+    assert len(em.ActiveExperiments) == len(aexpids)
+    assert isinstance(em.RecentExperiments, list)
+    assert len(em.RecentExperiments) == len(rexpids)
 
-def test_makeExperimentsByIdMap(em=None):
+
+
+
+
+@pytest.mark.skipif(True, reason="Not ready yet")
+def test_makeExperimentsByIdMap(experimentmanager_with_confighandler):
     exps = None
     if em is None:
         #em, ch = setup1()
@@ -92,6 +137,7 @@ def test_makeExperimentsByIdMap(em=None):
     print "\n".join( "{} : {}".format(expid, exp.Props.get('exp_titledesc')) for expid, exp in sorted(expbyid.items()) )
     return em, expbyid
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getExperimentsIndices(em=None):
     if em is None:
         print "\n\nMaking new experimentmanager and confighandler...:"
@@ -102,6 +148,7 @@ def test_getExperimentsIndices(em=None):
     print "\nExperiment indices:"
     print indices
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getCurrentWikiExperiments(em=None):
     # testing def getCurrentWikiExperiments(self, ret='page-structs', useCache=True, store=None):
     print "\n\n >>>>>>>>>>>>>>>> test_getCurrentWikiExperiments() >>>>>>>>>>>>> \n"
@@ -116,6 +163,7 @@ def test_getCurrentWikiExperiments(em=None):
     print "\n<<<<< finished test_getCurrentWikiExperiments() <<<<<<<<<<<< \n"
     return em, ch
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getServerInfo(em=None):
     print "\n\n >>>>>>>>>>>>>>>> test_getCurrentWikiExperiments() >>>>>>>>>>>>> \n"
     if em is None:
@@ -123,15 +171,3 @@ def test_getServerInfo(em=None):
     print "Server info: {}".format(em.getServerInfo )
     print "\n<<<<< finished test_getCurrentWikiExperiments() <<<<<<<<<<<< \n"
     return em, ch
-
-
-#em = None
-#em, exps = test_getLocalExperiments()
-#report()
-#em, expbyid = test_makeExperimentsByIdMap(em)
-#report()
-#test_getExperimentsIndices(em)
-test_getServerInfo()
-report()
-#test_getCurrentWikiExperiments()
-report()

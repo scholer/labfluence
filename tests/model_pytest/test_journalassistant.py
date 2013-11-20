@@ -19,16 +19,12 @@
 
 import logging
 logger = logging.getLogger(__name__)
-#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
-#logging.basicConfig(level=logging.INFO, format=logfmt)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
 from model.experiment import Experiment
-from model.experiment_manager import ExperimentManager
-#from model.confighandler import ExpConfigHandler
-#from model.server import ConfluenceXmlRpcServer
 
 ## Test doubles:
 from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler

@@ -14,6 +14,30 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0111,W0613
+# messages:
+#   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
+#   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   R0904: Too many public methods (20 max); R0913: Too many arguments;
+#   W0221: Arguments differ from overridden method,
+#   W0402: Use of deprechated module (e.g. string)
+#   E1101: Instance of <object> has no <dynamically obtained attribute> member.
+#   R0921: Abstract class not referenced. Pylint thinks any class that raises a NotImplementedError somewhere is abstract.
+#   E0102: method already defined in line <...> (pylint doesn't understand properties well...)
+#   E0202: An attribute affected in <...> hide this method (pylint doesn't understand properties well...)
+#   C0303: Trailing whitespace (happens if you have windows-style \r\n newlines)
+#   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
+#   W0201: Attribute "_underscore_first_marks_insternal" defined outside __init__ -- yes, I use it in my properties.
+# Regarding pylint failure of python properties: should be fixed in newer versions of pylint.
+
+# Special for this (and other) fake modules:
+# W0613 unused argument
+# C0111 missing method docstring
+"""
+This module provides a fake confluence server which can be used for testing (and offline access, I guess).
+
+"""
 
 
 import os
@@ -21,11 +45,16 @@ import yaml
 from datetime import datetime
 import copy
 import logging
+from xmlrpclib import Fault
 logger = logging.getLogger(__name__)
 
 
 
 class FakeConfluenceServer(object):
+    """
+    A fake confluence server which can be used for testing.
+    Can also work as a mimic for the persistance layer of a faked confluence RPC API.
+    """
 
     def __init__(self, **kwargs):
         """
@@ -37,6 +66,7 @@ class FakeConfluenceServer(object):
         - spaces = list of space-struct dicts
 
         """
+        logger.debug("FakeConfluenceServer initiated with kwargs (will not be used): %s", kwargs)
         try:
             datafp = os.path.join(os.path.dirname(__file__), "testdouble_data", "fakeserver_testdata_large.yml")
             logger.debug("Attempting to load data from: %s", datafp)
@@ -127,7 +157,8 @@ class FakeConfluenceServer(object):
     ################################
 
     def getPages(self, spaceKey):
-        return filter(lambda page: page['space']==spaceKey, self._workdata.get('pages', dict()).values() )
+        #return filter(lambda page: page['space']==spaceKey, self._workdata.get('pages', dict()).values() )
+        return [ page for page in self._workdata.get('pages', dict()).values() if page['space'] == spaceKey ]
 
     def getPage(self, pageId=None, spaceKey=None, pageTitle=None):
         """
@@ -135,16 +166,18 @@ class FakeConfluenceServer(object):
         Takes pageId as long (not int but string!).
         Edit: xmlrpc only supports 32-bit long ints and confluence uses 64-bit, all long integers should
         be transmitted as strings, not native ints.
+        If spaceKey and pageTitle are given, but no page found, then this method
+        will raise xmlrpclib.Fault, just like ConfluenceXmlRpcServer.
         """
         if pageId:
             pageId = str(pageId) # getPage method takes a long int.
             return self._workdata.get('pages', dict()).get(pageId)
         elif spaceKey and pageTitle:
-            for pid, page in self._workdata.get('pages', dict()).items():
+            for page in self._workdata.get('pages', dict()).values():
                 if page['space'] == spaceKey and page['title'] == pageTitle:
                     return page
         else:
-            raise("Must specify either pageId or spaceKey/pageTitle.")
+            raise Fault("Must specify either pageId or spaceKey/pageTitle.")
 
     def removePage(self, pageId):
         """
@@ -152,10 +185,14 @@ class FakeConfluenceServer(object):
         takes pageId as string.
 
         Not sure what happens if pageId does not exist?
+        I think it would make sense to return True if successful and False otherwise.
         """
         pageId = str(pageId)
-        page = self._workdata.get('pages', dict()).pop(pageId)
-        return None
+        try:
+            _ = self._workdata.get('pages', dict()).pop(pageId)
+            return True
+        except KeyError:
+            return False
 
     def movePage(self, sourcePageId, targetPageId, position='append'):
         """
@@ -215,10 +252,10 @@ class FakeConfluenceServer(object):
         # alternative, based on http://stackoverflow.com/questions/1658505/searching-within-nested-list-in-python
         return next( (comment for pagecomments in self._workdata.get('comments', dict()).values() for comment in pagecomments if comment['id'] == commentId), None )
         # old version:
-        for pagecomments in self._workdata.get('comments', dict()).values():
-            for comment in pagecomments :
-                if comment['id'] == commentId:
-                    return comment
+        #for pagecomments in self._workdata.get('comments', dict()).values():
+        #    for comment in pagecomments :
+        #        if comment['id'] == commentId:
+        #            return comment
 
     def removeComment(self, commentId):
         """
@@ -226,8 +263,8 @@ class FakeConfluenceServer(object):
         and False otherwise.
         """
         commentId = str(commentId)
-        for pid,pagecomments in self._workdata.get('comments', dict()).items():
-            for i,comment in enumerate(pagecomments):
+        for pid, pagecomments in self._workdata.get('comments', dict()).items():
+            for i, comment in enumerate(pagecomments):
                 if comment['id'] == commentId:
                     logger.debug("Deleting comment with id '%s' for pageId '%s': %s", commentId, pid, comment)
                     del pagecomments[i]
@@ -303,9 +340,13 @@ class FakeConfluenceServer(object):
         """
         pages = self._workdata.get('pages', dict())
         # required keys:
-        space = page_struct['space']
-        title = page_struct['title']
-        content = page_struct['content']
+        for key in ('space', 'title', 'content'):
+            if key not in page_struct:
+                raise KeyError("key '%s' not in page_struct '%s'", key, page_struct)
+        #space = page_struct['space']
+        #title = page_struct['title']
+        #content = page_struct['content']
+        logger.debug("Attempting to store page ")
 
         if 'id' in page_struct:
             logger.debug("page_struct specifies 'id' field with value %s, will UPDTATE existing page with matching pageId.", page_struct['id'])
@@ -388,7 +429,7 @@ contributor:The original creator or any editor of Confluence content. For mail, 
         """
         #parameterToPageKeyMap = dict(spaceKey='space', ')
         def includepage(page):
-            for k,v in parameters:
+            for k, v in parameters:
                 if k == 'spaceKey' and page['space'] != v:
                     return False
                 elif k == 'contributor' and v not in (page['creator'], page['modifier']):
@@ -400,7 +441,10 @@ contributor:The original creator or any editor of Confluence content. For mail, 
             if query and not query.lower() in page['content'].lower():
                 return False
             return True
-        pages = filter(includepage, self._workdata.get('pages', dict()).values())
+        #pages = filter(includepage, self._workdata.get('pages', dict()).values())
+        # using list comprehension to please the BDFL (and pylint):
+        pages = [ page for page in self._workdata.get('pages', dict()).values()
+                        if includepage(page) ]
         return pages
 
 
@@ -413,4 +457,3 @@ contributor:The original creator or any editor of Confluence content. For mail, 
         :return: bool: True if succeeded
         """
         return True
-

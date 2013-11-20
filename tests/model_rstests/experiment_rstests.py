@@ -20,13 +20,10 @@
 import os
 if __name__ == '__main__' and __package__ is None:
     os.sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from ... import model
-from model.experiment import Experiment
-from model.confighandler import ExpConfigHandler
-from model.experiment_manager import ExperimentManager
-from model.server import ConfluenceXmlRpcServer
-
-#from model import experiment, confighandler, experiment_manager, server
+#from ... import model
+#from model.experiment import Experiment
+#from model.confighandler import ExpConfigHandler
+#from model.server import ConfluenceXmlRpcServer
 
 
 class TestExperiment1(object):

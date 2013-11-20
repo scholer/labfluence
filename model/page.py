@@ -14,19 +14,43 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# messages:
+#   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
+#   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   R0904: Too many public methods (20 max); R0913: Too many arguments;
+#   W0221: Arguments differ from overridden method,
+#   W0402: Use of deprechated module (e.g. string)
+#   E1101: Instance of <object> has no <dynamically obtained attribute> member.
+#   R0921: Abstract class not referenced. Pylint thinks any class that raises a NotImplementedError somewhere is abstract.
+#   E0102: method already defined in line <...> (pylint doesn't understand properties well...)
+#   E0202: An attribute affected in <...> hide this method (pylint doesn't understand properties well...)
+#   C0303: Trailing whitespace (happens if you have windows-style \r\n newlines)
+#   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
+#   W0201: Attribute "_underscore_first_marks_insternal" defined outside __init__ -- yes, I use it in my properties.
+#   C0103: Invalid name (it is really picky)
+# Regarding pylint failure of python properties: should be fixed in newer versions of pylint.
+"""
+Provides ability to interact with pages on a server, with e.g. xhtml format.
+NOTICE:
+The WikiPage shouldn't really know anyting about things in the
+experiment domain, such as 'subentries'. This WikiPage class should only
+be small and focus on storing, retrieving page-structs, and manipulating
+them in generic ways only, and additionally work as a relay to the server
+for functions such as getting attachment lists, comments, etc.
+"""
 
-
-import random
-import string
+#import random
+#import string
 #from lxml import etree
-from datetime import datetime
+#from datetime import datetime
 import re
-import inspect
+#import inspect
 import logging
 logger = logging.getLogger(__name__)
 
-from confighandler import ExpConfigHandler
-from server import ConfluenceXmlRpcServer
+#from confighandler import ExpConfigHandler
+#from server import ConfluenceXmlRpcServer
 
 
 
@@ -65,18 +89,22 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
 
     """
 
-
-    def __init__(self, pageId, server, confighandler=None, pagestruct=None, VERBOSE=0):#, localdir=None, experiment=None):
+    def __init__(self, pageId, server, confighandler=None, pagestruct=None):
         """
         Experiment and localdir currently not implemented.
         These are mostly intended to provide local-dir-aware config items, e.g. string formats and regexs.
         However, it might also be better to keep this logic at the Experiment(Manager) and Factory levels.
+        This has the nice effect of making this class very isolated and independent.
+        It receives invokations from e.g. Experiment or JournalAssistant objects,
+        and interacts with the server:
+        Experiment  -->  WikiPage  -->  Server
+            |             /
+          JournalAssistant
         """
         # The current approach is that this should be immutable; changing the pageId could result
         # in undefined bahaviour, e.g. overwriting a page with another page's content.
         self.PageId = pageId
         self._server = server
-        self.VERBOSE = VERBOSE
         self.Confighandler = confighandler
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
@@ -90,25 +118,42 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
 
     @property
     def Struct(self):
+        """
+        Returns the page struct dict, lazily reloading from server if it is not retrieved.
+        Consider having a cache with a defined time-to-live setting to automatically update.
+        """
         if not self._struct:
             self.reloadFromServer()
         return self._struct
     @Struct.setter
     def Struct(self, newstruct):
-        #if newstruct and not self._struct: # Uh, what? I need to be able to update the struct man? Or should I always use self._struct?
+        """property setter"""
         if newstruct:
             self._struct = newstruct
         else:
             logger.warning("No, I refuse to update my self._struct with something that is boolean false. That must be an error. The attempted newstruct is: %s", newstruct)
     @property
     def Content(self, ):
+        """
+        Returns the content of self.Struct['content']
+        """
         if self.Struct:
             return self.Struct.get('content')
+    @Content.setter
+    def Content(self, new_content):
+        """
+        Sets the content of self.Struct['content']
+        """
+        if self.Struct:
+            self.Struct['content'] = new_content
 
     @property
     def Server(self):
+        """
+        Returns server object.
         # Edit: I cannot use return _server or confighandler.Single...
         # Server evaluates to False if it is not connected, so check specifically against None.
+        """
         if self._server is not None:
             return self._server
         else:
@@ -116,6 +161,10 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
 
 
     def reloadFromServer(self):
+        """
+        Reloads page struct from server.
+        Returns True if successful, None if no server available and False if server call failed.
+        """
         if not self.Server:
             logger.info("Page.reloadFromServer() :: No server available, aborting...!")
             return
@@ -132,7 +181,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         keys = ('id', 'space', 'title', 'content', 'version', 'parentId', 'permissions')
         struct = self.Struct
-        new_struct = dict(filter(lambda t: t[0] in keys, struct.items() ) )
+        new_struct = dict( (k, v) for k, v in struct.items() if k in keys )
         return new_struct
 
     def validate_xhtml(self, xhtml):
@@ -146,7 +195,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
 
         """ My own simple validation... """
         surplus = 0
-        for i,char in enumerate(xhtml):
+        for i, char in enumerate(xhtml):
             if char == '<':
                 surplus += 1
             if char == '>':
@@ -196,8 +245,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             new_struct['title'] = title
         #new_struct['version'] = str(int(new_struct['version'])+0) # 'version' refers to the version you are EDITING, not the version number for the version that you are submitting.
         pageUpdateOptions = dict(versionComment=versionComment, minorEdit=minorEdit)
-        if self.VERBOSE or True:
-            logger.debug("pageUpdateOptions: %s, new_struct: %s", pageUpdateOptions, new_struct )
+        logger.debug("pageUpdateOptions: %s, new_struct: %s", pageUpdateOptions, new_struct )
         page_struct = self.Server.updatePage(new_struct, pageUpdateOptions)
         if page_struct:
             self.Struct = page_struct
@@ -205,34 +253,22 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         logger.debug(" updatePage() Returned page struct from server: %s", page_struct)
         return page_struct
 
-    def movePage(self, parentId, position="append"): #struct_from='cache', base='minimal'):
+    def movePage(self, targetPageId, position="append"): #struct_from='cache', base='minimal'):
         """
+        Moves this page to become a child page of targetPage.
+        Should return True if successful None if no server or not connected, and False otherwise.
 Position Key Effect
 above        source and target become/remain sibling pages and the source is moved above the target in the page tree.
 append       source becomes a child of the target
 below        source and target become/remain sibling pages and the source is moved below the target in the page tree.
-
         """
-#        if struct_from == 'server':
-#            if not self.reloadFromServer():
-#                logger.debug("Could not retrieve updated version from server, aborting..."
-#                return False
-#        if base == 'minimal':
-#            new_struct = self.minimumStruct()
-#        else:
-#            new_struct = base
-#        new_struct['parentId'] = parentId
-#        page_stuct = self.Server.updatePage(self, new_struct, pageUpdateOptions)
-#        if page_struct:
-#            logger.debug("Page moved to parent page: {}".format(parentId)
-#            self.Struct = page_struct
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
             logger.info("%s.Server is None or not connected, aborting...", self.__class__)
             return
-        self.Server.movePage(self.PageId, targetPageId, position=position)
-        return page_struct
+        ret = self.Server.movePage(self.PageId, targetPageId, position=position)
+        return ret
 
 
     def count(self, search_string, updateFromServer=False):
@@ -291,7 +327,9 @@ below        source and target become/remain sibling pages and the source is mov
         else:
             self.Struct['content'] += text
         if persistToServer:
-            self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
+            ret = self.updatePage(struct_from='cache', versionComment="WikiPage.append()", minorEdit=True)
+            if not ret:
+                return False
         return True
 
 
@@ -325,12 +363,10 @@ below        source and target become/remain sibling pages and the source is mov
           before_insert or after_insert.
         """
         logger.debug("Inserting the following xhtml in mode '%s', using regex '%s': '%s", mode, regex, xhtml)
-        if updateFromServer:
-            if not self.reloadFromServer():
-                logger.info("Could not retrieve updated version from server, aborting...")
-                return False
-        if self.VERBOSE:
-            logger.info("\nPage.insertAtRegex() :: inserting in mode '{}' with regex:\n{}\nthe following xhtml code:\n{}".format(mode, regex, xhtml))
+        if updateFromServer and not self.reloadFromServer():
+            logger.info("Could not retrieve updated version from server, aborting...")
+            return False
+        logger.info("\nPage.insertAtRegex() :: inserting in mode '{}' with regex:\n{}\nthe following xhtml code:\n{}".format(mode, regex, xhtml))
         page = self.Struct['content']
         # Developing two modes; the match is easiest to implement correctly here because it is just
         # joining three strings.
@@ -353,7 +389,7 @@ below        source and target become/remain sibling pages and the source is mov
                     logger.warning("Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is %s, aborting...\n--regex: %s\n--Page content: %s",
                                    (before_insert_index, after_insert_index), regex, page)
                     return False
-                if before_insert_index != after_insert_index:
+                elif before_insert_index != after_insert_index:
                     logger.warning("Page.insertAtRegex() :: WARNING!! before_insert_index != after_insert_index; risk of content loss!\n ---> (before_insert_index, after_insert_index) is %s, aborting...\n--regex: %s\n--Page content: %s",
                                    (before_insert_index, after_insert_index), regex, page)
                 logger.debug("Inserting xhtml as positions before_insert_index=%s, after_insert_index=%s; \
@@ -372,43 +408,41 @@ below        source and target become/remain sibling pages and the source is mov
                     logger.warning("WARNING, updatePage returned boolean '%s', type is: '%s'. It is likely that the page was not updated!!", bool(pageupdateret), type(pageupdateret))
                     logger.info("Page struct is (self._struct): %s", self._struct)
             return self.Struct
-        else:
-            logger.info("Page.insertAtRegex() :: No match found! Regex='%s', mode=%s", regex, mode)
-            return None
+        logger.info("Page.insertAtRegex() :: No match found! Regex='%s', mode=%s", regex, mode)
 
 
-
-#    def appendAtTokenAlternatives(self, text, tokens, appendBefore=True, ifFailedAppendAtEnd=False,
-#                persistToServer=True, versionComment="labfluence appendAtTokenControlled", minorEdit=True):
-#        """
-#        """
-#        for token in tokens:
-#            search_string = token
-#            if self.count(search_string) > 0:
-#                replace_string = text + token if appendBefore else text + token
-#
-#                return True
-#        return False
-
-    def getWikiSubentryXhtml(self, subentry, regex_pat):
-        #regex_pat = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
-        if not regex_pat:
-            logger.warning("WikiPage.getWikiSubentryXhtml() > No regex pattern found in config, aborting...")
-        regex_prog = re.compile(regex_pat, re.DOTALL)
-        match = regex_prog.search(self.Struct['content'])
-        if match:
-            gd = match.groupdict()
-            logger.info("matchgroups: {}".format("  ,  ".join( "'{}': {}".format(k, gd[k]) \
-                                                    for k in ('subentry_header', 'subentry_xhtml') )) )
-            subentry_xhtml = "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
-        else:
-            logger.info("WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is:\n%s",
-                        self.Struct['content'])
-            subentry_xhtml = ""
-        return subentry_xhtml
+    #
+    #def getWikiSubentryXhtml(self, subentry, regex_pat):
+    #    """
+    #    Returns xhtml for a particular subentry (journal) on the wiki page.
+    #    Is currently obsolte: everything is handled by parent experiment object.
+    #    This makes sense since the WikiPage shouldn't really know anyting about
+    #    experiment things such as 'subentries'. This WikiPage class should only
+    #    be small and focus on storing, retrieving page-structs, and manipulating
+    #    them in generic ways only, and additionally work as a relay to the server.
+    #    """
+    #    #regex_pat = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
+    #    if not regex_pat:
+    #        logger.warning("WikiPage.getWikiSubentryXhtml() > No regex pattern found in config, aborting...")
+    #    regex_prog = re.compile(regex_pat, re.DOTALL)
+    #    match = regex_prog.search(self.Struct['content'])
+    #    if match:
+    #        gd = match.groupdict()
+    #        logger.info("matchgroups: {}".format("  ,  ".join( "'{}': {}".format(k, gd[k]) \
+    #                                                for k in ('subentry_header', 'subentry_xhtml') )) )
+    #        subentry_xhtml = "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
+    #    else:
+    #        logger.info("WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is:\n%s",
+    #                    self.Struct['content'])
+    #        subentry_xhtml = ""
+    #    return subentry_xhtml
 
 
     def getRenderedHTML(self, content=None):
+        """
+        Returns wikipage as rendered html, as it would look in a browser.
+        Returns None if server is None or not connected.
+        """
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
@@ -418,6 +452,7 @@ below        source and target become/remain sibling pages and the source is mov
             html = self.Server.renderContent(self.PageId, content)
         else:
             html = self.Server.renderContent(self.PageId)
+        return html
 
     def getAttachmentInfo(self, fileName, versionNumber=0):
         """
@@ -441,21 +476,26 @@ below        source and target become/remain sibling pages and the source is mov
         if not self.Server:
             logger.info("Page {} has no server object attached (or it is not connected); aborting {} operation...".format(self, 'getMethodData'))
             return
-        info = self.Server.getAttachment(self.PageId, filename, versionNumber)
+        info = self.Server.getAttachment(self.PageId, fileName, versionNumber)
         return info
 
     def getAttachmentData(self, fileName, versionNumber=0):
+        """
+        Should return attachment bytedata from server for an attachment on this page.
+        Returns None if server is None or not connected.
+        """
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
             logger.info("WikiPage.getAttachmentData() > Server is None or not connected, aborting...")
             return
-        data = self.Server.getAttachmentData(self.PageId, filename, versionNumber)
+        data = self.Server.getAttachmentData(self.PageId, fileName, versionNumber)
         return data
 
     def addAttachment(self, attachmentInfo, attachmentData):
         """
         attachmentInfo dict must include fields 'comment', 'contentType', 'fileName'
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
@@ -468,6 +508,7 @@ below        source and target become/remain sibling pages and the source is mov
     def getAttachments(self):
         """
         Returns all the Attachments for this page (useful to point users to download them with the full file download URL returned).
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getAttachments'))
@@ -477,6 +518,7 @@ below        source and target become/remain sibling pages and the source is mov
     def getAncestors(self):
         """
         Returns all the ancestors of this page (parent, parent's parent etc).
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getAncestors'))
@@ -486,6 +528,7 @@ below        source and target become/remain sibling pages and the source is mov
     def getChildren(self):
         """
         returns all the direct children of this page.
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getChildren'))
@@ -495,6 +538,7 @@ below        source and target become/remain sibling pages and the source is mov
     def getDescendents(self):
         """
         Returns all the descendants of this page (children, children's children etc).
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getDescendents'))
@@ -504,6 +548,7 @@ below        source and target become/remain sibling pages and the source is mov
     def getComments(self):
         """
         returns all the comments for this page.
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
@@ -513,6 +558,7 @@ below        source and target become/remain sibling pages and the source is mov
     def getComment(self, commentId):
         """
         Returns an individual comment.
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
@@ -522,6 +568,7 @@ below        source and target become/remain sibling pages and the source is mov
     def addComment(self, comment_struct):
         """
         adds a comment to the page.
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
@@ -531,6 +578,7 @@ below        source and target become/remain sibling pages and the source is mov
     def editComment(self, comment_struct):
         """
         Updates an existing comment on the page.
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'editComment'))
@@ -540,6 +588,7 @@ below        source and target become/remain sibling pages and the source is mov
     def removeComment(self, commentId):
         """
         removes a comment from the page.
+        Returns None if server is None or not connected.
         """
         if not self.Server:
             logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'removeComment'))
@@ -549,42 +598,71 @@ below        source and target become/remain sibling pages and the source is mov
 
 
     def watchPage(self):
+        """
+        Turns on watching of page.
+        Returns None if server is None or not connected.
+        """
         if not self.Server:
-            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
+            logger.info("Server is None or not connected, aborting...")
             return
         return self.Server.watchPage(self.PageId)
+
     def removePageWatch(self):
+        """
+        Turns on watching of page.
+        Returns None if server is None or not connected.
+        """
         if not self.Server:
-            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
+            logger.info("Server is None or not connected, aborting...")
             return
         return self.Server.removePageWatch(self.PageId)
+
     def isWatchingPage(self):
+        """
+        Returns True if page is on user's watch list.
+        Returns None if server is None or not connected.
+        """
         if not self.Server:
-            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
+            logger.info("Server is None or not connected, aborting...")
             return
         return self.Server.isWatchingPage(self.PageId)
+
     def getPagePermissions(self):
+        """
+        Returns page permissions for the page.
+        """
         if not self.Server:
-            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
+            logger.info("Server is None or not connected, aborting...")
             return
         return self.Server.getPagePermissions(self.PageId)
 
 
 class TemplateManager(object):
+    """
+    TemplateManager is responsible for locating templates, either locally
+    or from the wiki server. The templates may be cached (if enabled in config).
+    to improve performance.
+    """
 
     def __init__(self, confighandler, server=None):
-        if 'templatemanager' in confighandler.Singletons:
-            logger.info("TemplateManager.__init__() :: ERROR, a template manager is already registrered in the confighandler...")
-            return confighandler['templatemanager']
+        #if 'templatemanager' in confighandler.Singletons:
+        #    logger.info("TemplateManager.__init__() :: ERROR, a template manager is already registrered in the confighandler...")
+        #    return confighandler['templatemanager']
         self.Confighandler = confighandler
         self._server = server
         self.Cache = dict()
         confighandler.Singletons['templatemanager'] = self
     @property
     def Server(self):
+        """
+        Returns server.
+        """
         return self._server or self.Confighandler.Singletons.get('server')
 
     def get(self, templatetype):
+        """
+        Returns a template of type <templatetype>. Relays to self.getTemplate(templatetype)
+        """
         return self.getTemplate(templatetype)
 
     def getTemplate(self, templatetype=None):
@@ -649,6 +727,9 @@ class WikiPageFactory(object):
         self.OverrideSpaceKeyRoot = True # Not sure this is ever used...
     @property
     def Server(self):
+        """
+        Returns server.
+        """
         return self._server or self.Confighandler.Singletons.get('server', None)
 
 
@@ -665,33 +746,16 @@ class WikiPageFactory(object):
 
     def getTemplate(self, templatetype=None):
         """
-        Returns a template (text string);
+        Returns a template (text string); logic delegated to TemplateManager.
         """
         return self.TemplateManager.getTemplate(templatetype)
-#        if templatetype is None:
-#            templatetype = self.DefaultTemplateType
-#        template = self.Confighandler.get(templatetype+'_template')
-#        if template:
-#            return template
-#        if self.TemplatePagesIds:
-#            logger.info(self.TemplatePagesIds
-#            templatePageId = self.TemplatePagesIds.get(templatetype)
-#            logger.info("templatePageId: type={}, value={}".format(type(templatePageId), templatePageId)
-#            if templatePageId:
-#                templatestruct = self.Server.getPage(pageId=templatePageId)
-#                logger.info("\nstruct:"
-#                logger.info(templatestruct
-#                #new_struct = self.makeMinimalStruct(struct)
-#                if templatestruct:
-#                    return templatestruct['content']
-#        logger.info("No matching pageId for given template '{}', aborting...".format(templatetype)
-#        return
 
 
     def makeNewPageStruct(self, content, space=None, parentPageId=None, title=None, fmt_params=None, localdirpath=None, **kwargs):
         """
         The **kwargs is only used to catch un-needed stuff so you can throw in a **struct as argument.
         """
+        logger.debug("Making new page struct, received kwargs: %s", kwargs)
         if space is None:
             space = self.Confighandler.get('wiki_exp_root_spaceKey', space, path=localdirpath)
             if space is None:

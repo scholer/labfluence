@@ -14,36 +14,62 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402
+# messages:
+#   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
+#   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   R0904: Too many public methods (20 max); R0913: Too many arguments;
+#   W0221: Arguments differ from overridden method,
+#   W0402: Use of deprechated module (e.g. string)
+#   E1101: Instance of <object> has no <dynamically obtained attribute> member.
+
+# To fix Pylint E1101 false-positive, check out
+# http://stackoverflow.com/questions/14280372/pylint-false-positive-e1101-instance-of-popen-has-no-poll-member
+# I am almost certain these issues will be fixed in time, but for now, just disable-msg E1101.
+"""
+Journalassistant module includes all logic to handle journal entries,
+including local file-based caching and invokation of WikiPage to write
+the entries to the wiki page in the right position.
+"""
 
 import os
-import shutil
+#import shutil
 #from codecs import open
 import codecs
-import yaml
-import re
+#import yaml
+#import re
+import string
 from datetime import datetime
-from collections import OrderedDict
-import xmlrpclib
-import hashlib
-import random
+#from collections import OrderedDict
+#import xmlrpclib
+#import hashlib
+#import random
 import logging
 logger = logging.getLogger(__name__)
 
 
 #from experiment import Experiment # importing from experiment will produce circular import reference. Import under test instead.
-from server import ConfluenceXmlRpcServer
-from confighandler import ExpConfigHandler
-from page import WikiPage, WikiPageFactory, TemplateManager
+#from server import ConfluenceXmlRpcServer
+#from confighandler import ExpConfigHandler
+#from page import WikiPage, WikiPageFactory, TemplateManager
+from page import TemplateManager
 #from utils import *  # This will override the logger with the logger defined in utils.
-from utils import random_string
+#from utils import random_string
 
 # Override default open method to provide UTF support.
-def open(fp, mode='r'):
+def open_utf(fp, mode='r'):
+    """
+    Provides unicode-capable opening of files using codecs.open.
+    Not required for python3.
+    """
     return codecs.open(fp, mode, encoding='utf-8')
 
 
 class JournalAssistant(object):
-
+    """
+    Class for handling journal entries.
+    Entries will be cached locally until they are successfully written to a WikiPage.
+    """
 
     def __init__(self, experiment):
         self.Experiment = experiment
@@ -56,14 +82,17 @@ class JournalAssistant(object):
 
     @property
     def WikiPage(self):
+        """WikiPage property"""
         return self.Experiment.WikiPage
 
     @property
     def Confighandler(self):
+        """Confighandler property"""
         return self.Experiment.Confighandler
 
     @property
     def VERBOSE(self):
+        """VERBOSE property"""
         return self.Experiment.VERBOSE
 
     def addEntry(self, text, entry_datetime=None, subentry_idx=None):
@@ -73,7 +102,7 @@ class JournalAssistant(object):
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
             if subentry_idx is None:
-                logger.warning( "JournalAssistant.addEntry() :: ERROR, no subentry available. self.Current_subentry_idx is: ", subentry_idx)
+                logger.warning( "JournalAssistant.addEntry() :: ERROR, no subentry available. self.Current_subentry_idx is: %s", subentry_idx)
                 return False
         # Make sure this is not overwritten by the default from the exp_subentry (which contains just a date)
         if entry_datetime is None:
@@ -91,7 +120,7 @@ class JournalAssistant(object):
             except OSError as e:
                 logger.warning("JournalAssistant.addEntry() failed while doing os.makedirs(journal_folderpath) due to an OSError: %s", e)
                 return False
-        with open(journal_path, 'a') as f:
+        with open_utf(journal_path, 'a') as f:
             try:
                 logger.debug("Entry text type: %s", type(entry_text))
                 logger.debug("Entry text is: %s", entry_text)
@@ -114,7 +143,7 @@ class JournalAssistant(object):
         subentryprops = self.makeSubentryProps(subentry_idx=subentry_idx)
         journal_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFilenameFmt.format(**subentryprops))
         try:
-            with open(journal_path) as f:
+            with open_utf(journal_path) as f:
                 journal_content = f.read()
             return journal_content
         except IOError as e:
@@ -122,64 +151,70 @@ class JournalAssistant(object):
 
 
     def flushAll(self):
+        """
+        Will attempt to flush the entry cache for all subentries.
+        Returns True if successful and False otherwise.
+        """
         for subentry_idx in self.Experiment.Subentries.keys():
             self.flush(subentry_idx)
+
+    def insertJournalContentOnWikiPage(self, journal_content, subentryprops):
+        """
+        Convert the journal entries in journal_content for subentry with subentryprops
+        and insert it on/with self.WikiPage.
+        """
+        wikipage = self.WikiPage
+        if not wikipage:
+            logger.warning("ERROR, no wikipage, aborting... (%s)", self)
+            return False
+        new_xhtml = "<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
+        logger.debug("%s, new_xhtml: %s", self.__class__.__name__, new_xhtml)
+        ### new logic, using regex-based insertion ###
+        insertion_regex_fmt = self.Confighandler.get('wiki_journal_entry_insert_regex_fmt')
+        insertion_regex = insertion_regex_fmt.format(**subentryprops)
+        subentry_idx = subentryprops['subentry_idx']
+        versionComment = "Labfluence JournalAssistant.flush() for subentry {[expid]}{}".format(subentryprops, subentry_idx)
+        res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
+        if not res:
+            logger.debug("wikipage.insertAtRegex returned '%s', probably due to failed regex matching of regex_pat '%s', derived from regex_pat_fmt '%s'. self.WikiPage.Struct['content']) is:%s",
+                          res, insertion_regex, insertion_regex_fmt, wikipage.Struct if not wikipage.Struct else wikipage.Struct['content'] )
+            return False, ""
+        return res, new_xhtml
 
 
     def flush(self, subentry_idx=None):
         """
         subentry_idx is e.g. 'a', 'b', 'c', ...
+        Original implementation would read the file and then rename to temporary filename during flush.
+        However, it is much better to keep the file locked in the brief time during the flush.
+        Changelog:
+        - Removed all legacy code related to .inprogress file handling.
+
         """
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
         if subentry_idx is None:
             logger.info( "flush invoked, but no subentry selected/available so aborting flush request and returning False.")
             return False
-        #page = self.WikiPage
-        wikipage = self.WikiPage
-        if not wikipage:
-            logger.warning("Experiment.flush() ERROR, no wikipage, aborting... (%s)", self)
+        # Do a quick check that a WikiPage object is attached.
+        # If it is not, reading the cache content is a moot point.
+        if not self.WikiPage:
+            logger.info("Experiment.flush() ERROR, no wikipage, aborting... (%s)", self)
             return False
+        # Generate subentry properties from subentry_idx:
         subentryprops = self.makeSubentryProps(subentry_idx=subentry_idx)
-        #for itm in ('JournalFilenameFmt', 'JournalFlushBackup', 'JournalFlushXhtml')
         journal_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFilenameFmt.format(**subentryprops))
-        journal_flushed_backup_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFlushBackup.format(**subentryprops)) if self.JournalFlushBackup else None
-        journal_flushed_xhtml_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFlushXhtml.format(**subentryprops)) if self.JournalFlushXhtml else None
         try:
-            with open(journal_path) as journalfh:
+            with open_utf(journal_path) as journalfh:
                 journal_content = journalfh.read()
                 logger.debug("Journal content read from file '%s': %s", journal_path, journal_content)
-                # I read and then immediately rename. In that way I dont have to keep a lock on the file.
-                # This would otherwise be required to prevent another instance from adding a journal entry to the journal
-                # which will then be erased by this instance at the end of this flush.
-                # Edit: No, this is not a good solution. If you rename the file and the flush fails, can you then revert? No, that is even less safe.
-                # The better option is to keep a lock during the flush.
-                if os.path.exists(journal_path+'.inprogress'):
-                    print "\nJournalAssistant.flush() :: WARNING, old .inprogress file detected! Will include that in the flush also!"
-                    old_file_content = open(journal_path+'.inprogress').read()
-                    journal_content = u"\n".join([old_file_content, journal_content])
-                    logger.debug("Updated journal content read from file '%s': %s", journal_path+'.inprogress', journal_content)
-                #os.rename(journal_path, journal_path+'.inprogress') # Are you sure this is a good idea? Why not just leave it for now?
-                # I think the point of renaming was that if someone else were write a log entry during the flush, then that would not be lost.
-                # but, I don't think the issues related to this justifies all that trouble.
-                # It is probably better to simply keep a lock on the file (e.g. within a with-clause)
-
-                new_xhtml = "<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
-                logger.debug("%s, new_xhtml: %s", self.__class__.__name__, new_xhtml)
-
-                """ new logic, using regex-based insertion """
-                insertion_regex_fmt = self.Confighandler.get('wiki_journal_entry_insert_regex_fmt')
-                insertion_regex = insertion_regex_fmt.format(**subentryprops)
-                versionComment = "Labfluence JournalAssistant.flush() for subentry {[expid]}{}".format(subentryprops, subentry_idx)
-                res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
-                # Check if success:
+                res, new_xhtml = self.insertJournalContentOnWikiPage(journal_content, subentryprops)
                 if not res:
-                    logger.debug("wikipage.insertAtRegex returned '%s', probably due to failed regex matching of regex_pat '%s', derived from regex_pat_fmt '%s'. self.WikiPage.Struct['content']) is:%s",
-                                  res, insertion_regex, insertion_regex_fmt, wikipage.Struct if not wikipage.Struct else wikipage.Struct['content'] )
                     logger.warning("An error occured in page.insertAtRegex causing it to return '%s'. Returning False.", res)
-                    #os.rename(journal_path+'.inprogress', journal_path)
                     return False
-            # finally, rename the flushed file, just after releasing the file lock.
+            # Instead of instantly deleting the cache, I keep a .lastflush backup.
+            # After successful flush, the earlier .lastback file is removed and the
+            # cache that was just flushed is renamed to .lastflush.
             try:
                 os.remove(journal_path+'.lastflush')
             except OSError as e:
@@ -188,9 +223,6 @@ class JournalAssistant(object):
                 os.rename(journal_path, journal_path+'.lastflush')
             except (IOError, OSError) as e:
                 logger.info("IOError/OSError while renaming journal entry file %s to %s. Error is: %s", journal_path, journal_path+'.lastflush', e)
-            if os.path.exists(journal_path+'.inprogress'):
-                logger.info("Removing old .inprogress file, '%s'", journal_path+'.inprogress')
-                os.remove(journal_path+'.inprogress')
         except IOError as e:
             logger.info("IOError during flush: %s", e)
             return
@@ -199,21 +231,27 @@ class JournalAssistant(object):
             return
         # This should mean that everything worked ok...
         # Write journal entries to backup file (containing all flushed entries). Also for equivalent file with xhtml entries.
+        journal_flushed_backup_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFlushBackup.format(**subentryprops)) if self.JournalFlushBackup else None
+        journal_flushed_xhtml_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFlushXhtml.format(**subentryprops)) if self.JournalFlushXhtml else None
         if journal_flushed_backup_path:
             try:
-                with open(journal_flushed_backup_path, 'ab') as bak:
+                with open_utf(journal_flushed_backup_path, 'ab') as bak:
                     bak.write(journal_content)
             except IOError as e:
                 logger.info("IOError while appending flushed journal entries (text) to backup file: '%s'. Error is: %s", journal_flushed_backup_path, e)
         if journal_flushed_xhtml_path:
             try:
-                with open(journal_flushed_xhtml_path, 'ab') as bak:
+                with open_utf(journal_flushed_xhtml_path, 'ab') as bak:
                     bak.write(new_xhtml)
             except IOError as e:
                 logger.info("IOError while appending flushed journal xhtml to backup file: '%s'. Error is: %s", journal_flushed_xhtml_path, e)
         return res
 
     def getTemplateManager(self):
+        """
+        Get a template manager, which is used to retrieve templates,
+        located either locally as a config, or on the wiki server.
+        """
         if 'templatemanager' in self.Confighandler.Singletons:
             return self.Confighandler.Singletons['templatemanager']
         else:
@@ -248,8 +286,7 @@ class JournalAssistant(object):
         fmtparams = self.Experiment.makeFormattingParams(subentry_idx=subentry_idx, props=dict(subentry_titledesc=subentry_titledesc))
 
         # get template and insert variables:
-        templatemgr = self.getTemplateManager()
-        template = templatemgr.get('exp_subentry')         #subentry_template = self.getConfigEntry('exp_subentry_template')
+        template = self.getTemplateManager().get('exp_subentry')         #subentry_template = self.getConfigEntry('exp_subentry_template')
         interpolation_mode = self.Confighandler.get('wiki_template_string_interpolation_mode', None)
         if interpolation_mode == 'old':
             subentry_xhtml = template % fmtparams
@@ -260,12 +297,8 @@ class JournalAssistant(object):
 
         # get regex and insert variables:
         regex_pat_fmt = self.getConfigEntry('wiki_exp_new_subentry_insert_regex_fmt')
-        print 'fmtparams:'
-        print fmtparams
         regex_pat = regex_pat_fmt.format(**fmtparams)
-
-        if self.VERBOSE:
-            logger.debug("JournalAssistant.makeWikiSubentry() :: INFO, adding the following xhtml to wikipage '%s' using regex pattern '%s':\n %s", wikipage, regex_pat, subentry_xhtml )
+        logger.debug("Adding the following xhtml to wikipage '%s' using regex pattern '%s':\n %s", wikipage, regex_pat, subentry_xhtml )
 
         # Do page substitution:
         versionComment = "JournalAssistant: Adding new subentry {expid}{subentry_idx}".format(**fmtparams)
@@ -318,6 +351,12 @@ class JournalAssistant(object):
 
 
     def makeSubentryProps(self, subentry_idx=None, props=None):
+        """
+        Returns all subentry properties required to format stings.
+        This is essentially just the props from the 'exp_subentries' item in
+        the experiments metadata (.labfluence.yml file), but with
+        extra info such as experiment id, foldername, etc.
+        """
         return self.Experiment.makeFormattingParams(subentry_idx, props)
 #        subentryprops = dict()
 #        subentryprops.update(self.Experiment.Props)
@@ -328,7 +367,11 @@ class JournalAssistant(object):
 
 
     def getConfigEntry(self, cfgkey, default=None):
-        return self.Experiment.getConfigEntry(cfgkey)
+        """
+        Relay to self.Experiment.getConfigEntry(cfgkey),
+        which again relays to confighandler's with the right path argument.
+        """
+        return self.Experiment.getConfigEntry(cfgkey, default)
 
 
 

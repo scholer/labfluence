@@ -14,21 +14,19 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# xpylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0111,W0613,W0621
 
-#from ... import model
 
-#from model.experiment import Experiment
 #from model.confighandler import ConfigHandler, PathFinder, ExpConfigHandler
-#from model.experiment_manager import ExperimentManager
-#from model.server import ConfluenceXmlRpcServer
 
 
 ## Test doubles:
 from tests.model_testdoubles.fake_confighandler import FakeConfighandler
 
-
-import os
+import pytest
 from datetime import datetime
+import os
 import logging
 logger = logging.getLogger(__name__)
 logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
@@ -39,13 +37,23 @@ logging.getLogger("model.confighandler").setLevel(logging.DEBUG)
 
 
 
-def test_fakeconfighandler_init():
+
+@pytest.fixture
+def fakeconfighandler(monkeypatch):
     ch = FakeConfighandler()
+    testdir = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup')
+    monkeypatch.setattr(ch, 'getConfigDir', lambda x: testdir)
+    return ch
 
 
-def test_fakeconfighandler_get():
-    ch = FakeConfighandler()
+def test_fakeconfighandler_basics(monkeypatch, fakeconfighandler):
+    ch = fakeconfighandler
     assert ch.get('wiki_serverparams')['baseurl'] == "http://10.14.40.245:8090"
+    print ch.get('local_exp_subDir')
+    #assert ch.get('local_exp_subDir') == './2013_Aarhus'
+    cwd = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup')
+    print cwd
+    assert ch.get('local_exp_subDir') == os.path.normpath(os.path.join(cwd, './2013_Aarhus'))
 
 
 def test_fakeconfighandler_setkey_and_get():

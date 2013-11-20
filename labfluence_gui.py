@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Labfluence modules and classes:
 
 from model.confighandler import ExpConfigHandler
-from model.experiment_manager import ExperimentManager
+from model.experimentmanager import ExperimentManager
 from model.experiment import Experiment
 from model.server import ConfluenceXmlRpcServer
 

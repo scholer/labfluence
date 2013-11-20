@@ -14,6 +14,17 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221
+# messages:
+#   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
+#   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   R0904: Too many public methods (20 max); R0913: Too many arguments;
+#   W0221: Arguments differ from overridden method
+"""
+Confighandler module includes all logic to read, parse and save config and
+
+"""
+
 
 import yaml
 import os
@@ -27,13 +38,18 @@ logger = logging.getLogger(__name__)
 
 # from http://stackoverflow.com/questions/4579908/cross-platform-splitting-of-path-in-python
 def os_path_split_asunder(path, debug=False):
+    """
+    Can be used to split directory paths into individual parts.
+    """
     parts = []
     while True:
         newpath, tail = os.path.split(path)
-        if debug: logger.debug(repr(path), (newpath, tail) )
+        if debug:
+            logger.debug(repr(path), (newpath, tail) )
         if newpath == path:
             assert not tail
-            if path: parts.append(path)
+            if path:
+                parts.append(path)
             break
         parts.append(tail)
         path = newpath
@@ -75,8 +91,9 @@ class ConfigHandler(object):
         This is used for e.g. defining 'templates' cfgtype.
     """
 
-    def __init__(self, systemconfigfn=None, userconfigfn=None, VERBOSE=0):
-        self.VERBOSE = VERBOSE
+    def __init__(self, systemconfigfn=None, userconfigfn=None):
+        # pylint: disable-msg=R0902
+        self.VERBOSE = 0
         self.ConfigPaths = OrderedDict()
         self.Configs = OrderedDict()
         # For retrieving paths via config entries...
@@ -108,17 +125,27 @@ class ConfigHandler(object):
         logger.info("ConfigPaths : %s", self.ConfigPaths)
 
     def getSingleton(self, key):
+        """
+        Return a registrered singleton by key, e.g.:
+            getSingleton('ui') -> return registrered UI
+        """
         return self.Singletons.get(key)
 
     def setSingleton(self, key, value):
+        """
+        Set application-wide singleton by key, e.g.:
+
+        """
         if key in self.Singletons:
             logger.info("key '%s' already in self.Singletons, overriding with new singleton object '%s'.", key, value)
         self.Singletons[key] = value
 
 
-    def addNewConfig(self, inputfn, cfgtype, VERBOSE=None, rememberpath=True):
-        if VERBOSE is None:
-            VERBOSE = self.VERBOSE
+    def addNewConfig(self, inputfn, cfgtype, rememberpath=True):
+        """
+        Add a new config to the list of configs, e.g.:
+            addNewConfig('config/test_config.yml', 'test')
+        """
         if cfgtype in set(self.Configs).union(self.ConfigPaths) and not self.AllowCfgtypeOverwrite:
             logger.warning("addNewConfig() :: cfgtype already present in configs and overwrite not allowed; aborting...")
             return
@@ -129,7 +156,13 @@ class ConfigHandler(object):
 
 
     def getConfigPath(self, what='all', aslist=False):
-        if what=='all':
+        """
+        Get the path for a particular config, has three return values:
+            getConfigPath('all') -> returns self.ConfigPaths.values()
+            getConfigPath('sys') -> return self.ConfigPaths['sys']
+            getConfigPath('sys', aslist=True) -> return ( self.ConfigPaths['sys'], ) tuple.
+        """
+        if what == 'all':
             return self.ConfigPaths.values()
         elif aslist:
             return self.ConfigPaths.get(what, None),
@@ -138,6 +171,15 @@ class ConfigHandler(object):
 
 
     def getConfig(self, what='all', aslist=False):
+        """
+        Returns the config for a particular config type.
+        Five return behaviours:
+        0) getConfig('combined') -> returns the combined, effective config for all configs.
+        1) getConfig('combined') -> Return 1-element list with the combined, effective config as sole element.
+        2) getConfig('sys') -> returns the 'sys' config.
+        3) getConfig('all') -> returns self.Configs.values() list.
+        4) getConfig('sys', aslist=True) -> returns a tuple with the 'sys' config as sole element.
+        """
         if what == 'combined':
             combined = dict()
             for config in self.Configs.values():
@@ -146,7 +188,7 @@ class ConfigHandler(object):
                 return (combined, )
             else:
                 return combined
-        elif what=='all':
+        elif what == 'all':
             return self.Configs.values()
         else:
             if aslist:
@@ -162,7 +204,17 @@ class ConfigHandler(object):
         return self.getConfig(what='combined').get(key, default)
 
     def setdefault(self, key, value=None):
-        for cfgtype, config in self.Configs.items():
+        """
+        Mimicks dict.setdefault, will return configentry <key>.
+        Use as:
+            setdefault('username', 'niceuser')
+        If configentry 'username' is not set in any of the loaded configs,
+        a new configentry with key 'username' and value 'niceuser' will be
+        set, using the default config.
+        If a configentry already exists, will simply return that value,
+        without setting anything.
+        """
+        for config in self.Configs.values():
             if key in config:
                 return config[key]
         # If key is not found, set default in default config ('user')
@@ -207,9 +259,13 @@ class ConfigHandler(object):
                 break
         return res
 
-    def readConfig(self, inputfn, cfgtype='user', VERBOSE=None):
-        if VERBOSE is None:
-            VERBOSE = self.VERBOSE
+    def readConfig(self, inputfn, cfgtype='user'):
+        """
+        Reads a (yaml-based) configuration file from inputfn, loading the
+        content into the config given by cfgtype.
+        Note: This is a relatively low-level method.
+        """
+        VERBOSE = self.VERBOSE
         if cfgtype is None:
             cfgtype = self.Configs.values()[0]
         if not self.AllowChainToSameType and cfgtype in self.ReadConfigTypes:
@@ -245,7 +301,7 @@ class ConfigHandler(object):
                 self.addNewConfig(newconfigfn, newtype)
 
         # Inputting configs through Config_path_entries:
-        reversemap = dict( (val, key) for key,val in self.Config_path_entries.items() )
+        reversemap = dict( (val, key) for key, val in self.Config_path_entries.items() )
         for key in set(newconfig.keys()).intersection(self.Config_path_entries.values()):
             if VERBOSE > 2:
                 logger.debug("\nreadConfig() :: Found the following path_entries key '{}' in the new config: {}".format(key, newconfig[key]) )
@@ -261,8 +317,7 @@ class ConfigHandler(object):
         keep track of which configs has been loaded and make sure to avoid cyclic config imports.
         (I.e. avoid the situation where ConfigA says "load ConfigB" and ConfigB says "load ConfigA).
         """
-        VERBOSE = self.VERBOSE
-        logger.debug("ConfigPaths:\n{}".format("\n".join("- {} :\t {}".format(k,v) for k,v in self.ConfigPaths.items())) )
+        logger.debug("ConfigPaths:\n{}".format("\n".join("- {} :\t {}".format(k, v) for k, v in self.ConfigPaths.items())) )
         for (cfgtype, inputfn) in self.ConfigPaths.items():
             if inputfn:
                 logger.debug("autoRead() :: Will read config '%s' to current dict: %s", inputfn, cfgtype)
@@ -271,7 +326,7 @@ class ConfigHandler(object):
             logger.debug("autoRead() :: Autoreading done, chained with new filenames: {}".format(self.AutoreadNewFnCache) )
         self.ConfigPaths.update(self.AutoreadNewFnCache)
         self.AutoreadNewFnCache.clear()
-        logger.debug("\nautoRead() :: Updated ConfigPaths:\n{}".format("\n".join("- {} : {}".format(k,v) for k,v in self.ConfigPaths.items())) )
+        logger.debug("\nautoRead() :: Updated ConfigPaths:\n{}".format("\n".join("- {} : {}".format(k, v) for k, v in self.ConfigPaths.items())) )
 
     def saveConfigForEntry(self, key):
         """
@@ -286,12 +341,16 @@ class ConfigHandler(object):
                 return True
         logger.warning("saveConfigForEntry invoked with key '{}', but key not found in any of the loaded configs ({})!".format(key, ",".join(self.Configs)))
 
-    def saveConfigs(self, what='all', VERBOSE=None):
+    def saveConfigs(self, what='all'):
+        """
+        Persist config specified by what argument.
+        Use as:
+            saveConfigs('all') --> save all configs (default)
+            saveConfigs('sys') --> save the 'sys' config.
+        """
         logger.info("saveConfigs invoked with configtosave '%s'", what)
-        if VERBOSE is None:
-            VERBOSE = self.VERBOSE
         #for (outputfn, config) in zip(self.getConfigPath(what='all'), self.getConfig(what='all')):
-        for cfgtype,outputfn in self.ConfigPaths.items():
+        for cfgtype, outputfn in self.ConfigPaths.items():
             if (what=='all' or cfgtype in what or cfgtype==what):
                 if outputfn:
                     logger.info("saveConfigs() :: Saving config '{}' to file: {}".format(cfgtype, outputfn))
@@ -301,21 +360,33 @@ class ConfigHandler(object):
             else:
                 logger.debug("configtosave '{}' not matching cfgtype '{}' with outputfn '{}'".format(what, cfgtype, outputfn))
 
-    def _saveConfig(self, outputfn, config, desc=''):
+    def _saveConfig(self, outputfn, config):
+        """
+        For internal use; does the actual saving of the config.
+        Can be easily mocked or overridden by fake classes to enable safe testing environments.
+        """
         try:
             yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False)
             logger.info("_saveConfig() :: Config saved to file: {}".format(outputfn))
             return True
         except IOError, e:
             # This is to be expected for the system config...
-            logger.warning("_saveConfig() :: Could not save config to file: {}".format(outputfn) )
+            logger.warning("_saveConfig() :: Could not save config to file '%s', error raised: %s", outputfn, e)
 
 
     def _printConfig(self, config, indent=2):
-        return "\n".join( "{indent}{k}: {v}".format(indent=' '*indent, k=k, v=v) for k,v in config.items() )
+        """
+        Returns a pretty string representation of a config.
+        """
+        return "\n".join( "{indent}{k}: {v}".format(indent=' '*indent, k=k, v=v) for k, v in config.items() )
+
 
     def printConfigs(self, cfgtypestoprint='all'):
-        for cfgtype,outputfn in self.ConfigPaths.items():
+        """
+        Pretty print of all configs specified by configstoprint argument.
+        Default is 'all' -> print all configs.
+        """
+        for cfgtype, outputfn in self.ConfigPaths.items():
             if (cfgtypestoprint=='all' or cfgtype in cfgtypestoprint or cfgtype==cfgtypestoprint):
                 print "\nConfig '{}' in file: {}".format(cfgtype, outputfn)
                 print self._printConfig(self.Configs[cfgtype])
@@ -331,7 +402,11 @@ class ConfigHandler(object):
         Returns the directory of a particular configuration (file); defaulting to the 'user' config.
         Valid arguments are: 'system', 'user', 'exp', etc.
         """
-        return os.path.dirname(self.getConfigPath(cfgtype))
+        cfgpath = self.getConfigPath(cfgtype)
+        if cfgpath:
+            return os.path.dirname(self.getConfigPath(cfgtype))
+        else:
+            logger.info("ConfigDir requested for config '%s', but that is not specified ('%s')", cfgtype, cfgpath)
 
 
     def registerEntryChangeCallback(self, configentry, function, args=None, kwargs=None):
@@ -405,11 +480,15 @@ class ConfigHandler(object):
             configentries = self.EntryChangeCallbacks.keys()
         elif isinstance(configentries, basestring):
             configentries = (configentries, )
-        def callbackfilter(callbacktuple):
-            return all( criteria in (None, callbacktuple[i]) for i,criteria in enumerate( (function, args, kwargs) ) )
 
         for configentry in configentries:
-            removelist = filter(callbackfilter, self.EntryChangeCallbacks[configentry])
+            #removelist = filter(callbackfilter, self.EntryChangeCallbacks[configentry])
+            # Changed, now using generator alternative instead of filter builtin (which is in bad
+            # standing with the BDFL, http://www.artima.com/weblogs/viewpost.jsp?thread=98196)
+            removelist = (  callbacktuple for callbacktuple in self.EntryChangeCallbacks[configentry]
+                            if all( criteria in (None, callbacktuple[i])
+                                   for i, criteria in enumerate((function, args, kwargs)) )
+                         )
             logger.debug("Removing callbacks from self.EntryChangeCallbacks[%s]: %s", configentry, removelist)
             for callbacktuple in removelist:
                 self.EntryChangeCallbacks[configentry].remove(callbacktuple)
@@ -434,10 +513,6 @@ class ConfigHandler(object):
             else:
                 logger.info("invokeEntryChangeCallback called with configentry '%s', but no callbacks are registrered for that entry...", configentry)
         elif self.ChangedEntriesForCallbacks:
-            # Use the self.ChangedEntriesForCallbacks set to determine what to call.
-#            for entry in self.ChangedEntriesForCallbacks:
-#                self.invokeEntryChangeCallback(entry)
-#            self.ChangedEntriesForCallbacks.clear()
             # The ChangedEntriesForCallbacks will change during iteration, so using a while rather than for loop:
             while True:
                 try:
@@ -475,7 +550,7 @@ class ExpConfigHandler(ConfigHandler):
         in the relative directory 'setup/configs/test_configs/local_test_setup_1'.
 
     """
-    def __init__(self, systemconfigfn=None, userconfigfn=None, expconfigfn=None, VERBOSE=0,
+    def __init__(self, systemconfigfn=None, userconfigfn=None, expconfigfn=None,
                 readfiles=True, pathscheme='default1', hierarchy_rootdir_config_key='local_exp_rootDir',
                 enableHierarchy=True, hierarchy_ignoredirs_config_key='local_exp_ignoreDirs'):
         self.Pathfinder = PathFinder()
@@ -484,7 +559,7 @@ class ExpConfigHandler(ConfigHandler):
         userconfigfn = userconfigfn or pschemedict.get('user')
         expconfigfn = expconfigfn or pschemedict.get('exp')
         # init super:
-        ConfigHandler.__init__(self, systemconfigfn, userconfigfn, VERBOSE=VERBOSE)
+        ConfigHandler.__init__(self, systemconfigfn, userconfigfn)
         self.Configs['exp'] = dict()
         self.ConfigPaths['exp'] = expconfigfn
         self.Config_path_entries['exp'] = "exp_config_path"
@@ -496,9 +571,9 @@ class ExpConfigHandler(ConfigHandler):
             ignoredirs = self.get(hierarchy_ignoredirs_config_key)
             logger.debug("ExpConfigHandler.__init__() :: enabling HierarchicalConfigHandler with rootdir: {}".format(rootdir) )
             if rootdir:
-                self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs, VERBOSE=VERBOSE)
+                self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs)
             else:
-                logger.info("rootdir is %s; hierarchy_rootdir_config_key is {}; config is:\n{}",
+                logger.info("rootdir is %s; hierarchy_rootdir_config_key is %s; config is:\n%s",
                     rootdir, hierarchy_rootdir_config_key, self.printConfigs() )
 
         else:
@@ -518,7 +593,11 @@ class ExpConfigHandler(ConfigHandler):
 
 
     def getHierarchicalConfig(self, path, rootdir=None):
-        return self.HierarchicalConfigHandler.getHierarchicalConfig(path, rootdir=None)
+        """
+        Returns a hierarchically-determined config, based on a path and rootdir.
+        Relays to HierarchicalConfigHandler.getHierarchicalConfig
+        """
+        return self.HierarchicalConfigHandler.getHierarchicalConfig(path, rootdir=rootdir)
 
 
     def get(self, key, default=None, path=None, pathsrelativetoexp=True):
@@ -531,15 +610,15 @@ class ExpConfigHandler(ConfigHandler):
             val = self.getHierarchicalEntry(key, path)
             if val is not None:
                 return val
-        # return self.getConfig(what='combined').get(key, default)
         # Optimized, and accounting for the fact that later added cfgs overrides the first added
-        for cfgtype, cfg in reversed(self.Configs.items()):
+        for cfg in reversed(self.Configs.values()):
             if key in cfg:
                 ## special cases, e.g. paths: ##
                 # Case 1, config keys specifying a single path:
                 if pathsrelativetoexp and key in ('local_exp_rootDir', 'local_exp_subDir') and cfg[key][0] == '.':
                     exp_path = self.getConfigDir('exp')
-                    return os.path.normpath(os.path.join(exp_path, cfg[key]))
+                    if exp_path:
+                        return os.path.normpath(os.path.join(exp_path, cfg[key]))
                 # Case 2, config keys specifying a list of paths:
                 elif pathsrelativetoexp and key in ('local_exp_ignoreDirs'):
                     exp_path = self.getConfigDir('exp')
@@ -548,12 +627,23 @@ class ExpConfigHandler(ConfigHandler):
         return default
 
     def getExpConfig(self, path):
+        """
+        Returns a hierarchically determined experiment config.
+        Similar to getConfig, but will not fall back to use the standard
+        (non-hierarchical) configs.
+        """
         return self.HierarchicalConfigHandler.getConfig(path)
 
-    def loadExpConfig(self, path):
-        return self.HierarchicalConfigHandler.loadConfig(path)
+    def loadExpConfig(self, path, doloadparent=None, update=None):
+        """
+        Relay to self.HierarchicalConfigHandler.loadConfig(path)
+        """
+        return self.HierarchicalConfigHandler.loadConfig(path, doloadparent, update)
 
     def saveExpConfig(self, path, cfg=None):
+        """
+        Relay to self.HierarchicalConfigHandler.saveConfig(path)
+        """
         return self.HierarchicalConfigHandler.saveConfig(path, cfg)
 
 
@@ -584,7 +674,7 @@ class ExpConfigHandler(ConfigHandler):
 
 
 class HierarchicalConfigHandler(object):
-    """
+    r"""
     The point of this handler is to provide the ability of having individual configs in different
     branches of the directory tree.
     E.g., the main config might have
@@ -615,9 +705,15 @@ class HierarchicalConfigHandler(object):
             self.loadRootHierarchy()
 
     def printConfigs(self):
+        """
+        Make a pretty string representation of the loaded configs for e.g. debugging.
+        """
         return "\n".join( "{} -> {}".format(path, cfg) for path, cfg in sorted(self.Configs.items())  )
 
     def loadRootHierarchy(self, rootdir=None, clear=False):
+        """
+        Load all labfluence config/metadata files in the directory hierarchy using self.Rootdir as base.
+        """
         if clear:
             self.Configs.clear()
         if rootdir is None:
@@ -634,8 +730,6 @@ class HierarchicalConfigHandler(object):
                 logger.debug("Searching for {} in {}".format(self.ConfigSearchFn, dirpath) )
             if self.ConfigSearchFn in filenames:
                 self.loadConfig(dirpath)
-#                cfg = yaml.load(open(os.path.realpath(os.path.join(dirpath, self.ConfigSearchFn))) )
-#                self.Configs[dirpath] = self.Configs[os.path.realpath(dirpath)] = cfg
 
 
     def getConfig(self, path):
@@ -673,11 +767,10 @@ class HierarchicalConfigHandler(object):
         else:
             logger.error("\nCritical warning: Confighandler.getConfigFileAndDirPath() :: Could not find path:\n{}\n".format(path) )
             raise ValueError("Confighandler.getConfigFileAndDirPath() :: Could not find path:\n{}".format(path))
-            return (None, None)
         return dpath, fpath
 
 
-    def loadConfig(self, path, doloadparent='new', update='file'):
+    def loadConfig(self, path, doloadparent=None, update=None):
         """
         update can be either of False, 'file', 'memory', 'timestamp', where
         - False = do not update, just load the config overriding config in memory if present.
@@ -690,6 +783,10 @@ class HierarchicalConfigHandler(object):
         - 'reload' means always try load to parent directory config from file.
         """
         dpath, fpath = self.getConfigFileAndDirPath(path)
+        if doloadparent is None:
+            doloadparent = 'new'
+        if update is None:
+            update = 'file'
         try:
             cfg = yaml.load(open(fpath))
             if update and dpath in self.Configs:
@@ -715,7 +812,15 @@ class HierarchicalConfigHandler(object):
         return cfg
 
 
-    def saveConfig(self, path, cfg=None, docheck=False, VERBOSE=1):
+    def saveConfig(self, path, cfg=None, docheck=False):
+        """
+        Save config <cfg> to path <path>.
+        If cfg is not given, the method will check if a config from <path> was
+        already loaded. In that case, that config will be saved to path.
+        docheck argument can be used to force checking that the file provided by
+        <path> has not been updated.
+        Returns True if successful and False otherwise.
+        """
         dpath, fpath = self.getConfigFileAndDirPath(path)
         # optionally perform a check to see if the config was changed since it was last saved...?
         # either using an external file, a timestampt, or something else...
@@ -727,15 +832,21 @@ class HierarchicalConfigHandler(object):
             else:
                 logger.warning("HierarchicalConfigHandler.saveConfig() :: Error, no config found to save for path '{}'".format(fpath) )
                 return None
+        if docheck:
+            fileconfig = yaml.load(cfg, open(fpath))
+            if fileconfig.get('lastsaved'):
+                if not cfg.get('lastsaved') or cfg.get('lastsaved') < fileconfig['lastsaved']:
+                    logger.warning("Attempted to save config to path '%s', but checking the existing file\
+                                   reveiled that the existing config has been updated (from another location). Aborting...")
+                    return False
         cfg['lastsaved'] = datetime.now()
         try:
             yaml.dump(cfg, open(fpath, 'wb'))
-            if VERBOSE:
-                logger.debug("HierarchicalConfigHandler.saveConfig() :: config saved to file '{}'".format(fpath) )
+            logger.debug("HierarchicalConfigHandler.saveConfig() :: config saved to file '{}'".format(fpath) )
             return True
         except IOError, e:
-            if VERBOSE:
-                logger.warning("HierarchicalConfigHandler.saveConfig() :: Could not open path '{}'\n{}".format(path, e) )
+            logger.warning("HierarchicalConfigHandler.saveConfig() :: Could not open path '{}'\n{}".format(path, e) )
+            return False
 
 
     def renameConfigKey(self, oldpath, newpath):
@@ -752,13 +863,17 @@ class HierarchicalConfigHandler(object):
         e.g. for /home/scholer/Documents/, return:
          ['/', '/home', '/home/scholer', '/home/scholer/Documents']
         if topfirst is false, returns the above, reversed.
+        Implemented in three different ways, determined by 'version'.
         """
         if version == 1:
             def getparents(path):
-                drive, path = os.path.splitdrive(path)
-#                logger.debug("getparents iterator started; drive, path = {}, {}".format(drive, path)
+                """
+                A generator, that returns the path and its parents
+                """
+                _, path = os.path.splitdrive(path)
+                #logger.debug("getparents iterator started; drive, path = {}, {}".format(drive, path)
                 while True:
-#                    logger.debug("{} iterations for yielding path {}".format(it, path)
+                    #logger.debug("{} iterations for yielding path {}".format(it, path)
                     yield path # yield first, to also return the input dir.
                     parent = os.path.dirname(path)
                     if parent == path:
@@ -768,25 +883,27 @@ class HierarchicalConfigHandler(object):
                 return reversed(list(getparents(path)))
             else:
                 return getparents(path)
-        paths = list()
-        if version == 2:
-            for dirname in os_path_split_asunder(path):
-                if not paths:
-                    paths = [dirname]
-                else:
-                    paths.append(os.path.join(paths[-1], dirname))
-            if topfirst:
-                return paths
-            else:
-                return reversed(paths)
-            return paths if topfirst else reversed(paths)
-        if version == 3:
-            while True:
-                paths.append(path)
-                path, tail = os.path.split(path)
-                if not path and tail:
-                    break
-            return reversed(paths) if topfirst else paths
+        # other implementations:
+        #paths = list()
+        #if version == 2:
+        #    for dirname in os_path_split_asunder(path):
+        #        if not paths:
+        #            # Set the first element in paths.
+        #            paths = [dirname]
+        #        else:
+        #            paths.append(os.path.join(paths[-1], dirname))
+        #    if topfirst:
+        #        return paths
+        #    else:
+        #        return reversed(paths)
+        #    return paths if topfirst else reversed(paths)
+        #if version == 3:
+        #    while True:
+        #        paths.append(path)
+        #        path, tail = os.path.split(path)
+        #        if not path and tail:
+        #            break
+        #    return reversed(paths) if topfirst else paths
 
 
     def getEntry(self, key, path, traverseup=True, default=None, doload='new'):
@@ -810,22 +927,32 @@ class HierarchicalConfigHandler(object):
         # end if not traverseup; begin traverseup case:
         for cand_path in self.getPathParents(path, topfirst=False):
             if cand_path in self.Configs and key in self.Configs[cand_path]:
-                    return self.Configs[cand_path][key]
+                return self.Configs[cand_path][key]
 
 
     def getHierarchicalConfig(self, path, rootdir=None, traverseup=True, default=None):
+        """
+        Returns a config in the directory hierarchy, starting with path.
+        If rootdir is not given, self.Rootdir is used.
+        If traverseup is True (default), the search will progress upwards from path
+        until a config file is found or the rootdir is reached.
+        Will return default if no config were found.
+        """
         if not traverseup:
             if path in self.Configs:
-                return self.Configs[path].get(key)
+                return self.Configs[path]
             else:
                 return default
         if rootdir is None:
             rootdir = self.Rootdir
         cfg = dict()
-        drive, path = os.path.splitdrive(os.path.normpath(path))
+        _, path = os.path.splitdrive(os.path.normpath(path))
         # other alternative, with iterator and os.path.dirname
         def getparents(path):
-            drive, path = os.path.splitdrive(path)
+            """
+            Using the generator implementation defined in getPathParents(..., version=1)
+            """
+            _, path = os.path.splitdrive(path)
             while True:
                 logger.debug("yielding path {}".format(path) )
                 yield path
@@ -838,40 +965,6 @@ class HierarchicalConfigHandler(object):
             if p in self.Configs:
                 cfg.update(self.Configs[p])
         return cfg
-
-
-    def _getHierarchicalConfig_v2(self, path, rootdir):
-            # Alternative, based on path splitting:
-        dirs = os_path_split_asunder(path)
-        jp = ""
-        cfg = dict()
-        for dirname in dirs:
-            jp = os.path.join(jp, dirname)
-            if jp in self.Configs:
-                cfg.update(self.Configs[jp])
-                logger.debug("getHierarchicalConfig() :: '{}' found in Configs".format(jp) )
-            else:
-                logger.debug("getHierarchicalConfig() :: '{}' not found in Configs".format(jp) )
-        return cfg
-
-    def _getHierarchicalConfig_v3(self, path, rootdir):
-        # other alternative, using os.path.split
-        cfg = dict()
-        while True:
-            if path in self.Configs:
-                new = self.Configs[path].copy()
-                for k,v in new.items():
-                    if k not in cfg: cfg[k]=v
-                # Alternatively:
-#                new.update(cfg)
-#                cfg = new
-            path, tail = os.path.split(path)
-            if not path and tail:
-                break
-        return cfg
-
-
-
 
 
 
@@ -905,9 +998,6 @@ class PathFinder(object):
         #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
         if VERBOSE > 2:
             logger.debug("PathFinder: Schemedicts --> \n{}".format( self.printSchemes() ) )
-#        self.Schemes['default1'] = ('config/labfluence_sys.yml', os.path.expanduser(os.path.join('~', '.Labfluence', 'labfluence_user.yml')), None )
-#        self.Schemedicts['default1'] = dict(sys='config/labfluence_sys.yml', user=os.path.expanduser(os.path.join('~', '.Labfluence', 'labfluence_user.yml')) )
-
 
     def mkschemedict(self):
         """
@@ -917,7 +1007,6 @@ class PathFinder(object):
         """
         for scheme, schemesearch in self._schemeSearch.items():
             self.Schemedicts[scheme] = dict( (cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in schemesearch.items()  )
-
 
     def getScheme(self, scheme=None, update=True):
         """
@@ -931,12 +1020,18 @@ class PathFinder(object):
             self.Schemedicts[scheme] = dict( (cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in self._schemeSearch[scheme].items()  )
         return self.Schemedicts[scheme]
 
-
     def getSchemedict(self, scheme):
+        """
+        return self.Schemedicts.get(scheme, dict())
+        """
         return self.Schemedicts.get(scheme, dict())
 
-
     def findPath(self, filename, dircands):
+        """
+        Given an ordered list of candidate directories, return the first directory
+        in which filename is found. If filename is not present in either
+        of the directory candidates, return None.
+        """
         #print "filename '{}', dircands: {}".format(filename, dircands)
         for dircand in dircands:
             if not os.path.isdir(dircand):
@@ -953,32 +1048,17 @@ class PathFinder(object):
                 # if matches: return matches[0]
         logger.debug("Warning, no config found for config filename: '{}'\ntested:{}".format(filename, dircands) )
 
-    def printSchemes(self, what='all', doprint=False):
-        ret = "\n".join( "scheme '{}': {}".format(scheme, ", ".join("{}='{}'".format(k,v) \
-                    for k,v in schemedict.items() ) ) \
+    def printSchemes(self):
+        """
+        Returns a pretty string representation of all schemes in self.Schemedicts .
+        """
+        ret = "\n".join( "scheme '{}': {}".format(scheme, ", ".join("{}='{}'".format(k, v) \
+                    for k, v in schemedict.items() ) ) \
                     for scheme, schemedict in self.Schemedicts.items() )
         return ret
 
 
-
 if __name__ == '__main__':
-
 
     logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
     logging.basicConfig(level=logging.INFO, format=logfmt)
-
-
-
-
-
-
-    #test_makedata()
-    #test_save1()
-#    testConfigTypeChain()
-    #test_readdata()
-    #testPathFinder1()
-    #testPfAndChain()
-    #testExpConfig1()
-    #test_addNewConfig()
-    #test_cfgNewConfigDef()
-    #test_registerEntryChangeCallback()

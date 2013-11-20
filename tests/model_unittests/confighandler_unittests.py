@@ -19,18 +19,11 @@ import unittest
 import os
 import logging
 logger = logging.getLogger(__name__)
-logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
-logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
 
-#from .. import model
-#from .. import model
 # As long as you run the test from the main ./labfluence/ directory, it should be able to
 # know how to find the model package in ./labfluence/model/
 # i.e. do not use relative imports, they dont really work anyways, just run from far away.
 from model.confighandler import ExpConfigHandler, PathFinder
-
-#from model import experiment, confighandler, experiment_manager, server
 
 
 
