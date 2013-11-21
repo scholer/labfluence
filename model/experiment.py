@@ -174,8 +174,7 @@ class Experiment(object):
             logger.debug( "Experiment.__init__() :: Props already in HierarchicalConfig cfg: \n{}".format(self.Props) )
         if props:
             self.Props.update(props)
-            if self.VERBOSE:
-                logger.info("Experiment self.Props updated with props argument, is now {}".format(self.Props))
+            logger.debug("Experiment %s updated with props argument, is now %s", self, self.Props)
         if regex_match:
             gd = regex_match.groupdict()
             ## regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)"
@@ -214,7 +213,7 @@ functionality of this object will be greatly reduced and may break at any time."
 
         self.JournalAssistant = JournalAssistant(self)
         if self.VERBOSE:
-            logger.info("Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props))
+            logger.debug("Experiment.__init__() :: Props (at end of init): \n{}".format(self.Props))
 
 
 
@@ -465,17 +464,15 @@ functionality of this object will be greatly reduced and may break at any time."
         Saves content of self.Props to file.
         If a confighandler is attached, allow it to do it; otherwise just persist as yaml to default location.
         """
-        if self.VERBOSE:
-            logger.info("(Experiment.saveProps() triggered; confighandler: {}".format(self.Confighandler))
-            if self.VERBOSE > 2:
-                logger.debug("self.Props: {}".format(self.Props))
+        logger.debug("(Experiment.saveProps() triggered; confighandler: {}".format(self.Confighandler))
+        if self.VERBOSE > 2:
+            logger.debug("self.Props: {}".format(self.Props))
         if path is None:
             path = self.Localdirpath
         if self.Confighandler:
             if not os.path.isdir(path):
                 path = os.path.dirname(path)
-            if self.VERBOSE > 3:
-                logger.debug("Invoking self.Confighandler.updateAndPersist(path, self.Props) ->{}\n{}\n".format(path,self.Props) )
+            logger.debug("Invoking self.Confighandler.updateAndPersist(path, self.Props) ->{}\n{}\n".format(path,self.Props) )
             self.Confighandler.updateAndPersist(path, self.Props)
         else:
             logger.debug("Experiment.saveProps() :: No confighandler, saving manually...")
@@ -749,7 +746,7 @@ functionality of this object will be greatly reduced and may break at any time."
             return
         exp_xhtml = expsection_match.groupdict().get('exp_section_body')
         if not exp_xhtml:
-            logger.warning("Aborting, exp_section_body is empty: %s", emp_xhtml)
+            logger.warning("Aborting, exp_section_body is empty: %s", exp_xhtml)
             return
         wiki_subentries = OrderedDict()
         for match in subentry_regex_prog.finditer(exp_xhtml):
@@ -1087,7 +1084,7 @@ functionality of this object will be greatly reduced and may break at any time."
         if not pageId:
             logger.info("Notice - no pageId found for expid %s (dosearch=%s, self.Server=%s)...", self.Props.get('expid'), dosearch, self.Server)
             return pagestruct
-        self.WikiPage = wikipage = WikiPage(pageId, self.Server, pagestruct, VERBOSE=self.VERBOSE)
+        self.WikiPage = wikipage = WikiPage(pageId, self.Server, pagestruct)
         # Update self.Props for offline access to the title of the wiki page:
         if wikipage.Struct:
             self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
