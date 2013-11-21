@@ -394,15 +394,16 @@ class ExperimentManager(object):
         repeated server queries.
         """
         logger.debug("getCurrentWikiExperiments called with ret='%s', useCache=%s, store=%s", ret, useCache, store)
-        if self.Server is None:
-            logging.info("No server defined.")
-            return
+
         if not self.Server:
+            if self.Server is None:
+                logging.info("No server defined, aborting.")
+                return
             # There might have been a temporary issue with server, see if it is ressolved:
             logger.info("Server info: %s", self.getServerInfo) # This will handle cache etc and attempt to reconnect at most every two minutes.
-        if not self.Server:
-            logging.warning("Server not connected, aborting")
-            return
+            if not self.Server:
+                logging.warning("Server not connected, aborting")
+                return
         wiki_exp_root_pageid = self.getWikiExpRootPageId()
         if not wiki_exp_root_pageid:
             logger.warning("wiki_exp_root_pageid is boolean False ('%s'), aborting...", wiki_exp_root_pageid)
@@ -412,13 +413,10 @@ class ExperimentManager(object):
         regex_str = self.getExpSeriesRegex()
         logger.debug( "Regex and wiki_pages: %s, %s", regex_str, ", ".join( u"{}: {}".format(p.get('id'), p.get('title')) for p in wiki_pages ) )
         if not regex_str:
-            logger.warning( "ExperimentManager.getLocalExperiments() :: ERROR, no exp_series_regex entry found in config!" )
+            logger.warning( " ERROR, no exp_series_regex entry found in config, aborting!" )
             return
         regex_prog = re.compile(regex_str)
-        if ret == 'pagestruct-by-expid':
-            experiments = OrderedDict()
-        else:
-            experiments = list()
+        experiments = OrderedDict() if ret == 'pagestruct-by-expid' else list()
         for page in wiki_pages:
             match = regex_prog.match(page['title'])
             logger.debug( "%s found when testing '%s' wiki page against regex '%s'", "MATCH" if match else "No match", page['title'], regex_str)

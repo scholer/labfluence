@@ -143,6 +143,7 @@ class Experiment(object):
         self._fileshistory = dict()
         self._props = dict()
         self._expid = None
+        self._allowmanualpropssavetofile = False # Set to true if you want to let this experiment handle Props file persisting without a confighandler.
         if localdir is None:
             localdir = props.get('localdir')
         if makelocaldir:
@@ -396,6 +397,10 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         archive this experiment, relays through self.Manager.
         """
+        mgr = self.Manager
+        if not mgr:
+            logger.debug("archive() invoked, but no ExperimentManager associated, aborting...")
+            return
         self.Manager.archiveExperiment(self)
 
 
@@ -453,6 +458,10 @@ functionality of this object will be greatly reduced and may break at any time."
         return os.path.abspath(self.Localdirpath)
 
     def saveIfChanged(self):
+        """
+        Saves props if the self.PropsChanged flag has been switched to True.
+        Can be invoked as frequently as you'd like.
+        """
         if self.PropsChanged:
             self.saveProps()
             self.PropsChanged = False
@@ -472,20 +481,23 @@ functionality of this object will be greatly reduced and may break at any time."
             if not os.path.isdir(path):
                 path = os.path.dirname(path)
             if self.VERBOSE > 3:
-                logger.debug("Invoking self.Confighandler.updateAndPersist(path, self.Props) ->{}\n{}\n".format(path,self.Props) )
+                logger.debug("Invoking self.Confighandler.updateAndPersist(%s, %s)", path, self.Props )
             self.Confighandler.updateAndPersist(path, self.Props)
-        else:
+        elif self._allowmanualpropssavetofile:
             logger.debug("Experiment.saveProps() :: No confighandler, saving manually...")
             if os.path.isdir(path):
                 path = os.path.normpath(os.path.join(self.Localdirpath, self.ConfigFn))
-            logger.debug("Experiment.saveProps() :: saving directly to file '{}' (not using confighandler)".format(path))
+            logger.debug("Experiment.saveProps() :: saving directly to file '%s' (not using confighandler)", path)
             yaml.dump(self.Props, open(path, 'wb'))
         if self.VERBOSE > 4:
             logger.debug("\nContent of exp config/properties file after save:")
-            logger.debug(open(os.path.join(path,self.ConfigFn)).read())
+            logger.debug(open(os.path.join(path, self.ConfigFn)).read())
 
 
     def updatePropsByFoldername(self, regex_prog=None):
+        """
+        Update self.Props to match the meta info provided by the folder name, e.g. expid, titledesc and date.
+        """
         if regex_prog is None:
             exp_regex = self.getConfigEntry('exp_series_regex')
             regex_prog = re.compile(exp_regex)
@@ -497,10 +509,14 @@ functionality of this object will be greatly reduced and may break at any time."
         return regex_match
 
     def updatePropsByWikipage(self, regex_prog=None):
+        """
+        Update self.Props to match the meta info provided by the wiki page (page title),
+        e.g. expid, titledesc and date.
+        """
         if regex_prog is None:
             exp_regex = self.getConfigEntry('exp_series_regex')
             regex_prog = re.compile(exp_regex)
-        wikipage=self.WikiPage
+        wikipage = self.WikiPage
         if not wikipage.Struct:
             wikipage.reloadFromServer()
         regex_match = regex_prog.match(wikipage.Struct.get('title'))
@@ -513,6 +529,10 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def makeFormattingParams(self, subentry_idx=None, props=None):
+        """
+        Returns a dict containing all keys required for many string formatting interpolations,
+        e.g. makes a dict that includes both expid and subentry props.
+        """
         fmt_params = dict(datetime=datetime.now())
         # datetime always refer to datetime.datetime objects; 'date' may refer either to da date string or a datetime.date object.
         # edit: 'date' must always be a string date, formatted using 'journal_date_format'.
@@ -529,9 +549,13 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
 
-    """ STUFF RELATED TO SUBENTRIES """
+    ### STUFF RELATED TO SUBENTRIES ###
 
     def sortSubentrires(self):
+        """
+        Make sure the subentries are properly sorted. They might not be, e.g. if subentry f was created locally
+        while subentry e was created on the wiki page and only read in later.
+        """
         #org_keyorder = self.Subentries.keys()
         if self.Subentries.keys() == sorted(self.Subentries.keys()):
             return
@@ -539,6 +563,11 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None, extraprops=None, makefolder=False, makewikientry=False):
+        """
+        Adds a new subentry and add it to the self.Props['subentries'][<subentry_idx>].
+        Optionally also creates a local subentry folder and adds a new subentry section to the wiki page,
+        by relaying to self.makeSubentryFolder() and self.makeWikiSubentry()
+        """
         if subentry_idx is None:
             subentry_idx = self.getNewSubentryIdx()
         if subentry_idx in self.Subentries:
@@ -591,6 +620,11 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def makeSubentryFolder(self, subentry_idx):
+        """
+        Creates a new subentry subfolder in the local experiment directory,
+        with a foldername matching the format dictated in the config
+        as config key 'exp_subentry_dir_fmt'.
+        """
         if subentry_idx not in self.Subentries:
             logger.error("Experiment.makeSubentryFolder() :: ERROR, subentry_idx '{}' not listed in subentries, aborting...".format(subentry_idx) )
             return
@@ -629,6 +663,9 @@ functionality of this object will be greatly reduced and may break at any time."
             return self.Subentries[subentry_idx]
 
     def initSubentriesUpTo(self, subentry_idx):
+        """
+        Make sure all subentries are initiated up to subentry <subentry_idx>.
+        """
         if not self.Subentries:
             self.Subentries = OrderedDict()
         for idx in idx_generator(subentry_idx):
@@ -636,6 +673,10 @@ functionality of this object will be greatly reduced and may break at any time."
                 self.Subentries[idx] = dict()
 
     def getExpRepr(self, default=None):
+        """
+        Returns a string representation of this exp object.
+        Used by self.__repr__()
+        """
         if 'foldername' in self.Props:
             return self.Props['foldername']
         else:
@@ -650,6 +691,11 @@ functionality of this object will be greatly reduced and may break at any time."
                     return "{} {}".format(self.Props.get('expid', None), self.Props.get('exp_titledesc', None))
 
     def getSubentryRepr(self, subentry_idx=None, default=None):
+        """
+        Returns a string representation for a particular subentry,
+        formatted according to config entry 'exp_subentry_dir_fmt'
+        Is used to create new subentry folders, and display subentries in e.g. lists, etc.
+        """
         if subentry_idx:
             subentry = self.getSubentry(subentry_idx, default=None)
             if subentry:
@@ -665,7 +711,7 @@ functionality of this object will be greatly reduced and may break at any time."
                             return default
                         else:
                             return "{}{} {}".format(self.Props.get('expid', None), subentry.get('subentry_idx', None), self.Props.get('subentry_titledesc', None))
-        if default=='exp':
+        if default == 'exp':
             return self.getExpRepr()
         else:
             return default
@@ -699,14 +745,16 @@ functionality of this object will be greatly reduced and may break at any time."
                 logger.info("\n\n{} found when testing '{}' dirname against regex '{}'".format("MATCH" if res else "No match", foldername, regex_prog.pattern))
             if res:
                 props = res.groupdict()
-                # I allow for regex with multiple date entries, i.e. both first and last.
-                datekeys = filter(lambda x: 'date' in x and len(x)>4, props.keys())
-                for k in sorted(datekeys):
+                # I allow for regex with multiple date entries, i.e. both at the start end end of filename.
+                datekeys = sorted( key for key in props.items() if 'date' in key and len(key)>4 )
+                # Having found the relevant datekeys, remove them all from the parsed props dict.
+                # If there is one that is not None, set it as the 'real' date field for the subentry:
+                for k in datekeys:
                     val = props.pop(k)
                     if val:
-                        props['date']=val
+                        props['date'] = val
                 props['foldername'] = foldername
-                #if 'subentry_idx' in props:
+                #if 'subentry_idx' in props: - it must be
                 current_idx = props['subentry_idx']
                 # edit: how could subentry_idx possibly not be in res.groupdict? only if not included in regex?
                 # anyways, if not present, simply making a new index could be dangerous; what if the directories are not sorted and the next index is not right?
@@ -728,9 +776,8 @@ functionality of this object will be greatly reduced and may break at any time."
                 wikipage = self.WikiPage
             #xhtml = wikipage['content']
             xhtml = wikipage.Content
-        expsection_regex = self.getConfigEntry('wiki_experiment_section')
-        logger.debug("wiki_experiment_section is:\n%s", expsection_regex)
-        expsection_regex_prog = re.compile(expsection_regex, flags=re.DOTALL+re.MULTILINE)
+        expsection_regex_prog = re.compile(self.getConfigEntry('wiki_experiment_section'), flags=re.DOTALL+re.MULTILINE)
+        logger.debug("wiki_experiment_section is:\n%s", expsection_regex_prog.pattern)
 
         subentry_regex_fmt = self.getConfigEntry('wiki_subentry_regex_fmt')
         logger.debug("wiki_subentry_regex_fmt is\n%s", subentry_regex_fmt)
@@ -741,7 +788,7 @@ functionality of this object will be greatly reduced and may break at any time."
         expsection_match = expsection_regex_prog.match(xhtml) # consider using search instead of match?
         if not expsection_match:
             logger.warning("NO MATCH ('%s') for expsubsection_regex '%s' in xhtml of length %s, aborting",
-                           expsection_match, expsection_regex, len(xhtml))
+                           expsection_match, expsection_regex_prog.pattern, len(xhtml))
             logger.debug("xhtml is:\n%s", xhtml)
             return
         exp_xhtml = expsection_match.groupdict().get('exp_section_body')
