@@ -98,7 +98,7 @@ class ExpFilemanagerFrame(ExpFrame):
         filterdict = self.filelistfilterframe.getFilterdict()
         logger.debug("Filterdict: {}".format(filterdict))
         self.localfilelistframe.updatelist(filterdict)
-        self.wikifilelistframe.updatelist(filterdict, src='cache')
+        self.wikifilelistframe.updatelist(filterdict)
 
     def on_file_select(self, event):
         listbox = event.widget
@@ -351,20 +351,20 @@ class FilelistFrame(ExpFrame):
     def getheader(self):
         return "Local files:"
 
-    def updatelist(self, filterdict=None, src=None):
+    def updatelist(self, filterdict=None):
         self.listbox.updatelist()
         if filterdict is None:
             filterdict = dict()
-        lst = self.getlist(filterdict, src)
+        lst = self.getlist(filterdict)
         self.Filetuples = lst
         self.Fileslist = zip(*lst)
         self.listbox.delete(0, tk.END)
         if lst:
             self.listbox.insert(tk.END, *self.Fileslist[0])
 
-    def getlist(self, filterdict, src=None):
+    def getlist(self, filterdict):
         # override this method; must return a list of two-tuple items.
-        return self.listbox.getlist(filterdict, src)
+        return self.listbox.getlist(filterdict)
 
     def getSelection(self):
         # Returning the complete file tuple with metadata -- makes it more useful.

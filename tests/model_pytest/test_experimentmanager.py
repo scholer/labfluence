@@ -127,15 +127,14 @@ def test_getLocalExperiments(experimentmanager_with_confighandler):
 @pytest.mark.skipif(True, reason="Not ready yet")
 def test_makeExperimentsByIdMap(experimentmanager_with_confighandler):
     exps = None
-    if em is None:
-        #em, ch = setup1()
-        em, exps = test_getLocalExperiments()
+    em = experimentmanager_with_confighandler
+    exps = em.getLocalExperiments(store=False)
     print "len(exps): {}".format(len(exps) if exps else 'None')
     print "\ntest_makeExperimentsByIdMap: invoking em.makeExperimentByExpIdMap"
     expbyid = em.makeExperimentByExpIdMap(exps, updateSelf=True)
     print "len(em.ExperimentsById) = {}".format(len(em.ExperimentsById))
     print "\n".join( "{} : {}".format(expid, exp.Props.get('exp_titledesc')) for expid, exp in sorted(expbyid.items()) )
-    return em, expbyid
+
 
 @pytest.mark.skipif(True, reason="Not ready yet")
 def test_getExperimentsIndices(em=None):

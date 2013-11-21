@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
 from utils import getmimetype, increment_idx, idx_generator
+from decorators.cache_decorator import cached_property
 
 
 class Experiment(object):
@@ -292,11 +293,14 @@ functionality of this object will be greatly reduced and may break at any time."
     @property
     def Attachments(self):
         """
-        Only update if a server is available...
+        Returns list of attachment structs with metadata on attachments on the wiki page.
+        Note that the list should be treated strictly as a read-only object:
+        * It is not possible to set the Attachments list.
+        * Any changes made to the list will be lost when the cache is expired.
+        The property invokes the cached method listAttachments.
+        To reset the cache and get an updated list, use getUpdatedAttachmentsList().
         """
-        if self.Server and self._attachments_cache is None:
-            self.updateAttachmentsCache()
-        return self._attachments_cache
+        return self.listAttachments()
     @property
     def Server(self):
         """
@@ -361,16 +365,18 @@ functionality of this object will be greatly reduced and may break at any time."
         Returns None if neither.
         """
         manager = self.Manager
+        if not manager:
+            return None
         if self.Expid in manager.ActiveExperimentIds:
             return 'active'
         elif self.Expid in manager.RecentExperimentIds:
             return 'recent'
     def isactive(self):
         """Returns whether experiment is listed in the active experiments list."""
-        return self.Expid in self.Manager.ActiveExperimentIds
+        return self.Status == 'active'
     def isrecent(self):
         """Returns whether experiment is listed in the recent experiments list."""
-        return self.Expid in self.Manager.RecentExperimentIds
+        return self.Status == 'recent'
     ## Non-property getters:
     def getUrl(self):
         """get wikipage url"""
@@ -381,15 +387,6 @@ functionality of this object will be greatly reduced and may break at any time."
         # if no url is found, perhaps use the pageId to generate a url (via the server and the wiki_url or perhaps wiki_url_bypageId_fmt).
         return url
 
-
-    def updateAttachmentsCache(self):
-        """
-        Updates the attachments cache. Consider using the cache decorator instead!
-        """
-        structs = self.listAttachments()
-        if not structs:
-            logger.info( "Experiment.updateAttachmentsCache() :: listAttachments() returned '{}', aborting".format(structs) )
-        self._attachments_cache = structs
 
     ########################
     ### MANAGER methods: ###
@@ -1287,15 +1284,28 @@ functionality of this object will be greatly reduced and may break at any time."
             # Should I do e.g. base64 encoding of the bytes?
             attachmentData = xmlrpclib.Binary(f.read())# as seen in https://confluence.atlassian.com/display/DISC/Upload+attachment+via+Python+XML-RPC
             attachment = self.WikiPage.addAttachment(attachmentInfo, attachmentData)
+        return attachment
 
 
+    def getUpdatedAttachmentsList(self):
+        """
+        Updates the attachments cache by resetting the listAttachements cache
+        and then invoking listAttachments.
+        Returns updated list of attachments (or empty list if server query failed).
+        """
+        # Reset the cache:
+        del self._cache['listAttachments']
+        structs = self.listAttachments()
+        if not structs:
+            logger.info( "Experiment.updateAttachmentsCache() :: listAttachments() returned '%s'", structs )
+        return structs
 
+
+    @cached_property(ttl=300)
     def listAttachments(self):
         """
         Lists attachments on the wiki page.
-        Returns a list of attachments (structs) if succeeded,
-        False if failed and None if no attemt was made to upload due to a local Error.
-        Use the Attachments property for a cached version.
+        Returns a list of attachments (structs) if succeeded, and empty list if failed.
         https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects#RemoteConfluenceDataObjects-attachmentAttachment
         attachment-struct has:
         - comment (string, required)
@@ -1311,14 +1321,20 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         if not getattr(self, 'WikiPage', None):
             logger.info("Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self))
-            return None
-        logger.warning("Experiment.listAttachments() :: Not implemented yet - take care ;)")
+            return list()
+        #logger.warning("Experiment.listAttachments() :: Not implemented yet - take care ;)")
         attachment_structs = self.WikiPage.getAttachments()
+        if attachment_structs is None:
+            logger.debug("exp.WikiPage.getAttachments() returned None, likely because the server it not connected.")
+            return list()
+        return attachment_structs
 
 
-    def getAttachmentList(self, src=None, fn_pattern=None, fn_is_regex=False, **filterdict):
+
+    def getAttachmentList(self, fn_pattern=None, fn_is_regex=False, **filterdict):
         """
-        Similar to getLocalFileslist(), incorporates a filterdict.
+        The wiki-attachments equivalent to getLocalFileslist(),
+        incorporates a filterdict that can be used to filter the returned list.
         However, this uses self.
         - comment (string, required)
         - contentType (string, required)
@@ -1328,12 +1344,7 @@ functionality of this object will be greatly reduced and may break at any time."
         - fileSize (string, number of bytes)
         - id (string, attachmentId)
         """
-        if src is None:
-            struct_list = self.Attachments
-        else:
-            if src == 'server':
-                struct_list = self.updateAttachmentsCache()
-            struct_list = self._attachments_cache
+        struct_list = self.Attachments
         # Returned tuple of (<display>, <identifier>, <complete struct>)
         # I think either filename or id would work as identifier.
         if fn_pattern:
@@ -1349,7 +1360,7 @@ functionality of this object will be greatly reduced and may break at any time."
                     if regex_prog is None or regex_prog.match(struct['fileName']) ]
 
 
-    """ Other stuff... """
+    ### Other stuff...###
 
     def __repr__(self):
         #return "Experiment in ('{}'), with Props:\n{}".format(self.Localdirpath, yaml.dump(self.Props))
