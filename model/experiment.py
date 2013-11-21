@@ -55,6 +55,7 @@ from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
 from utils import getmimetype, increment_idx, idx_generator
 from decorators.cache_decorator import cached_property
+from decorators.deprecated_decorator import deprecated
 
 
 class Experiment(object):
@@ -616,41 +617,101 @@ functionality of this object will be greatly reduced and may break at any time."
         return foldername
 
 
+    def getSubentryFoldername(self, subentry_idx):
+        """
+        Returns the foldername for a particular subentry, relative to the experiment directory.
+        Returns None in case of e.g. KeyError.
+        Returns False if foldername is an existing path, but not a directory.
+         -- Edit: This is currently not implemented; I will cross that bridge if it ever becomes an issue.
+        """
+        try:
+            subentry = self.Subentries[subentry_idx]
+        except KeyError:
+            logger.debug("subentry_idx not in self.Subentries, returning None")
+            return
+        if 'foldername' in subentry:
+            foldername = subentry['foldername']
+            if os.path.isdir(os.path.join(self.Localdirpath, foldername)):
+                return foldername
+            else:
+                logger.warning("Subentry '%s' exists in self.Props and has a 'foldername' key with \
+                               value '%s', but this is not a foldername!", subentry_idx, foldername)
+        # No existing folder specified; make one from the format provided in configentry:
+        fmt_params = self.makeFormattingParams(subentry_idx=subentry_idx, props=subentry)
+        subentry_foldername_fmt = self.getConfigEntry('exp_subentry_dir_fmt')
+        subentry_foldername = subentry_foldername_fmt.format(**fmt_params)
+        return subentry_foldername
+
+
+    def existingSubentryFolder(self, subentry_idx, returntuple=False):
+        """
+        Serves two purposes:
+        1) To tell whether a particular subentry exists,
+        2) If returntuple is True, will return a tuple consisting of:
+            (boolean whether subentry folder exist,
+             subentry_folder_path, subentry_foldername)
+        """
+        subentry_foldername = self.getSubentryFoldername(subentry_idx)
+        folderpath = os.path.realpath(os.path.join(self.Localdirpath, subentry_foldername))
+        if os.path.isdir(folderpath):
+            if returntuple:
+                return (True, folderpath, subentry_foldername)
+            return True
+        elif os.path.exists(folderpath):
+            logger.warning("The folder specified by subentry '%s' exists, but is not a directory: %s ", subentry_idx, folderpath)
+        if returntuple:
+            return (False, folderpath, subentry_foldername)
+        return False
+
+
+
     def makeSubentryFolder(self, subentry_idx):
         """
         Creates a new subentry subfolder in the local experiment directory,
         with a foldername matching the format dictated in the config
         as config key 'exp_subentry_dir_fmt'.
         """
-        if subentry_idx not in self.Subentries:
-            logger.error("Experiment.makeSubentryFolder() :: ERROR, subentry_idx '{}' not listed in subentries, aborting...".format(subentry_idx) )
+        try:
+            subentry = self.Subentries[subentry_idx]
+        except KeyError:
+            logger.warning("Experiment.makeSubentryFolder() :: ERROR, subentry_idx '{}' not listed in subentries, aborting...".format(subentry_idx) )
             return
-        subentry = self.getSubentry(subentry_idx)
-        fmt_params = self.makeFormattingParams(subentry_idx=subentry_idx, props=subentry)
-#        print "fmt_params: {}"
-        subentry_foldername_fmt = self.getConfigEntry('exp_subentry_dir_fmt')
-        subentry_foldername = subentry_foldername_fmt.format(**fmt_params)
-        newfolderpath = os.path.join(self.Localdirpath, subentry_foldername)
-        if os.path.exists(newfolderpath):
+
+        folder_exists, newfolderpath, subentry_foldername = self.existingSubentryFolder(subentry_idx, returntuple=True)
+        if folder_exists:
             logger.error("\nExperiment.makeSubentryFolder() :: ERROR, newfolderpath already exists, aborting...\n--> '{}'".format(newfolderpath))
             return
         try:
             os.mkdir(newfolderpath)
         except OSError as e:
-            logger.error("\n{}\nExperiment.makeSubentryFolder() :: ERROR, making new folder:\n--> '{}'".format(e, newfolderpath))
+            logger.error("\n%s\nExperiment.makeSubentryFolder() :: ERROR, making new folder: '%s'".format(e, newfolderpath))
             return False
         subentry['foldername'] = subentry_foldername
         if self.SavePropsOnChange:
             self.saveProps()
         return subentry_foldername
 
-
-    def getSubentry(self, subentry_idx, default='getSubentry-not-set', ensureExisting=False):
+    @deprecated
+    def getSubentry_(self, subentry_idx, default='getSubentry-not-set', ensureExisting=False):
         """
         I want to raise KeyError if default is not given (like dict does).
         However, how to set default to allow it to be optional, but allowing the
         user to set it to e.g. None. It is very likely that the user would want to get
         'None' returned instead of having a KeyError value raised.
+        Note: Unless you want to use the 'default' parameter or make convenient use of
+        the 'ensureExisting' option, it is generally more code efficient to simply do:
+            try:
+                subentry = self.Subentries[subentry_idx]
+            except KeyError:
+                <something>
+        or just use:
+            self.Subentries.get(subentry_idx, None)
+        Actually, I think this is a bad method to have, the only advantage is that if you
+        descide to refactor and e.g. have Subentries as something else, you would just have to
+        change this method. However, since self.Subentries is a property, I can always just change that.
+        So, I hereby decide to deprechate this method.
+        And actually, the dict does NOT raise a KeyError, ever. But, in that case, just use
+        self.Subentries.get(subentry_idx) instead of bloating this class with yet another method.
         """
         if subentry_idx not in self.Subentries and ensureExisting:
             self.initSubentriesUpTo(subentry_idx)
@@ -658,6 +719,7 @@ functionality of this object will be greatly reduced and may break at any time."
             return self.Subentries.get(subentry_idx, default)
         else:
             return self.Subentries[subentry_idx]
+
 
     def initSubentriesUpTo(self, subentry_idx):
         """
@@ -694,7 +756,7 @@ functionality of this object will be greatly reduced and may break at any time."
         Is used to create new subentry folders, and display subentries in e.g. lists, etc.
         """
         if subentry_idx:
-            subentry = self.getSubentry(subentry_idx, default=None)
+            subentry = self.Subentries.get(subentry_idx, None)
             if subentry:
                 if 'foldername' in subentry:
                     return subentry['foldername']
@@ -763,6 +825,7 @@ functionality of this object will be greatly reduced and may break at any time."
     def parseSubentriesFromWikipage(self, wikipage=None, xhtml=None, return_subentry_xhtml=False):
         """
         Note: wikipage is a WikiPage object, not a page struct.
+        Not sure what the return_subentry_xhtml argument was intended for...?
         """
         if isinstance(wikipage, WikiPage):
             logger.debug("wikipage is instance of WikiPage, ok.")
@@ -808,6 +871,10 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def mergeWikiSubentries(self, wikipage=None):
+        """
+        Used to parse existing subentries (in self.Props) with subentries
+        obtained by parsing the wiki page.
+        """
         if wikipage is None:
             wikipage = self.WikiPage
         wiki_subentries = self.parseSubentriesFromWikipage(wikipage)

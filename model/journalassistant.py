@@ -277,7 +277,11 @@ class JournalAssistant(object):
             logger.warning( "Experiment.makeWikiSubentry() :: ERROR, no wikipage, self.WikiPage is '%s', aborting...", wikipage)
             return
         # get subentry and ensure it has a titledesc if none is provided here...:
-        subentry = self.Experiment.getSubentry(subentry_idx)
+        try:
+            subentry = self.Experiment.Subentries[subentry_idx]
+        except KeyError:
+            logger.warning("Subentry '%s' does not exist, aborting...", subentry_idx)
+            return
         if subentry_titledesc is None:
             subentry_titledesc = subentry.get('subentry_titledesc', None)
             if subentry_titledesc is None:
@@ -308,48 +312,6 @@ class JournalAssistant(object):
 
 
 
-        # OBSOLETE:
-#        if not pagetoken or not subentry_template:
-#            print "Experiment.makeWikiSubentry() :: ERROR, could not get wiki_exp_new_subentry_token config entries:\n-subentry_template: {}\n-wiki_exp_new_subentry_token: {}".format(subentry_template, pagetoken)
-#            return
-#        # Two rounds of variable injection: first standard string format insertion; the next is replacement of optional $var template variables.
-#        fmt_params = self.makeFormattingParams(props=dict(subentry_idx=subentry_idx, subentry_titledesc=subentry_titledesc))
-#        fmt_params['subentry_journal_token'] = self.JournalAssistant.subentryToken(subentry_idx)
-#        subentry_xhtml = subentry_template.format(**fmt_params)
-
-
-
-#    def subentryToken(self, subentry_idx):
-#        """
-#        Deprechated; this was a dead-end mechanism. If you really want to insert special stuff, make a plugin...
-#        Instead, I am using regular expressions to parse the xml and find the correct insertion place.
-#        """
-#        # dict:
-#        subentry = self.Experiment.getSubentry(subentry_idx)
-#        if 'journal_token' in subentry:
-#            token = subentry['journal_token']
-#        else:
-#            token = subentry['journal_token'] = self.getConfigEntry('journal_subentry_token_fmt').format(random_string(16))
-#            self.Experiment.PropsChanged = True
-#        return token
-
-#    def findAltToken(self, subentry_idx):
-#        found = None
-#        for alt_token in self.make_journal_subentry_token_alternatives(subentry_idx):
-#            if self.WikiPage.count(alt_token) > 0:
-#                found = alt_token
-#                break
-#        return found
-
-#    def make_journal_subentry_token_alternatives(self, subentry_idx):
-#        subentryprops = self.makeSubentryProps(subentry_idx=subentry_idx)
-#        subentryprops['next_subentry_idx'] = increment_idx(subentry_idx)
-#        token_fmts = ["<h4>{next_subentry_idx}", "<h2>Results"]
-#        tokens = [token_fmt.format(subentryprops) for token_fmt in token_fmts]
-#        return tokens
-
-
-
     def makeSubentryProps(self, subentry_idx=None, props=None):
         """
         Returns all subentry properties required to format stings.
@@ -358,11 +320,6 @@ class JournalAssistant(object):
         extra info such as experiment id, foldername, etc.
         """
         return self.Experiment.makeFormattingParams(subentry_idx, props)
-#        subentryprops = dict()
-#        subentryprops.update(self.Experiment.Props)
-#        subentryprops.update(props) # doing this after to ensure no override.
-#        exp_subentryid_fmt = self.getConfigEntry('exp_subentryid_fmt')
-#        subentryprops['subentryid'] = exp_subentryid_fmt
 
 
 
