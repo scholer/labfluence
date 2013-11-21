@@ -24,11 +24,11 @@ def deprecated(func):
 
 
 ## Usage examples ##
-@deprecated
-def my_func():
-    pass
-
-@other_decorators_must_be_upper
-@deprecated
-def my_func():
-    pass
+#@deprecated
+#def my_func():
+#    pass
+#
+#@other_decorators_must_be_upper
+#@deprecated
+#def my_func():
+#    pass

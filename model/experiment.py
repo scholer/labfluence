@@ -291,7 +291,8 @@ functionality of this object will be greatly reduced and may break at any time."
                 self.WikiPage.reloadFromServer()
         self.Props['wiki_pageId'] = pageid
 
-    @property
+
+    @cached_property(ttl=300)
     def Attachments(self):
         """
         Returns list of attachment structs with metadata on attachments on the wiki page.
@@ -302,6 +303,7 @@ functionality of this object will be greatly reduced and may break at any time."
         To reset the cache and get an updated list, use getUpdatedAttachmentsList().
         """
         return self.listAttachments()
+
     @property
     def Server(self):
         """
@@ -415,6 +417,10 @@ functionality of this object will be greatly reduced and may break at any time."
          - self.Fileshistory, dict in .labfluence/files_history.yml
         What else is stored in <localdirpath>/.labfluence/ ??
          - what about journal assistant files?
+
+        Consider returning True if all saves suceeded and False otherwise...
+        e.g.
+            return self.saveProps() and self.saveFileshistory()
         """
         self.saveProps()
         self.saveFileshistory()
@@ -476,10 +482,13 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.debug("self.Props: {}".format(self.Props))
         if path is None:
             path = self.Localdirpath
+            if not path:
+                logger.debug("No path provided to saveProps and Experiment.Localdirpath is also '%s'", path)
+                return False
         if self.Confighandler:
             if not os.path.isdir(path):
                 path = os.path.dirname(path)
-            logger.debug("Invoking self.Confighandler.updateAndPersist(path, self.Props) ->{}\n{}\n".format(path,self.Props) )
+            logger.debug("Invoking self.Confighandler.updateAndPersist(path=%s, self.Props=%s)", path, self.Props)
             self.Confighandler.updateAndPersist(path, self.Props)
         elif self._allowmanualpropssavetofile:
             logger.debug("Experiment.saveProps() :: No confighandler, saving manually...")
@@ -487,9 +496,12 @@ functionality of this object will be greatly reduced and may break at any time."
                 path = os.path.normpath(os.path.join(self.Localdirpath, self.ConfigFn))
             logger.debug("Experiment.saveProps() :: saving directly to file '%s' (not using confighandler)", path)
             yaml.dump(self.Props, open(path, 'wb'))
+        else:
+            return False
         if self.VERBOSE > 4:
             logger.debug("\nContent of exp config/properties file after save:")
             logger.debug(open(os.path.join(path, self.ConfigFn)).read())
+        return True
 
 
     def updatePropsByFoldername(self, regex_prog=None):
@@ -893,6 +905,10 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def getNewSubentryIdx(self):
+        """
+        Returns the next subentry idx, e.g.:
+        if 'a', 'b', 'd' are existing subentries --> return 'e'
+        """
         if not self.Subentries:
             return 'a'
         return increment_idx(sorted(self.Subentries.keys())[-1])
@@ -937,19 +953,18 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.warning("No 'exp_series_dir_fmt' found in config; aborting")
             return
         newname = dir_fmt.format(self.Props)
-        newname_full = os.path.join(self.Parentdirpath, newname)
-        oldname = self.Foldername
-        oldname_full = self.Localdirpath
-        logger.info("Renaming exp folder: {} -> {}".format(oldname_full, newname_full))
+        newpath = os.path.join(self.Parentdirpath, newname)
+        oldpath = self.Localdirpath
+        logger.info("Renaming exp folder: {} -> {}".format(oldpath, newpath))
         #os.rename(oldname_full, newname_full)
-        self.Localdirpath = newname_full
+        self.Localdirpath = newpath
         self.Foldername = newname
         # Note: there is NO reason to have a key 'dirname' in self.Props;
         if self.Confighandler:
-            self.Confighandler.renameConfigKey(oldname_full, newname_full)
+            self.Confighandler.renameConfigKey(oldpath, newpath)
 
 
-    def hashFile(self, filepath, digesttypes=('md5', ), save_in_history=True):
+    def hashFile(self, filepath, digesttypes=('md5', )):
         """
         Default is currently md5, although e.g. sha1 is not that much slower.
         The sha256 and sha512 are approx 2x slower than md5, and I dont think that is requried.
@@ -974,12 +989,15 @@ functionality of this object will be greatly reduced and may break at any time."
         if relpath in fileshistory:
             # if hexdigest is present, then no need to add it...? Well, now that you have hashed it, just add it anyways.
             #if hexdigest not in [entry[digesttype] for entry in fileshistory[relpath] if digesttype in entry]:
-            fileshistory[relpath].append(d)
+            fileshistory[relpath].append(digestentry)
         else:
-            fileshistory[relpath] = [d]
+            fileshistory[relpath] = [digestentry]
         return digestentry
 
     def saveFileshistory(self):
+        """
+        Persists fileshistory to file.
+        """
         fileshistory = self.Fileshistory # This is ok; if _fileshistory is empty, it will try to reload to make sure not to override.
         if not fileshistory:
             logger.info("No fileshistory ('{}')for experiment '{}', aborting saveFileshistory".format(fileshistory, self))
@@ -995,6 +1013,9 @@ functionality of this object will be greatly reduced and may break at any time."
         yaml.dump(fileshistory, open(fn, 'wb'), default_flow_style=False)
 
     def loadFileshistory(self):
+        """
+        Loads the fileshistory from file.
+        """
         if not getattr(self, 'Localdirpath', None):
             logger.warning("loadFileshistory was invoked, but experiment has no localfiledirpath. ({})".format(self))
             return
@@ -1013,7 +1034,13 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.info("loadFileshistory error: {}".format(e))
 
     def getRelativeStartPath(self, relative):
-        if relative is None or relative=='exp':
+        """
+        Returns the relative path for various elements, e.g.
+        - 'exp'  (default)      -> returns self.Localdirpath
+        - 'local_exp_subDir'
+        - 'local_exp_rootDir'
+        """
+        if relative is None or relative == 'exp':
             relstart = self.Localdirpath
         elif relative == 'local_exp_subDir':
             relstart = self.Confighandler.get('local_exp_subDir')
@@ -1024,6 +1051,10 @@ functionality of this object will be greatly reduced and may break at any time."
         return relstart
 
     def listLocalFiles(self, relative=None):
+        """
+        Lists all local files, essentially a lite version of getLocalFilelist
+        that makes it clear that the task can be accomplished as a one-liner :-)
+        """
         if not self.Localdirpath:
             return list()
         relstart = self.getRelativeStartPath(relative)
@@ -1032,6 +1063,15 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
     def getLocalFilelist(self, fn_pattern=None, fn_is_regex=False, relative=None, subentries_only=True, subentry_idxs=list()):
+        """
+        Returns a filtered list of local files in the experiment directory and sub-folders,
+        filtering by:
+        - fn_pattern
+        - fn_is_regex   -> if True, will enterpret fn_pattern as a regular expression.
+        - relative       -> relative to what ('exp', 'local_exp_subDir', 'local_exp_rootDir')
+        - subentries_only -> only return files from subentry folders and not other files.
+        - subentries_idxs -> only return files from from subentries with these subentry indices (sequence)
+        """
         # oneliner for listing files with os.walk:
         #print "\n".join("{}:\n{}".format(dirpath,
         #        "\n".join(os.path.join(dirpath, filename) for filename in filenames))for dirpath,dirnames,filenames in os.walk('.') )
@@ -1108,9 +1148,9 @@ functionality of this object will be greatly reduced and may break at any time."
         return ret
 
 
-    """
-    STUFF RELATED TO WIKI PAGE HANDLING
-    """
+    ###
+    ### CODE RELATED TO WIKI PAGE HANDLING
+    ###
 
     def reloadWikipage(self):
         """
@@ -1283,7 +1323,9 @@ functionality of this object will be greatly reduced and may break at any time."
         - 0 = Zero results found.
         - False = More than one result found.
 
-        Todo: allow for 'required' and 'optional' arguments.
+        ## Todo: allow for 'required' and 'optional' arguments.
+        ## TODO: Enable title_regex search (must be done on client side)
+        ## TODO: Enable content regex search (must also be done on client side)
         """
         server = self.Server
         if not server:
@@ -1313,14 +1355,18 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.info("pagestruct keys: %s", pagestruct.keys() )
             # pagestruct keys returned for a server search is: 'id', 'title', 'type', 'url', 'excerpt'
             logger.info("Experiment.searchForWikiPageWithQuery() :: A single hit found : '%s: %s: %s'",
-                          pagestruct['title'] )
+                          pagestruct['space'], pagestruct['id'], pagestruct['title'] )
             return pagestruct
 
 
-    def makeWikiPage(self, dosave=True, pagefactory=None):
+    def makeWikiPage(self, pagefactory=None):
         """
         Unlike attachWikiPage which attempts to attach an existing wiki page,
         this method creates a new wiki page and persists it to the server.
+        Changes:
+        - Removed , dosave=True argument
+            Props should always be saved/persisted after making a wiki page,
+            otherwise the pageId might be lost.
         """
         if not (self.Server and self.Confighandler):
             logger.error("Experiment.makeWikiPage() :: FATAL ERROR, no server and/or no confighandler.")
@@ -1334,6 +1380,7 @@ functionality of this object will be greatly reduced and may break at any time."
         self.WikiPage = pagefactory.new('exp_page', fmt_params=fmt_params)
         self.Props['wiki_pageId'] = self.WikiPage.Struct['id']
         #if dosave or self.SavePropsOnChange:
+        # edit: always save/persist props after making a wiki page, otherwise the pageId might be lost.
         self.saveProps()
         return self.WikiPage
 
@@ -1401,18 +1448,20 @@ functionality of this object will be greatly reduced and may break at any time."
     def getUpdatedAttachmentsList(self):
         """
         Updates the attachments cache by resetting the listAttachements cache
-        and then invoking listAttachments.
+        and then returning self.Attachments.
         Returns updated list of attachments (or empty list if server query failed).
         """
         # Reset the cache:
-        del self._cache['listAttachments']
-        structs = self.listAttachments()
+        del self._cache['Attachments']
+        structs = self.Attachments
         if not structs:
             logger.info( "Experiment.updateAttachmentsCache() :: listAttachments() returned '%s'", structs )
         return structs
 
 
-    @cached_property(ttl=300)
+    #@cached_property(ttl=300)
+    # edit: cached_property makes the method a property and can no longer be used as a method.
+    # I have moved the caching to the Attachments property instead...
     def listAttachments(self):
         """
         Lists attachments on the wiki page.
@@ -1482,7 +1531,7 @@ functionality of this object will be greatly reduced and may break at any time."
         Update this experiment with the content from other_exp.
         """
         #raise NotImplementedError("Experiment.update is not implemented...")
-        print "update not impleemnted..."
+        logger.warning( "update not implemented..." )
 
 
 

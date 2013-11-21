@@ -95,9 +95,20 @@ def exp_no_wikipage_or_subentries(expprops):
 
 
 def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
+    """
+    This test case has the following assumptions:
+    * No ExperimentManager is available to the experiment
+    * No Server is available.
+    * No wikipage has been attached.
+    * No subentries has been loaded.
+    Basic test, since it cannot interact with a manager, wikipage or server, and
+    only receives faked responses from FakeConfighandler.
+    """
     e = exp_no_wikipage_or_subentries
     sub_regex = r'(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$'
     e.setConfigEntry('exp_subentry_regex', sub_regex)
+
+    assert e.getConfigEntry('exp_subentry_regex') == sub_regex
     assert e.Props == expprops
     assert e.Subentries == OrderedDict()
     assert e.Expid == expprops['expid']
@@ -114,8 +125,13 @@ def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
     assert e.isrecent() == False
     assert e.getUrl() == None
 
-def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
-    e = exp_no_wikipage_or_subentries
+    assert e.archive() == None  # should return None when no experimentmanager is available.
+    assert e.saveAll() == None  # Currently lways returns None, subject to change.
+
+    #assert e.getAbsPath() == None
+    assert e.saveIfChanged() == None
+    assert e.saveProps() == False # No localdir defined, so should return False.
+
 
 
 @pytest.mark.skipif(True, reason="Not ready yet")
