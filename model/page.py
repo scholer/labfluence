@@ -456,7 +456,8 @@ below        source and target become/remain sibling pages and the source is mov
 
     def getAttachmentInfo(self, fileName, versionNumber=0):
         """
-        Returns metadata for an attachment. Each attachment-struct has fields:
+        Returns metadata (attachment struct) for a single attachment.
+        Each attachment-struct has fields:
         - comment (string, required)
         - contentType (string, required)
         - created (date)

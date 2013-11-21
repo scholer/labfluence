@@ -104,17 +104,17 @@ class FilelistListbox(ExpListbox):
     # I should make a convention as to what is display and what is reference
     # in tuples used in list, e.g. (<filename-displayed>, <real-file-path>)
     # same goes for (subentry-display-format, subentry_idx)
-    def updatelist(self, filterdict=None, src=None):
+    def updatelist(self, filterdict=None):
         if filterdict is None:
             filterdict = dict()
-        lst = self.getlist(filterdict, src)
+        lst = self.getlist(filterdict)
         self.Filetuples = lst
         self.Fileslist = zip(*lst)
         self.delete(0, tk.END)
         if lst:
             self.insert(tk.END, *self.Fileslist[0])
 
-    def getlist(self, filterdict, src=None):
+    def getlist(self, filterdict):
         # override this method; must return a list of two-tuple items.
         return list()
 
@@ -126,14 +126,14 @@ class FilelistListbox(ExpListbox):
 
 class LocalFilelistListbox(FilelistListbox):
 
-    def getlist(self, filterdict, src=None):
+    def getlist(self, filterdict):
         return self.Experiment.getLocalFilelist(**filterdict)
 
 
 class WikiFilelistListbox(FilelistListbox):
 
-    def getlist(self, filterdict, src=None):
-        return self.Experiment.getAttachmentList(src=src, **filterdict)
+    def getlist(self, filterdict):
+        return self.Experiment.getAttachmentList(**filterdict)
 
 
 

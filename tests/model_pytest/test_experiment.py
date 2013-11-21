@@ -14,6 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0111,W0613,W0621
 
 
 
@@ -30,8 +31,9 @@ from tests.model_testdoubles.fake_server import FakeConfluenceServer as Confluen
 # - JournalAssistant
 # - ExperimentManager
 
-
-
+from collections import OrderedDict
+import re
+import pytest
 import logging
 logger = logging.getLogger(__name__)
 #logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
@@ -40,27 +42,42 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
+@pytest.fixture
+def expprops():
+    expprops = dict(expid='RS099', exp_titledesc="Pytest titledesc", exp_subentries=OrderedDict())
+    return expprops
 
 
-def setup1(useserver=True):
-    confighandler = ExpConfigHandler( pathscheme='test1', VERBOSE=1 )
-    #em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
-    print "----"
-    rootdir = confighandler.get("local_exp_subDir")
-    print "rootdir: {}".format(rootdir)
-    print "glob res: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
-    ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
-    print "ldir: {}".format(ldir)
-    ldir2 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS105*"))[0] )
-    ldir3 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS177*"))[0] )
-    print "ldir2: {}".format(ldir2)
-    ldir = ldir2
-    #ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
-#                '/home/scholer/Documents/labfluence_data_testsetup/.labfluence
-    #ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3":
-    server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, autologin=True) if useserver else None
-    e = Experiment(confighandler=confighandler, server=server, localdir=ldir, VERBOSE=10)
-    return e
+
+@pytest.fixture
+def exp_no_wikipage_or_subentries(expprops):
+    confighandler = ExpConfigHandler( pathscheme='test1' )
+    experiment = Experiment(confighandler=confighandler,
+                            props=expprops,
+                            autoattachwikipage=False,
+                            doparseLocaldirSubentries=False)
+    return experiment
+#
+#
+#def setup1(useserver=True):
+#    confighandler = ExpConfigHandler( pathscheme='test1', VERBOSE=1 )
+#    #em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
+#    print "----"
+#    rootdir = confighandler.get("local_exp_subDir")
+#    print "rootdir: {}".format(rootdir)
+#    print "glob res: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
+#    ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
+#    print "ldir: {}".format(ldir)
+#    ldir2 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS105*"))[0] )
+#    ldir3 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS177*"))[0] )
+#    print "ldir2: {}".format(ldir2)
+#    ldir = ldir2
+#    #ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
+##                '/home/scholer/Documents/labfluence_data_testsetup/.labfluence
+#    #ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3":
+#    server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, autologin=True) if useserver else None
+#    e = Experiment(confighandler=confighandler, server=server, localdir=ldir, VERBOSE=10)
+#    return e
 
 # You cannot import or use ExprimentManager here due to circular imports.
 # You will need to create a separate test environment for that.
@@ -77,13 +94,31 @@ def setup1(useserver=True):
 #    return e
 
 
-def test_1(e=None):
-    if not e:
-        e = setup1()
-    print e
-    print "\n------------finished test_1() ----------------------\n"
-    return e
+def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
+    e = exp_no_wikipage_or_subentries
+    sub_regex = r'(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$'
+    e.setConfigEntry('exp_subentry_regex', sub_regex)
+    assert e.Props == expprops
+    assert e.Subentries == OrderedDict()
+    assert e.Expid == expprops['expid']
+    assert e.Wiki_pagetitle == None
+    assert e.PageId == None
+    assert e.Attachments == list()
+    assert e.Server == None
+    assert e.Manager == None
+    assert e.WikiPage == None
+    assert e.Fileshistory == dict()
+    assert e.Subentries_regex_prog == re.compile(sub_regex)
+    assert e.Status == None
+    assert e.isactive() == False
+    assert e.isrecent() == False
+    assert e.getUrl() == None
 
+def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
+    e = exp_no_wikipage_or_subentries
+
+
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_saveProps(e=None):
     if not e:
         e = setup1()
@@ -95,7 +130,7 @@ def test_saveProps(e=None):
 """
 Wiki page tests:
 """
-
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_attachWikiPage(e=None):
     if not e:
         e = setup1()
@@ -106,6 +141,7 @@ def test_attachWikiPage(e=None):
         print "\nPage attached: {}".format(e.WikiPage)
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_makeNewWikiPage(e=None):
     if not e:
         e = setup1()
@@ -120,7 +156,7 @@ def test_makeNewWikiPage(e=None):
 """
 Subentry-related tests:
 """
-
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_addNewSubentry(e=None, subentry_idx=None):
     if not e:
         e = setup1()
@@ -129,6 +165,7 @@ def test_addNewSubentry(e=None, subentry_idx=None):
     e.addNewSubentry(subentry_titledesc="AFM of RS102e TR")
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_addNewSubentry2(e=None, subentry_idx=None):
     if not e:
         e = setup1()
@@ -137,6 +174,7 @@ def test_addNewSubentry2(e=None, subentry_idx=None):
     e.addNewSubentry(subentry_titledesc="Strep NHS-N3 activation", subentry_idx='a', subentry_date="20130103")
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_addNewSubentry3(e=None, subentry_idx=None):
     if not e:
         e = setup1()
@@ -145,6 +183,7 @@ def test_addNewSubentry3(e=None, subentry_idx=None):
     e.addNewSubentry(subentry_titledesc="Strep-N3 DBCO-dUTP conj", subentry_idx='b', subentry_date="20130103", makefolder=True, makewikientry=True)
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_addNewSubentry4(e=None, subentry_idx=None):
     if not e:
         e = setup1()
@@ -153,6 +192,7 @@ def test_addNewSubentry4(e=None, subentry_idx=None):
     e.addNewSubentry(subentry_titledesc="Amicon pur and UV quant of Strep-ddUTP", subentry_idx='c', subentry_date="20130104", makefolder=True, makewikientry=True)
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_makeSubentryFolder(e=None, subentry_idx=None):
     if not e:
         e = setup1()
@@ -161,6 +201,7 @@ def test_makeSubentryFolder(e=None, subentry_idx=None):
     e.makeSubentryFolder(subentry_idx='a')
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_makeNewWikiSubentry(e=None, subentry_idx=None):
     if not e:
         e = setup1()
@@ -170,7 +211,7 @@ def test_makeNewWikiSubentry(e=None, subentry_idx=None):
     print "\nResult of makeWikiSubentry() :\n{}".format(res)
     return e
 
-
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getLocalFilelist(e=None):
     print "\n>>>>>>>>>>>>>> test_getLocalFilelist() started >>>>>>>>>>>>>"
     if not e:
@@ -200,6 +241,7 @@ def test_getLocalFilelist(e=None):
     print "<<<<<<<<<<<<<< test_getLocalFilelist() finished <<<<<<<<<<<<"
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getRepr(e=None):
     print "\n>>>>>>>>>>>>>> test_getRept() started >>>>>>>>>>>>>"
     if not e:
@@ -231,7 +273,7 @@ def test_getRepr(e=None):
     print "<<<<<<<<<<<<<< test_getRepr() finished <<<<<<<<<<<<"
 
 
-
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getWikiSubentryXhtml(e=None):
     print "\n>>>>>>>>>>>>>> test_getWikiSubentryXhtml() started >>>>>>>>>>>>>"
     if not e:
@@ -247,6 +289,7 @@ def test_getWikiSubentryXhtml(e=None):
     print "\n<<<<<<<<<<<<<< test_getWikiSubentryXhtml() finished <<<<<<<<<<<<"
     return e
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_parseSubentriesFromWikipage(e=None):
     print "\n>>>>>>>>>>>>>> test_getWikiSubentryXhtml() started >>>>>>>>>>>>>"
     if not e:
