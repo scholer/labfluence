@@ -91,7 +91,7 @@ class ExpListBoxController(object):
 
     def updateList(self):
         exps = self.Experiments # This property works rather like the getlist() method in filemanager.
-        logger.debug("updating list with experiments: {}".format(exps))
+        logger.info("Updating listbox {} with experiments: {}".format(self.__class__.__name__, exps))
         self.clearList()
         if exps:
             logger.debug("\nUpdating self {} list with experiments:\n{}".format(self, "\n".join("{e} with props {e.Props}".format(e=e) for e in self.Experiments)))

@@ -157,6 +157,7 @@ class ExperimentManager(object):
     def addActiveExperiments(self, exps, removeFromRecent=True):
         for exp in exps:
             if not isinstance(exp, basestring):
+                # Assume Experiment-like object, or fail hard.
                 exp = exp.Props['expid']
             self.addActiveExperimentId(exp, removeFromRecent)
         self.sortActiveExprimentIds()
@@ -502,7 +503,7 @@ class ExperimentManager(object):
         logger.info("New experiment created: %s, with localdir: %s, and wikipage: ", exp, exp.Localdirpath, exp.PageId)
         logger.debug("Adding newly created experiment to list of active experiments...")
         self.ExperimentsById[expid] = exp
-        self.addActiveExperimentId(expid)
+        self.addActiveExperiments( (expid, ) ) # This will take care of invoking registrered callbacks in confighandler.
         return exp
 
 

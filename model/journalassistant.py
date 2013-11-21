@@ -73,7 +73,7 @@ class JournalAssistant(object):
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
             if subentry_idx is None:
-                logger.warning( "JournalAssistant.addEntry() :: ERROR, no subentry available. self.Current_subentry_idx is: ", subentry_idx)
+                logger.warning( "JournalAssistant.addEntry() :: ERROR, no subentry available. self.Current_subentry_idx is: %s", subentry_idx)
                 return False
         # Make sure this is not overwritten by the default from the exp_subentry (which contains just a date)
         if entry_datetime is None:
