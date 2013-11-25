@@ -34,8 +34,8 @@ class FakeConfighandler(ExpConfigHandler):
     the 'exp' ConfigPath is not set.
 
     """
-    def __init__(self, pathscheme, enableHierarchy=False, readfiles=False):
-        ExpConfigHandler.__init__(self, pathscheme=None, enableHierarchy=False, readfiles=False)
+    def __init__(self, pathscheme=None, enableHierarchy=False, readfiles=False):
+        ExpConfigHandler.__init__(self, pathscheme=pathscheme, enableHierarchy=False, readfiles=False)
 
         expconfigyaml = r"""
 exp_series_dir_fmt: '{expid} {exp_titledesc}'

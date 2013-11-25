@@ -416,6 +416,9 @@ class ConfigHandler(object):
         that have access to the Confighandler singleton. The 'configentry' key does not have to
         correspond to an actual configentry, it can just be a name that specifies that particular
         callback by concention.
+        Of cause, this is not quite as powerfull as using qt's QObject and signal connections and
+        emitting, but is is ok for simple callbacks, especially for singleton-like objects and variables.
+        (see http://pyqt.sourceforge.net/Docs/PyQt4/qobject.html for more info on QObject's abilities.)
         Note: I see no reason to add a 'registerConfigChangeCallback' method.
         Although this could provide per-config callbacks (e.g. an experiment that could subscribe to
         changes only for that experiment), I think it is better to code for this situation directly.
@@ -502,6 +505,9 @@ class ConfigHandler(object):
         will have their corresponding callbacks invoked.
         When a configentry has had its callbacks invoked, it will be unregistrered from
         self.ChangedEntriesForCallbacks.
+
+        ## TODO: implement try clause in confighandler.invokeEntryChangeCallback and
+        ## automatically unregister failing calls.
         """
         if configentry:
             if configentry in self.EntryChangeCallbacks:
@@ -1018,6 +1024,8 @@ class PathFinder(object):
             scheme = self.Defaultscheme
         if update:
             self.Schemedicts[scheme] = dict( (cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in self._schemeSearch[scheme].items()  )
+            logger.debug("PathFinder.Schemedicts updated to: %s", self.Schemedicts)
+        logger.debug("PathFinder.getScheme('%s', update=%s) returns path scheme: %s", scheme, update, self.Schemedicts[scheme])
         return self.Schemedicts[scheme]
 
     def getSchemedict(self, scheme):

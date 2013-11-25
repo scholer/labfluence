@@ -318,6 +318,7 @@ class ExperimentManager(object):
         if not directory:
             logger.warning("ExperimentManager.getLocalExperiments initiated with directory: %s, aborting...", directory)
             return False
+        logger.debug("Parsing local exp subdir: %s", directory)
         localdirs = sorted([dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ]) #os.listdir(directory)
         logger.debug( "ExperimentManager.getLocalExperiments() :: searching in directory '%s'", directory )
         logger.debug( "ExperimentManager.getLocalExperiments() :: localdirs = %s", localdirs)
@@ -409,7 +410,9 @@ class ExperimentManager(object):
             logger.warning("wiki_exp_root_pageid is boolean False ('%s'), aborting...", wiki_exp_root_pageid)
             return
         wiki_pages = self.Server.getChildren(wiki_exp_root_pageid)
-
+        if not wiki_pages:
+            logger.info("No wiki pages found for wiki_exp_root_pageid %s, aborting...", wiki_exp_root_pageid)
+            return
         regex_str = self.getExpSeriesRegex()
         logger.debug( "Regex and wiki_pages: %s, %s", regex_str, ", ".join( u"{}: {}".format(p.get('id'), p.get('title')) for p in wiki_pages ) )
         if not regex_str:
@@ -469,7 +472,7 @@ class ExperimentManager(object):
         elif experiments in ('wiki-current', 'wiki'):
             experiments = self.getCurrentWikiExperiments()
         if not experiments:
-            logger.warning("Experiments are boolean False, aborting: %s", experiments)
+            logger.warning("Experiments are boolean False (%s), aborting...", experiments)
             return
         expByIdMap = self._experimentsbyid if updateSelf else OrderedDict()
         for experiment in experiments:

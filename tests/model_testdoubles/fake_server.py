@@ -64,6 +64,18 @@ class FakeConfluenceServer(object):
         - attachments[pageId] = list of attachment-struct dicts for page with pageId
         - serverinfo = serverinfo dict
         - spaces = list of space-struct dicts
+        General pagestruct fields:
+        - content
+        - id
+        - parentId
+        - space
+        - created
+        - creator
+        - modifier
+        - version
+        - url
+        - contentStatus
+        - permissions
 
         """
         logger.debug("FakeConfluenceServer initiated with kwargs (will not be used): %s", kwargs)
@@ -78,6 +90,14 @@ class FakeConfluenceServer(object):
         self._the_right_token = 'the_right_token'
         self._is_logged_in = True
         self.Username = 'fake_testusername'
+        self._connectionok = True
+        #self._serverparams = serverparams
+        #self._username = username
+        #self._password = password
+        #self._logintoken = logintoken
+        #self._autologin = autologin
+        #self._url = url
+
 
 
     def _resetworkdata(self, ):
@@ -233,7 +253,8 @@ class FakeConfluenceServer(object):
         takes pageId as string.
         """
         pageId = str(pageId)
-        return None
+        childpages = [page for page in self._workdata.get('pages', dict()).values() if page['parentId'] == pageId]
+        return childpages
 
     def getDescendents(self, pageId):
         pass

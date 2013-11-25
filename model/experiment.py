@@ -839,6 +839,9 @@ functionality of this object will be greatly reduced and may break at any time."
         Note: wikipage is a WikiPage object, not a page struct.
         Not sure what the return_subentry_xhtml argument was intended for...?
         """
+        ### Uh, it would seem that the wiki_experiment_section config entry has gone missing,
+        ### returning none until it is back up.
+        return dict()
         if isinstance(wikipage, WikiPage):
             logger.debug("wikipage is instance of WikiPage, ok.")
         else:
@@ -848,7 +851,9 @@ functionality of this object will be greatly reduced and may break at any time."
                 wikipage = self.WikiPage
             #xhtml = wikipage['content']
             xhtml = wikipage.Content
-        expsection_regex_prog = re.compile(self.getConfigEntry('wiki_experiment_section'), flags=re.DOTALL+re.MULTILINE)
+        expsection_regex = self.getConfigEntry('wiki_experiment_section')
+        logger.debug("expsection_regex = %s", expsection_regex)
+        expsection_regex_prog = re.compile(expsection_regex, flags=re.DOTALL+re.MULTILINE)
         logger.debug("wiki_experiment_section is:\n%s", expsection_regex_prog.pattern)
 
         subentry_regex_fmt = self.getConfigEntry('wiki_subentry_regex_fmt')
@@ -1280,7 +1285,7 @@ functionality of this object will be greatly reduced and may break at any time."
         expid = self.Expid  # uses self.Props
         if self.Manager:
             currentwikipagesbyexpid = self.Manager.CurrentWikiExperimentsPagestructsByExpid # cached_property
-            if expid in currentwikipagesbyexpid:
+            if currentwikipagesbyexpid and expid in currentwikipagesbyexpid:
                 return currentwikipagesbyexpid[expid]
         else:
             logger.warning("Experiment %s has no ExperimentManager.", expid)

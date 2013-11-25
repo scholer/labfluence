@@ -300,6 +300,20 @@ class ActiveExpsListbox(ExpManagerListBox):
 
     def init_bindings(self, ):
         self.Confighandler.registerEntryChangeCallback('app_active_experiments', self.updatelist)
+        self.bind('<Destroy>', self.unbind_on_destroy)
+
+    def unbind_on_destroy(self, event):
+        """
+        You need to make sure the confighandler callbacks are unregistrered.
+        Otherwise,
+        ## TODO: implement try clause in confighandler.invokeEntryChangeCallback and
+        ## automatically unregister failing calls.
+        """
+        # profile: unregisterEntryChangeCallback(<config_entry_key>, function=None, *args=None, **kwargs=None)
+        # will unregister any registrered callbacks matching
+        # (<config_entry_key>, function, args, kwargs) tuple, with None interpreted as wildcard.
+        logger.debug("Here I would unbind: 'app_active_experiments', self.updatelist")
+        #self.Confighandler.unregisterEntryChangeCallback('app_active_experiments', self.updatelist)
 
 
 class LocalExpsListbox(ExpManagerListBox):
