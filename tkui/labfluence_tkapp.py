@@ -84,7 +84,8 @@ class LabfluenceApp(object):
         print "\n\n\n>>>>>>>>>>>>>>  Starting init of LabfluenceGUI  >>>>>>>>>>>>>>>>\n"
 
         self.Confighandler = confighandler or ExpConfigHandler(pathscheme='default1')
-        self.Confighandler.Singletons.setdefault('app', self)
+        #self.Confighandler.Singletons.setdefault('app', self)
+        self.Confighandler.Singletons['app'] = self
         if 'experimentmanager' not in self.Confighandler.Singletons:
             print "LabfluenceGUI.__init__ >> Instantiating new ExperimentManager!"
             self.Confighandler.Singletons['experimentmanager'] = ExperimentManager(confighandler=self.Confighandler, autoinit=('localexps', ))
@@ -234,7 +235,7 @@ class LabfluenceApp(object):
         You can also get a similar effect with code that follows
         labfluence.start_loop() / tkroot.mainloop()
         (e.g. in the if __name__ == '__main__' section...)
+        This *must* be called by labfluence_tkroot.
         """
-        logger.info("VM_DELETE_WINDOW called for tk root.")
-        #self.Confighandler.saveConfigs()
-        #self.tkroot.destroy()
+        self.Confighandler.saveConfigs()
+        self.tkroot.destroy()

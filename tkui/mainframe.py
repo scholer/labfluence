@@ -41,8 +41,13 @@ from views.expnotebook import ExpNotebook, BackgroundFrame
 from views.experimentselectorframe import ExperimentSelectorWindow
 from views.dialogs import Dialog
 
+from views.explistboxes import ActiveExpsListbox, RecentExpsListbox #LocalExpsListbox, WikiExpsListbox
+# Edit: Using the self-controlling ActiveExpsListbox and RecentExpListbox listboxes instead of having 
+# simple listboxes with controllers attached:
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 from controllers.filemanagercontroller import ExpFilemanagerController
+
+
 from ui.fontmanager import FontManager
 
 
@@ -58,6 +63,7 @@ class LabfluenceMainFrame(ttk.Frame):
         self.Confighandler = confighandler
         self.init_widgets()
         self.init_layout()
+        self.connect_controllers()
         self.update_widgets()
         logger.debug("---> LabfluenceMainwindow.__init__() complete.")
 
@@ -80,11 +86,22 @@ class LabfluenceMainFrame(ttk.Frame):
         self.activeexps_select_btn = ttk.Button(self.activeexps_frame, text="Select...", command=self.selectExperiments)
         self.activeexps_new_btn = ttk.Button(self.activeexps_frame, text="Create...", command=self.createNewExperiment)
         # you do not strictly need to be able to reference this from self.
-        self.activeexps_list = tk.Listbox(self.activeexps_frame, height=16, activestyle='dotbox')
+        ## Active experiments list:
+        self.activeexps_list = ActiveExpsListbox(self.activeexps_frame, self.Confighandler,
+                                                 isSelectingCurrent=True, # setting this sould also set setlectmode='browse' automatically.
+                                                 height=16, activestyle='dotbox')#, selectmode='browse')
+        #self.activeexps_list = tk.Listbox(self.activeexps_frame, height=16, activestyle='dotbox')
 
         # Recent experiments widgets
+        ## TODO: Implement double-click action
+        # (actually, this can be implemented in the class as a call to the model domain:
+        # generally, if you double-click an experiment on the recent experiments list,         
+        # it should move the the active experiments list.
         self.recentexps_frame = ttk.Frame(self.leftframe)
-        self.recentexps_list = tk.Listbox(self.recentexps_frame, height=10, width=30)
+        self.recentexps_list = RecentExpsListbox(self.recentexps_frame, self.Confighandler,
+                                                 isSelectingCurrent=True,
+                                                 height=10, width=30)#, , selectmode='browse')
+        #self.recentexps_list = tk.Listbox(self.recentexps_frame, height=10, width=30)
         self.recentexps_label = ttk.Label(self.recentexps_frame, text="Recent experiments:")
         # Question: Have only _one_ notebook which is updated when a new experiment is selected/loaded?
         # Or have several, one for each active experiment, which are then shown and hidden when the active experiment is selected?
@@ -166,6 +183,7 @@ class LabfluenceMainFrame(ttk.Frame):
         self.serverStatusChange()
 
 
+
     #################################
     ### Controller-like methods #####
     #################################
@@ -218,8 +236,10 @@ class LabfluenceMainFrame(ttk.Frame):
 
         """
         ## TODO: This needs to be refactored...
-        self.ActiveExpListController = ActiveExpListBoxController(self.activeexps_list, self.Confighandler)
-        self.RecentExpListController = RecentExpListBoxController(self.recentexps_list, self.Confighandler)
+        return None
+        # No longer using controllers, but using the self-controlling ActiveExpsListbox and RecentExpsListbox widgets.
+        #self.ActiveExpListController = ActiveExpListBoxController(self.activeexps_list, self.Confighandler)
+        #self.RecentExpListController = RecentExpListBoxController(self.recentexps_list, self.Confighandler)
 
 
     def showHome(self, event=None):

@@ -409,7 +409,7 @@ class ConfigHandler(object):
             logger.info("ConfigDir requested for config '%s', but that is not specified ('%s')", cfgtype, cfgpath)
 
 
-    def registerEntryChangeCallback(self, configentry, function, args=None, kwargs=None):
+    def registerEntryChangeCallback(self, configentry, function, args=None, kwargs=None, pass_newvalue_as=False):
         """
         Registers a callback for a particular entry (name).
         Actually, this can be used as a simple, general-purpose callback manager, across all objects
@@ -423,6 +423,14 @@ class ConfigHandler(object):
         Although this could provide per-config callbacks (e.g. an experiment that could subscribe to
         changes only for that experiment), I think it is better to code for this situation directly.
 
+        If a callback sets pass_newvalue_as=<key>, this will cause the new config value to be passed to the
+        callback in the kwargs, as:
+            kwargs['pass_newvalue_as'] = new_configentry_value
+        Note that there is currently no guarantee that whoever calls invoke
+            invokeEntryChangeCallback(self, configentry=None, new_configentry_value=None)
+        will actually set the new_configentry_value. I might add a 'if-set', option,
+        but since None is also commonly used as a 'not specified' value for kwargs, I think it is ok.
+            
         Note that changes are not registrered automatically. It is really not possible to see if
         entries changes, e.g. dicts and lists which are mutable from outside the control of this confighandler.
         Instead, this is a curtesy service, that allows one user of the confighandler to inform
@@ -450,8 +458,8 @@ class ConfigHandler(object):
             kwargs = dict()
         # I would have liked this to be a set, but hard to implement set for dict-type kwargs and no frozendict in python2.
         # Just make sure not to register the same callback twice.
-        self.EntryChangeCallbacks.setdefault(configentry, list()).append( (function, args, kwargs) )
-        logger.debug("Registrered callback for configentry '{}': {}(*{}, **{})".format(configentry, function, args, kwargs))
+        self.EntryChangeCallbacks.setdefault(configentry, list()).append( (function, args, kwargs, pass_newvalue_as) )
+        logger.debug("Registrered callback for configentry '%s': %s(*%s, **%s) with pass_newvalue_as=%s", configentry, function, args, kwargs, pass_newvalue_as)
         # I could also have implemented as dict based on the function is hashable, e.g.:
         #self.EntryChangeCallbacks.setdefault(configentry, dict()).set(function, (args, kwargs) )
         # and invoke with:
@@ -497,7 +505,7 @@ class ConfigHandler(object):
                 self.EntryChangeCallbacks[configentry].remove(callbacktuple)
 
 
-    def invokeEntryChangeCallback(self, configentry=None):
+    def invokeEntryChangeCallback(self, configentry=None, new_configentry_value=None):
         """
         Simple invokation of registrered callbacks.
         If configentry is provided, only callbacks registrered to that entry will be invoked.
@@ -508,10 +516,14 @@ class ConfigHandler(object):
 
         ## TODO: implement try clause in confighandler.invokeEntryChangeCallback and
         ## automatically unregister failing calls.
+        ## TODO: Implement ability to route the newvalue parameter to the callbacks.
+        ##       As it is now, each of the callbacks have to invoke self.Confighandler.get(configkey)
         """
         if configentry:
             if configentry in self.EntryChangeCallbacks:
-                for function, args, kwargs in self.EntryChangeCallbacks[configentry]:
+                for function, args, kwargs, pass_newvalue_as in self.EntryChangeCallbacks[configentry]:
+                    if pass_newvalue_as:
+                        kwargs[pass_newvalue_as] = new_configentry_value
                     logger.debug("invoking callback for configentry '%s': %s(*%s, **%s)", configentry, function, args, kwargs)
                     function(*args, **kwargs)
                 # Erase this entry if registrered here. (discard does not do anything if the item is not a member of the set)
@@ -523,7 +535,7 @@ class ConfigHandler(object):
             while True:
                 try:
                     entry = self.ChangedEntriesForCallbacks.pop()
-                    logger.debug("Popped configentry '{}' from ChangedEntriesForCallbacks...".format(configentry))
+                    logger.debug("Popped configentry '%s' from ChangedEntriesForCallbacks...", configentry)
                     self.invokeEntryChangeCallback(entry)
                 except KeyError: # raised when pop on empty set.
                     break

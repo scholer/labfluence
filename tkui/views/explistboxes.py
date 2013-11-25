@@ -197,9 +197,11 @@ Notice: ActiveExpsListbox and RecentExpsListbox are implemented using controller
 
 class ExpManagerListBox(tk.Listbox):
 
-    def __init__(self, parent, confighandler, **kwargs):
+    def __init__(self, parent, confighandler, isSelectingCurrent=False, **kwargs):
         self.before_init(kwargs)
-        kwargs.setdefault('selectmode', 'multiple') # tk.MULTIPLE or tk.EXTENDED
+        self.IsSelectingCurrent = isSelectingCurrent
+        # tk.MULTIPLE or tk.EXTENDED, tk.BROWSE is default tk mode
+        kwargs.setdefault('selectmode', 'browse' if isSelectingCurrent else 'extended')
         tk.Listbox.__init__(self, parent, **kwargs)
         #self.ExperimentManager = experimentmanager # Property now...
         self.Confighandler = confighandler
@@ -232,20 +234,35 @@ class ExpManagerListBox(tk.Listbox):
     def init_bindings(self):
         pass
     def on_select(self, event):
+        """
+        Currently, does nothing, except if self.IsSelectingCurrent is True,
+        then it will invoke self.ExperimentManager.setCurrentExpid(expid) 
+        """
         #lst = event.widget
-        lst = self
-        curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
-        selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
-        logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
+        #lst = self
+        #curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
+        #selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
+        #logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
         #experiment = self.ExperimentByListIndex[int(curselection[0])]
-        expids = [self.TupleList[int(i)][1] for i in self.curselection()]
+        #expids = [self.TupleList[int(i)][1] for i in self.curselection()]
         #logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
+        expids = self.getSelectedIds()
+        if self.IsSelectingCurrent and expids:
+            expid = expids[0]
+            logger.info("%s: Setting 'app_current_expid' to %s", self, expid)
+            self.ExperimentManager.setCurrentExpid(expid)
+
     def on_doubleclick(self, event):
+        """
+        Currently, does nothing.
+        """
         pass
 
     def update_widget(self, ):
         pass
 
+    def getConfigKey(self):
+        pass
 
     def getSelectedIds(self, ):
         # self.curselection() returns tuple with selected indices.
@@ -313,7 +330,32 @@ class ActiveExpsListbox(ExpManagerListBox):
         # will unregister any registrered callbacks matching
         # (<config_entry_key>, function, args, kwargs) tuple, with None interpreted as wildcard.
         logger.debug("Here I would unbind: 'app_active_experiments', self.updatelist")
-        #self.Confighandler.unregisterEntryChangeCallback('app_active_experiments', self.updatelist)
+        self.Confighandler.unregisterEntryChangeCallback('app_active_experiments', self.updatelist)
+
+class RecentExpsListbox(ExpManagerListBox):
+
+    def getExpIds(self, ):
+        """
+        Using the default getTupleList and just overriding getExpsIds method:
+        """
+        return self.ExperimentManager.RecentExperimentIds
+
+    def init_bindings(self, ):
+        self.Confighandler.registerEntryChangeCallback('app_recent_experiments', self.updatelist)
+        self.bind('<Destroy>', self.unbind_on_destroy)
+
+    def unbind_on_destroy(self, event):
+        """
+        You need to make sure the confighandler callbacks are unregistrered.
+        Otherwise,
+        ## TODO: implement try clause in confighandler.invokeEntryChangeCallback and
+        ## automatically unregister failing calls.
+        """
+        # profile: unregisterEntryChangeCallback(<config_entry_key>, function=None, *args=None, **kwargs=None)
+        # will unregister any registrered callbacks matching
+        # (<config_entry_key>, function, args, kwargs) tuple, with None interpreted as wildcard.
+        logger.debug("Here I would unbind: 'app_recent_experiments', self.updatelist")
+        self.Confighandler.unregisterEntryChangeCallback('app_recent_experiments', self.updatelist)
 
 
 class LocalExpsListbox(ExpManagerListBox):

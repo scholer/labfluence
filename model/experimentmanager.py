@@ -138,6 +138,13 @@ class ExperimentManager(object):
 
     """
 
+    def getCurrentExpid(self):
+        return self.Confighandler.setdefault('app_current_expid', None)
+    def setCurrentExpid(self, new_expid):
+        old_expid = self.getCurrentExpid()
+        if old_expid != new_expid:
+            self.Confighandler.setkey('app_current_expid', new_expid)
+            self.Confighandler.invokeEntryChangeCallback('app_current_expid', new_expid)
     @property
     def ActiveExperimentIds(self):
         "List of active experiments, obtained from confighandler."
@@ -426,29 +433,29 @@ class ExperimentManager(object):
             if match:
                 gd = match.groupdict()
                 #props = dict(localdir=localdir)
-                if ret == 'experiment-object':
+                if ret in ('experiment-object', 'experiment-objects'):
                     # not sure how well experiment objects work without
                     # also, you should probably refer to the existing cache rather than always instantiating
                     # a new experiment object. If present in cache, simply update with properties in match.groupdict()
                     experiments.append(Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, autoattachwikipage=False, wikipage=page) )
                 elif ret == 'regex-match':
                     experiments.append(match)
-                elif ret == 'pagestruct':
+                elif ret in ('pagestruct', 'pagestructs'):
                     experiments.append( page )
-                elif ret == 'groupdict':
+                elif ret in ('groupdict', 'groupdicts'):
                     experiments.append(dict(title=page['title'], **gd))
-                elif ret == 'tuple':  # Note: this tuple is not the same as
+                elif ret in ('tuple', 'tuples'):  # Note: this tuple is NOT the same as the display tuple used for lists!
                     experiments.append( (page['title'], gd['expid'], gd.get('exp_titledesc'),
                                        gd.get('date', gd.get('date1', gd.get('date2', None))) ) )
-                elif ret == 'expid':
+                elif ret in ('expid', 'expids'):
                     experiments.append( gd.get('expid') )
-                elif ret == 'display-tuple':
+                elif ret in ('display-tuple', 'display-tuples'):
                     experiments.append( ( page['title'], match.groupdict().get('expid'), None ) )
-                elif ret == 'pagestruct-by-expid':
+                elif ret in ('pagestruct-by-expid', 'pagestructs-by-expid'): # the plural 's' is common mistake...
                     experiments[gd['expid']] = page
                 else:
                     logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
-        if store and ret == 'experiment-object':
+        if store and ret in ('experiment-object', 'experiment-objects'):
             # You will need to implement a lot more complex logic to merge input from wikipages
             # with that from the local directory. Alternatively keep two separate experiment lists,
             # one for the local directory and another for the wiki?

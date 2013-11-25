@@ -71,7 +71,27 @@ class LabfluenceTkRoot(tk.Tk):
                 print e
         #self.update_widgets()
 
+    ### Getters and setters (old-school tk widgets does not support new-object properties)
+    def getExperimentManager(self):
+        return self.Confighandler.Singletons.get('experimentmanager', None)
+    def getActiveExperimentIds(self):
+        return self.Confighandler.setdefault('app_active_experiments', list())
+    def getRecentExperimentIds(self):
+        "List of recently opened experiments, obtained from confighandler."
+        return self.Confighandler.setdefault('app_recent_experiments', list())
+    def getActiveExperiments(self):
+        return self.getExperimentManager().ActiveExperiments
+    def getRecentExperiments(self):
+        "List of recently opened experiments, obtained from confighandler."
+        return self.getExperimentManager().RecentExperiments
+    def Server(self):
+        """Experiment manager, obtained from confighandler if possible.
+        Edit: Not 'if possible'. Having a well-behaved confighandler is now a requirement as this significantly simplifies a lot of code.
+        """
+        return self.Confighandler.Singletons.get('server', None)
 
+        
+        
     def init_ui(self):
         #self.tkroot = tk.Tk()
         self.option_add('*tearOff', tk.FALSE)
@@ -90,16 +110,39 @@ class LabfluenceTkRoot(tk.Tk):
         #self.mainframe.init_ui()
 
     def init_bindings(self):
-        pass
-        #self.protocol("WM_DELETE_WINDOW", self.exitApp)
-        #self.Confighandler.registerEntryChangeCallback("wiki_server_status", self.serverStatusChange)
-        # Edit, these bindings are currently handled by the relevant controllers...
+        # Example using the new "pass_newvalue_as" argument.
+        # The new 
+        """
+        Invoking:
+            self.Confighandler.registerEntryChangeCallback("app_current_expid", self.show_notebook, pass_newvalue_as='experiment')
+        will set *args = list() and **kwargs = dict().
+        This means that when invokeEntryChangeCallback is called for 'app_current_expid', the following is called:
+            kwargs['experiment'] = <new value>
+            self.show_notebook(*args, **kwargs), i.e. self.show_notebook(experiment=<new value>)
+        """
+        logger.debug("Registering 'app_current_expid' configentry change callback to %s", self.show_notebook)
+        self.Confighandler.registerEntryChangeCallback("app_current_expid", self.show_notebook, pass_newvalue_as='experiment')
+        # self.bind('<Destroy>', self.unbind_on_destroy)
+        self.protocol("WM_DELETE_WINDOW", self.exitApp)
+        #self.Confighandler.registerEntryChangeCallback("wiki_server_status", self.serverStatusChange) # Moved to mainframe.
+        # These bindings are currently handled by the relevant controllers...
         #self.Confighandler.registerEntryChangeCallback("app_active_experiments", self.activeExpsChanged)
         #self.Confighandler.registerEntryChangeCallback("app_recent_experiments", self.recentExpsChanged)
 
-    def getApp(self, ):
-        self.Confighandler.Singletons.get('app')
 
+    def exitApp(self):
+        logger.info("VM_DELETE_WINDOW called for tk root.")
+        # Make sure to unregister callbacks (in case you want to continue working with the model after shutting down the ui...)
+        self.Confighandler.unregisterEntryChangeCallback('app_current_expid', self.show_notebook)
+        app = self.getApp()
+        if app:
+            app.exitApp()
+        else:
+            logger.debug("self.getApp() returned '%s', destroying self by my self:", app)
+            self.destroy()
+
+    def getApp(self, ):
+        return self.Confighandler.Singletons.get('app')
 
     def update_widgets(self):
         pass
@@ -108,6 +151,11 @@ class LabfluenceTkRoot(tk.Tk):
     def add_notebook(self, experiment):
         #self.notebook = ttk.Notebook(self.rightframe)
         #self.notebook = expnotebook.ExpNotebook(self.rightframe)
+        # Determine whether an actual experiment object was passed or just a string with expid
+        # (the latter will normally be the case!)
+        if not experiment:
+            logger.info("add_notebook was called with boolean false experiment (%s), aborting...", experiment)
+            return
         expid, experiment = self.get_expid_and_experiment(experiment)
         if expid not in self.ExpNotebooks:
             notebook = ExpNotebook(self.mainframe.rightframe, experiment)
@@ -125,6 +173,9 @@ class LabfluenceTkRoot(tk.Tk):
     def show_notebook(self, experiment):
         # http://stackoverflow.com/questions/3819354/in-tkinter-is-there-any-way-to-make-a-widget-not-visible
         #expid, experiment = self.get_expid_and_experiment(experiment)
+        if not experiment:
+            logger.info("show_notebook was called with boolean false experiment (%s), aborting...", experiment)
+            return
         notebook, expid, experiment = self.add_notebook(experiment)
         notebook.lift() #http://effbot.org/tkinterbook/widget.htm#Tkinter.Widget.lift-method
         return notebook, expid, experiment
@@ -144,7 +195,7 @@ class LabfluenceTkRoot(tk.Tk):
     def get_expid_and_experiment(self, experiment):
         if isinstance(experiment, basestring):
             expid = experiment
-            experiment = self.ExperimentManager.ExperimentsById[expid]
+            experiment = self.getExperimentManager().ExperimentsById[expid]
         elif isinstance(experiment, Experiment):
             expid = experiment.Props.get('expid')
         return expid, experiment
@@ -246,7 +297,7 @@ class LabfluenceTkRoot(tk.Tk):
                 items[0] = tk.StringVar(value=items[0])
         # to disable items:
         #fieldvars['expid'][2]['state'] = 'disabled'  # This is the third element, the dict.
-        dia = Dialog(self.tkroot, "Create new subentry", fieldvars)
+        dia = Dialog(self, "Create new subentry", fieldvars)
         logger.debug(u"Dialog result: {}".format(dia.result))
         #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
         #self.Experiment.addNewSubentry()
@@ -255,8 +306,5 @@ class LabfluenceTkRoot(tk.Tk):
             # def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None, extraprops=None, makefolder=False, makewikientry=False)
             #dia.result.pop('expid')
             logger.info("Create Experiment Dialog results: %s", dia.result)
-            exp = self.ExperimentManager.addNewExperiment(**dia.result)
+            exp = self.getExperimentManager().addNewExperiment(**dia.result)
         logger.debug("Experiment created: %s", exp)
-
-    def exitApp(self):
-        self.getApp().exitApp()
