@@ -239,7 +239,7 @@ class ExperimentManager(object):
             elif expid not in self.ExperimentsById:
                 logger.info( "expid '%s' not initialized, doing so manually...", expid)
                 exp = self.ExperimentsById[expid] = Experiment(manager=self, confighandler=self.Confighandler,
-                        props=dict(expid=expid, exp_titledesc='Untitled experiment'), VERBOSE=self.VERBOSE)
+                                                    props=dict(expid=expid))
                 logger.debug( "Experiment initialized: %s with props %s", exp, exp.Props)
 
     def getExpsById(self, expids):
@@ -377,10 +377,67 @@ class ExperimentManager(object):
         # If you would like both argument-caching (like memorize) and TTL/expiration, you should try
         # the @region.cache_on_arguments() decorator provided by dogpile.
         """
-        logger.debug("invoked cache-wrapped getCurrentWikiExperiments...")
-        return self.getCurrentWikiExperiments(ret='pagestructs-by-expid', useCache=False, store=None)
+        logger.debug("invoked cache-wrapped CurrentWikiExperimentsPagestructsByExpid...")
+        pagestructs = list( self.getCurrentWikiExperiments(ret='pagestructs-by-expid') ) # Make sure you cache list and not generator.
+        return pagestructs
 
-    def getCurrentWikiExperiments(self, ret='pagestruct', useCache=True, store=None):
+
+    def getExpRootWikiPages(self):
+        """
+        Returns a list of wiki pages directly below the page defined by config entry 'wiki_exp_root_pageId'.
+        (as a list of PageSummary structs)
+        PageSummary structs has keys: id, space, parentId, title, url, permissions.
+        """
+        if not self.Server:
+            if self.Server is None:
+                logging.info("No server defined, aborting.")
+                return
+            # There might have been a temporary issue with server, see if it is ressolved:
+            logger.info("Server info: %s", self.getServerInfo) # This will handle cache etc and attempt to reconnect at most every two minutes.
+            if not self.Server:
+                logging.warning("Server not connected, aborting")
+                return
+        wiki_exp_root_pageid = self.getWikiExpRootPageId()
+        if not wiki_exp_root_pageid:
+            logger.warning("wiki_exp_root_pageid is boolean False ('%s'), aborting...", wiki_exp_root_pageid)
+            return
+        wiki_pages = self.Server.getChildren(wiki_exp_root_pageid)
+        if not wiki_pages:
+            logger.info("No wiki pages found for wiki_exp_root_pageid %s, server returned: %s", wiki_exp_root_pageid, wiki_pages)
+        return wiki_pages
+
+
+    def getExpRootWikiPageMatchTuples(self):
+        """
+        Returns a generator with
+         (page, title regex match) tuples
+        for sub-pages to the wiki_exp_root page,
+        with page title matching exp_series_regex.
+        """
+        wiki_pages = self.getExpRootWikiPages()
+        if not wiki_pages:
+            logger.debug("No wiki pages, aborting...")
+            return
+        regex_str = self.getExpSeriesRegex()
+        logger.debug( "Regex and wiki_pages: %s, %s", regex_str, ", ".join( u"{}: {}".format(p.get('id'), p.get('title')) for p in wiki_pages ) )
+        if not regex_str:
+            logger.warning( " ERROR, no exp_series_regex entry found in config, aborting!" )
+            return
+        regex_prog = re.compile(regex_str)
+        pagematchtuples = (tup for tup in ( (page, regex_prog.match(page['title'])) for page in wiki_pages) if tup[1])
+        return pagematchtuples
+
+    def getExpRootWikiPageGroupdictTuples(self, ):
+        """
+        Returns a generator with (page, match.groupdict() ) tuples.
+        """
+        pagegds = ( (page, match.groupdict()) for page, match in self.getExpRootWikiPageMatchTuples())
+        return (    (page, dict(title=page['title'], expid=gd['expid'], exp_titledesc=gd['exp_titledesc'],
+                                date=gd.get('date', gd.get('date1', gd.get('date2', None)))))
+                    for page, gd in pagegds)
+
+
+    def getCurrentWikiExperiments(self, ret='pagestruct'):
         """
         NOTICE: Implementation not final.
         Currently just returning child page(struct)s of the "Experiment Root Page".
@@ -399,69 +456,60 @@ class ExperimentManager(object):
         'pagestruct-by-expid': Returns dict with {expid: page} entries.
 
         Todo: Implement a cache system, so that repeated calls to this method will not cause
-        repeated server queries.
+        repeated server queries. Possibly by routing through cached properties...
         """
-        logger.debug("getCurrentWikiExperiments called with ret='%s', useCache=%s, store=%s", ret, useCache, store)
+        logger.debug("getCurrentWikiExperiments called with ret='%s'", ret)
 
-        if not self.Server:
-            if self.Server is None:
-                logging.info("No server defined, aborting.")
-                return
-            # There might have been a temporary issue with server, see if it is ressolved:
-            logger.info("Server info: %s", self.getServerInfo) # This will handle cache etc and attempt to reconnect at most every two minutes.
-            if not self.Server:
-                logging.warning("Server not connected, aborting")
-                return
-        wiki_exp_root_pageid = self.getWikiExpRootPageId()
-        if not wiki_exp_root_pageid:
-            logger.warning("wiki_exp_root_pageid is boolean False ('%s'), aborting...", wiki_exp_root_pageid)
-            return
-        wiki_pages = self.Server.getChildren(wiki_exp_root_pageid)
-        if not wiki_pages:
-            logger.info("No wiki pages found for wiki_exp_root_pageid %s, aborting...", wiki_exp_root_pageid)
-            return
-        regex_str = self.getExpSeriesRegex()
-        logger.debug( "Regex and wiki_pages: %s, %s", regex_str, ", ".join( u"{}: {}".format(p.get('id'), p.get('title')) for p in wiki_pages ) )
-        if not regex_str:
-            logger.warning( " ERROR, no exp_series_regex entry found in config, aborting!" )
-            return
-        regex_prog = re.compile(regex_str)
-        experiments = OrderedDict() if ret == 'pagestruct-by-expid' else list()
-        for page in wiki_pages:
-            match = regex_prog.match(page['title'])
-            logger.debug( "%s found when testing '%s' wiki page against regex '%s'", "MATCH" if match else "No match", page['title'], regex_str)
-            if match:
-                gd = match.groupdict()
-                #props = dict(localdir=localdir)
-                if ret in ('experiment-object', 'experiment-objects'):
-                    # not sure how well experiment objects work without
-                    # also, you should probably refer to the existing cache rather than always instantiating
-                    # a new experiment object. If present in cache, simply update with properties in match.groupdict()
-                    experiments.append(Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, autoattachwikipage=False, wikipage=page) )
-                elif ret == 'regex-match':
-                    experiments.append(match)
-                elif ret in ('pagestruct', 'pagestructs'):
-                    experiments.append( page )
-                elif ret in ('groupdict', 'groupdicts'):
-                    experiments.append(dict(title=page['title'], **gd))
-                elif ret in ('tuple', 'tuples'):  # Note: this tuple is NOT the same as the display tuple used for lists!
-                    experiments.append( (page['title'], gd['expid'], gd.get('exp_titledesc'),
-                                       gd.get('date', gd.get('date1', gd.get('date2', None))) ) )
-                elif ret in ('expid', 'expids'):
-                    experiments.append( gd.get('expid') )
-                elif ret in ('display-tuple', 'display-tuples'):
-                    experiments.append( ( page['title'], match.groupdict().get('expid'), None ) )
-                elif ret in ('pagestruct-by-expid', 'pagestructs-by-expid'): # the plural 's' is common mistake...
-                    experiments[gd['expid']] = page
-                else:
-                    logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
-        if store and ret in ('experiment-object', 'experiment-objects'):
-            # You will need to implement a lot more complex logic to merge input from wikipages
-            # with that from the local directory. Alternatively keep two separate experiment lists,
-            # one for the local directory and another for the wiki?
-            logger.warning("storing experiments from wiki pages is not implemented yet.")
-            #self.Experiments = experiments
-        return experiments
+        if ret == 'regex-match':
+            return (tup[1] for tup in self.getExpRootWikiPageRegexMatches())
+        elif ret in ('pagestruct', 'pagestructs'):
+            return (tup[0] for tup in self.getExpRootWikiPageRegexMatches())
+        elif ret in ('pagestruct-by-expid', 'pagestructs-by-expid'): # the plural 's' is common mistake...
+            return dict( (match.groupdict().get('expid'), page) for page, match in self.getExpRootWikiPageRegexMatches() )
+        elif ret in ('groupdict', 'groupdicts'):
+            # Returns a generator with dicts, containing keys: title, expid, exp_titledesc, date or date1 or date2
+            return ( tup[1] for tup in self.getExpRootWikiPageGroupdictTuples() )
+        elif ret in ('tuple', 'tuples'):
+            # Note: this tuple is NOT the same as the display tuple used for lists!
+            # This is a memory efficient (pagetitle, expid, exp_titledesc, date) tuple
+            return ( ( gd['title'], gd['expid'], gd.get('exp_titledesc'), gd['date'] )
+                        for page, gd in self.getExpRootWikiPageGroupdictTuples() )
+        elif ret in ('expid', 'expids'):
+            return ( gd.get('expid') for page, gd in self.getExpRootWikiPageGroupdictTuples() )
+        elif ret in ('display-tuple', 'display-tuples'):
+            return ( ( page['title'], match.groupdict().get('expid'), None ) for page, match in self.getExpRootWikiPageRegexMatches() )
+        elif ret in ('experiment-object', 'experiment-objects'):
+            return ( Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, autoattachwikipage=False, wikipage=page)
+                        for page, match in self.getExpRootWikiPageRegexMatches() )
+        logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
+
+
+    def mergeCurrentWikiExperiments(self, autocreatelocaldirs=True):#, sync_exptitledesc=None):
+        """
+        Merges the current wiki experiments with the experiments from the local directory.
+        sync_exptitledesc can be either of: (not implemented)
+        - None = Do not change anyting.
+        - 'foldername' = Change wikipage to match the local foldername
+        - 'wikipage' = Change local folder to match the wiki
+        """
+        logger.debug("mergeCurrentWikiExperiments called with autocreatelocaldirs='%s'", autocreatelocaldirs)
+        if autocreatelocaldirs:
+            autocreatelocaldirs = self.Confighandler.get('app_autocreatelocalexpdirsfromwikiexps', False)
+        for page, gd in self.getExpRootWikiPageGroupdictTuples():
+            expid = gd['expid']
+            if expid in self.ExperimentsById:
+                exp = self.ExperimentsById[expid]
+                if not exp.PageId:
+                    logger.info("Experiment %s : Connecting to page with id %s and title: %s", exp, page['id'], page['title'])
+                    exp.PageId = page['id']
+            else:
+                exp = Experiment(props=gd, makelocaldir=autocreatelocaldirs,
+                                 manager=self, confighandler=self.Confighandler,
+                                 doparseLocaldirSubentries=False)
+                logger.info("New experiment created: %s, with localdir: %s, and wikipage: %s", exp, exp.Localdirpath, exp.PageId)
+                logger.debug("Adding newly created experiment to list of active experiments...")
+                self.ExperimentsById[expid] = exp
+                self.addActiveExperiments( (expid, ) ) # This will take care of invoking registrered callbacks in confighandler.
 
 
 

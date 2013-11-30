@@ -197,15 +197,16 @@ Notice: ActiveExpsListbox and RecentExpsListbox are implemented using controller
 
 class ExpManagerListBox(tk.Listbox):
 
-    def __init__(self, parent, confighandler, isSelectingCurrent=False, **kwargs):
+    def __init__(self, parent, confighandler, isSelectingCurrent=False, reversedsort=True, **kwargs):
         self.before_init(kwargs)
         self.IsSelectingCurrent = isSelectingCurrent
+        self.Reversedsort = reversedsort
         # tk.MULTIPLE or tk.EXTENDED, tk.BROWSE is default tk mode
         kwargs.setdefault('selectmode', 'browse' if isSelectingCurrent else 'extended')
         tk.Listbox.__init__(self, parent, **kwargs)
         #self.ExperimentManager = experimentmanager # Property now...
         self.Confighandler = confighandler
-        self.TupleList= list() ## list of (<display>, <identifier>, <full object>) tuples.
+        self.TupleList = list() ## list of (<display>, <identifier>, <full object>) tuples.
         self.init_variables()
         self.init_widgets()
         self.init_layout()
@@ -219,6 +220,9 @@ class ExpManagerListBox(tk.Listbox):
 
     @property
     def ExperimentManager(self, ):
+        """
+        Property, returns the confighandler's currently set ExperimentManager singleton.
+        """
         return self.Confighandler.Singletons.get('experimentmanager')
 
     def before_init(self, kwargs):
@@ -236,7 +240,7 @@ class ExpManagerListBox(tk.Listbox):
     def on_select(self, event):
         """
         Currently, does nothing, except if self.IsSelectingCurrent is True,
-        then it will invoke self.ExperimentManager.setCurrentExpid(expid) 
+        then it will invoke self.ExperimentManager.setCurrentExpid(expid)
         """
         #lst = event.widget
         #lst = self
@@ -275,7 +279,9 @@ class ExpManagerListBox(tk.Listbox):
         return list()
 
     def getExperiments(self):
+        # Not used...
         return self.getTupleList()
+
     def getTupleList(self):
         # returns the familiar list of (<display>, <identifier>, <full object>) tuples.
         # You can override this in subclasses, or choose to just override self.getExpsByIds()
@@ -284,7 +290,12 @@ class ExpManagerListBox(tk.Listbox):
         expids = self.getExpIds()
         experiments = self.ExperimentManager.getExpsById(expids)
         display = (repr(exp) for exp in experiments )
-        return zip(display, expids, experiments)
+        if self.Reversedsort:
+            tuplist = tuple(reversed(zip(display, expids, experiments)))
+        else:
+            tuplist = zip(display, expids, experiments)
+        logger.debug("returning tuplelist: %s", tuplist)
+        return tuplist
 
     def populatelist(self, experiments):
         # For manual external use. And reference. This is not used internally.
@@ -372,7 +383,12 @@ class LocalExpsListbox(ExpManagerListBox):
         logger.info("self.ExperimentManager.ExperimentsById: %s", self.ExperimentManager.ExperimentsById)
         expids, experiments = zip(*self.ExperimentManager.ExperimentsById.items())
         display = ( getattr(exp, 'Foldername', "") for exp in experiments )
-        return zip(display, expids, experiments)
+        displaytuples = zip(display, expids, experiments)
+        if self.Reversedsort:
+            # Returning an iterator does not work for tkinter... :<
+            return tuple(reversed(displaytuples))
+        else:
+            return displaytuples
 
 
 
@@ -383,4 +399,8 @@ class WikiExpsListbox(ExpManagerListBox):
         returns the familiar list of (<display>, <identifier>, <full object>) tuples.
         In this case, it is more efficient to re-implement the getTupleList:
         """
-        return self.ExperimentManager.getCurrentWikiExperiments(ret='display-tuple')
+        displaytuples = self.ExperimentManager.getCurrentWikiExperiments(ret='display-tuple')
+        if self.Reversedsort:
+            return tuple(reversed(displaytuples))
+        else:
+            return displaytuples

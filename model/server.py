@@ -297,6 +297,9 @@ class AbstractServer(object):
 
 
     def display_message(self, message):
+        """
+        Displays a message to the user using the registrered UI.
+        """
         if hasattr(self, 'UI') and hasattr(self.UI, 'display_message'):
             try:
                 self.UI.display_message(message)
@@ -309,6 +312,9 @@ class AbstractServer(object):
         pass
 
     def getToken(self, token_crypt=None):
+        """
+        Get encrypted token from the confighandler and decrypt it.
+        """
         if token_crypt is None:
             token_crypt = self.Confighandler.get('wiki_logintoken_crypt')
         if token_crypt is None:
@@ -317,7 +323,10 @@ class AbstractServer(object):
         crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', crypt_key_default)
         if crypt_key == crypt_key_default:
-            logger.warning("\nAbstractServer.getToken() :: Warning, using default crypt_key for encryption. You should manually edit the labfluence system config and set this to something else.")
+            logger.info("Using default crypt_key for encryption. You should manually edit the labfluence system config and set this to something else.")
+            new_crypt_key = "".join(crypt_random.sample(string.ascii_letters+string.digits, 16))
+            self.Confighandler.setkey('crypt_key', new_crypt_key, 'system')
+            logger.info("System encryption key set to new random string of length %s", len(new_crypt_key))
         crypt_iv = self.Confighandler.get('crypt_iv', None)
         # The IV is set along with the encrypted token; if the IV is not present, the encrypted token cannot be decrypted.
         # Using an initiation vector different from the one used to encrypt the message will produce scamble.
@@ -411,6 +420,10 @@ https://developer.atlassian.com/display/CONFDEV/Confluence+XML-RPC+and+SOAP+APIs
 https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
 https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
 https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
+
+TODO: If a UI framework is available, it might be convenient to add a timer-based keep-alive callback
+to prevent the login token from expiring.
+
     """
     def __init__(self, **kwargs):
                  #serverparams=None, username=None, password=None, logintoken=None,
@@ -852,8 +865,10 @@ current       Boolean whether the page is current and not deleted
 
     def getChildren(self, pageId):
         """
-        # Returns all the direct children of this page.
-        takes pageId as string.
+        Returns all the direct children of this page (as a list of PageSummary structs)
+        PageSummary structs has keys: id, space, parentId, title, url, permissions.
+        Arguments:
+        -   string pageId
         """
         pageId = str(pageId)
         return self.execute(self.RpcServer.confluence2.getChildren, pageId)

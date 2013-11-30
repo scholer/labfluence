@@ -121,7 +121,24 @@ def test_getLocalExperiments(experimentmanager_with_confighandler):
     assert len(em.RecentExperiments) == len(rexpids)
 
 
+def test_getExpRootWikiPages():
+    assert False
 
+
+def test_getExpRootWikiPageMatchTuples():
+    assert False
+
+def test_getExpRootWikiPageGroupdictTuples():
+    assert False
+
+def test_getCurrentWikiExperiments():
+    assert False
+
+def test_mergeCurrentWikiExperiments():
+    assert False
+
+def test_():
+    assert False
 
 
 @pytest.mark.skipif(True, reason="Not ready yet")

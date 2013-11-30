@@ -134,6 +134,26 @@ def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
 
 
 
+
+
+def test_setLocaldirpathAndFoldername():
+    assert False
+
+def test__getFoldernameAndParentdirpath():
+    assert False
+
+def test_makeLocaldir():
+    assert False
+
+def test_changeLocaldir():
+    assert False
+
+def test_():
+    assert False
+
+
+
+
 @pytest.mark.skipif(True, reason="Not ready yet")
 def test_saveProps(e=None):
     if not e:

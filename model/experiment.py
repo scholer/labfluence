@@ -160,16 +160,7 @@ class Experiment(object):
             #   relative/unix/folder
             #   relative\windows\folder
             # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
-            parentdirpath, foldername = os.path.split(localdir)
-            if not parentdirpath:
-                # The path provided was relative, e.g. "RS102 Strep-col11 TR annealed with biotin".
-                # Assume that the experiment is based in the local_exp_subDir:
-                parentdirpath = self.getConfigEntry('local_exp_subDir')
-            self.Parentdirpath = parentdirpath
-            if not foldername:
-                logger.warning( "Experiment.__init__() :: Warning, could not determine foldername...????" )
-            self.Foldername = foldername
-            self.Localdirpath = os.path.join(self.Parentdirpath, self.Foldername)
+            self.setLocaldirpathAndFoldername(localdir)
 
         ### Experiment properties/config related
         ### Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
@@ -180,6 +171,9 @@ class Experiment(object):
             logger.debug("Experiment %s updated with props argument, is now %s", self, self.Props)
         if regex_match:
             gd = regex_match.groupdict()
+            # In case the groupdict has multiple date fields, find out which one to use and discart the other keys:
+            date = next( ( date for date in [gd.pop(k, None) for k in ('date1', 'date2', 'date')] if date ), None )
+            gd['date'] = date
             ## regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)"
             self.Props.update(gd)
         elif not 'expid' in self.Props:
@@ -558,6 +552,92 @@ functionality of this object will be greatly reduced and may break at any time."
         return fmt_params
 
 
+    def setLocaldirpathAndFoldername(self, localdir):
+        """
+        Takes a localdir, either absolute or relative (to local_exp_subDir),
+        and use this to set self.Foldername, self.Parentdirpath and self.Localdirpath.
+        """
+        foldername, parentdirpath, localdirpath = self._getFoldernameAndParentdirpath(localdir)
+        self.Parentdirpath = parentdirpath
+        if not foldername:
+            logger.warning( "Experiment.__init__() :: Warning, could not determine foldername...????" )
+        self.Foldername = foldername
+        self.Localdirpath = localdirpath
+
+    def _getFoldernameAndParentdirpath(self, localdir):
+        """
+        Takes a localdir, either absolute or relative (to local_exp_subDir),
+        and returns the foldername and parentdirpath of the localdir.
+        """
+        localdir = os.path.expanduser(localdir)
+        if not os.path.isabs(localdir):
+            # The path provided was relative, e.g.:
+            # "RS102 Strep-col11 TR annealed with biotin",
+            # or "2012_Aarhus/RS065 something".
+            local_exp_root = self.getConfigEntry('local_exp_rootDir')
+            local_exp_subdir = self.getConfigEntry('local_exp_subDir')
+            if os.path.isdir(os.path.join(local_exp_root, localdir)):
+                localdir = os.path.join(local_exp_root, localdir)
+            elif os.path.isdir(os.path.join(local_exp_subdir, localdir)):
+                localdir = os.path.join(local_exp_subdir, localdir)
+            else:
+                if getattr(self.Parentdirpath):
+                    logger.warning("localdir %s does not exist, but self.Parentdirpath is set, so using self.Parentdirpath %s as base.", localdir, self.Parentdirpath)
+                    localdir = os.path.join(self.Parentdirpath, localdir)
+                else:
+                    logger.warning("localdir %s does not exist, using local_exp_subDir as base.", localdir)
+                    localdir = os.path.join(local_exp_subdir, localdir)
+        parentdirpath, foldername = os.path.split(localdir)
+        return foldername, parentdirpath, localdir
+
+
+    def makeLocaldir(self, props, localdir=None, wikipage=None):
+        """
+        Alternatively, 'makeExperimentFolder' ?
+        props:      Dict with props required to generate folder name.
+        localdir:   Not supported yet.
+        wikipage:   Not supported yet.
+        """
+        try:
+            foldername_fmt = self.getConfigEntry('exp_series_dir_fmt')
+            foldername = foldername_fmt.format(**props)
+            localexpsubdir = self.getConfigEntry('local_exp_subDir')
+            localdirpath = os.path.join(localexpsubdir, foldername)
+            os.mkdir(localdirpath)
+        except KeyError as e:
+            logger.warning("KeyError making new folder: %s", e)
+        except TypeError as e:
+            logger.warning("TypeError making new folder: %s", e)
+        except OSError as e:
+            logger.warning("OSError making new folder: %s", e)
+        except IOError as e:
+            logger.warning("IOError making new folder: %s", e)
+        logger.info("Created new localdir for experiment: %s", localdirpath)
+        return foldername
+
+
+    def changeLocaldir(self, newfolder):
+        """
+        Renames the folder of the experiment's local folder.
+        Will also rename path-based exp key in confighandler.
+        newfolder can be either an absolute path, or relative compared to either of:
+        - local_exp_rootDir
+        - local_exp_subDir
+        - self.Parentdirpath (in case the experiment was previously initialized).
+        """
+        oldlocaldirpath = self.Localdirpath
+        _, newfoldername, newlocaldirpath = self._getFoldernameAndParentdirpath(newfolder)
+        try:
+            os.rename(oldlocaldirpath, newlocaldirpath)
+        except OSError as e:
+            logger.warning("OSError renaming old folder %s to new folder %s: %s", oldlocaldirpath, newlocaldirpath, e)
+        except IOError as e:
+            logger.warning("IOError renaming old folder %s to new folder %s: %s", oldlocaldirpath, newlocaldirpath, e)
+        self.Confighandler.renameConfigKey(oldlocaldirpath, newlocaldirpath)
+        logger.info("Renamed old folder %s to new folder %s", oldlocaldirpath, newlocaldirpath)
+        return newlocaldirpath
+
+
 
     ### STUFF RELATED TO SUBENTRIES ###
 
@@ -602,31 +682,6 @@ functionality of this object will be greatly reduced and may break at any time."
             self.makeWikiSubentry(subentry_idx)
         self.saveIfChanged()
         return subentry
-
-
-    def makeLocaldir(self, props, localdir=None, wikipage=None):
-        """
-        Alternatively, 'makeExperimentFolder' ?
-        props:      Dict with props required to generate folder name.
-        localdir:   Not supported yet.
-        wikipage:   Not supported yet.
-        """
-        try:
-            foldername_fmt = self.getConfigEntry('exp_series_dir_fmt')
-            foldername = foldername_fmt.format(**props)
-            localexpsubdir = self.getConfigEntry('local_exp_subDir')
-            localdirpath = os.path.join(localexpsubdir, foldername)
-            os.mkdir(localdirpath)
-        except KeyError as e:
-            logger.warning("KeyError making new folder: %s", e)
-        except TypeError as e:
-            logger.warning("TypeError making new folder: %s", e)
-        except OSError as e:
-            logger.warning("OSError making new folder: %s", e)
-        except IOError as e:
-            logger.warning("IOError making new folder: %s", e)
-        logger.info("Created new localdir for experiment: %s", localdirpath)
-        return foldername
 
 
     def getSubentryFoldername(self, subentry_idx):

@@ -239,7 +239,12 @@ class ConfigHandler(object):
         if cfgtype is None:
             cfgtype = self.DefaultConfig
         # If key is not already set, set in default config type:
-        self.Configs.get(cfgtype)[key] = value
+        try:
+            self.Configs.get(cfgtype)[key] = value
+        except TypeError:
+            logger.warning("TypeError when trying to set key '%s' in cfgtype '%s', self.Configs.get('%s') returned: %s, self.Configs.keys(): %s",
+                           key, cfgtype, cfgtype, self.Configs.get(cfgtype), self.Configs.keys())
+            return False
         return cfgtype
 
     def popkey(self, key, cfgtype=None, check_all_configs=False):
@@ -430,7 +435,7 @@ class ConfigHandler(object):
             invokeEntryChangeCallback(self, configentry=None, new_configentry_value=None)
         will actually set the new_configentry_value. I might add a 'if-set', option,
         but since None is also commonly used as a 'not specified' value for kwargs, I think it is ok.
-            
+
         Note that changes are not registrered automatically. It is really not possible to see if
         entries changes, e.g. dicts and lists which are mutable from outside the control of this confighandler.
         Instead, this is a curtesy service, that allows one user of the confighandler to inform

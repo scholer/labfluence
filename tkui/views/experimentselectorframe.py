@@ -59,7 +59,7 @@ class ExperimentSelectorFrame(ttk.Frame):
 
     def init_widgets(self):
         # listboxes:
-        self.activeexpslist = ActiveExpsListbox(self, self.Confighandler)
+        self.activeexpslist = ActiveExpsListbox(self, self.Confighandler, reversedsort=True)
         self.localexpslist = LocalExpsListbox(self, self.Confighandler)
         self.wikiexpslist = WikiExpsListbox(self, self.Confighandler)
         # buttons:
