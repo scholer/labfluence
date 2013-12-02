@@ -119,6 +119,7 @@ if __name__ == '__main__':
             logging.getLogger(mod).setLevel(logging.DEBUG)
 
     if argsns.testing:
+        # These should be enabled with --debug <modules>.
         #logging.getLogger("tkui.views.expjournalframe").setLevel(logging.DEBUG)
         #logging.getLogger("tkui.views.shared_ui_utils").setLevel(logging.DEBUG)
         #logging.getLogger("tkui.views.explistboxes").setLevel(logging.DEBUG)

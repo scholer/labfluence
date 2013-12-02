@@ -39,12 +39,13 @@ from model.experiment import Experiment
 
 
 from mainframe import LabfluenceMainFrame
-from views.expnotebook import ExpNotebook, BackgroundFrame
+from views.expnotebook import ExpNotebook #, BackgroundFrame
 from views.experimentselectorframe import ExperimentSelectorWindow
+from views.experimentmanagerframe import ExperimentManagerWindow
 from views.dialogs import Dialog
 
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
-from controllers.filemanagercontroller import ExpFilemanagerController
+#from controllers.filemanagercontroller import ExpFilemanagerController
 
 
 
@@ -90,8 +91,8 @@ class LabfluenceTkRoot(tk.Tk):
         """
         return self.Confighandler.Singletons.get('server', None)
 
-        
-        
+
+
     def init_ui(self):
         #self.tkroot = tk.Tk()
         self.option_add('*tearOff', tk.FALSE)
@@ -111,7 +112,7 @@ class LabfluenceTkRoot(tk.Tk):
 
     def init_bindings(self):
         # Example using the new "pass_newvalue_as" argument.
-        # The new 
+        # The new
         """
         Invoking:
             self.Confighandler.registerEntryChangeCallback("app_current_expid", self.show_notebook, pass_newvalue_as='experiment')
@@ -240,6 +241,9 @@ class LabfluenceTkRoot(tk.Tk):
 
 
 
+    def manageExperiments(self, event=None):
+        logger.info("Opening ExperimentManagerWindow")
+        experiment_selector_window = ExperimentManagerWindow(self.Confighandler)
 
 
     def selectExperiments(self, event=None):

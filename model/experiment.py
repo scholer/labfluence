@@ -602,12 +602,21 @@ functionality of this object will be greatly reduced and may break at any time."
             elif os.path.isdir(os.path.join(local_exp_subdir, localdir)):
                 localdir = os.path.join(local_exp_subdir, localdir)
             else:
-                if getattr(self.Parentdirpath):
-                    logger.warning("localdir %s does not exist, but self.Parentdirpath is set, so using self.Parentdirpath %s as base.", localdir, self.Parentdirpath)
+                if getattr(self, 'Parentdirpath', None):
+                    logger.info("localdir %s does not exist, but self.Parentdirpath is set, so using self.Parentdirpath %s as base.", localdir, self.Parentdirpath)
                     localdir = os.path.join(self.Parentdirpath, localdir)
                 else:
-                    logger.warning("localdir %s does not exist, using local_exp_subDir as base.", localdir)
-                    localdir = os.path.join(local_exp_subdir, localdir)
+                    logger.info("localdir %s does not exist, using local_exp_subDir (%s) as base.", localdir, local_exp_subdir)
+                    common = os.path.commonprefix([local_exp_subdir, localdir])
+                    if common:
+                        # localdir might be a long relative dir, that shares most in comon with local_exp_subDir.
+                        org = localdir
+                        localdir = os.path.abspath(os.path.join(local_exp_subdir, os.path.relpath(localdir, local_exp_subdir)))
+                        logger.info("EXPERIMENTAL: localdir set using os.path.abspath(os.path.join(local_exp_subdir, os.path.relpath(localdir, local_exp_subdir))):\
+\n-localdir: %s\n-local_exp_subDir: %s\n-localdir: %s", org, local_exp_subdir, localdir)
+                    else:
+                        localdir = os.path.join(local_exp_subdir, localdir)
+                        logger.info("Setting localdir by joining local_exp_subdir and localdir, result is: %s", localdir)
         parentdirpath, foldername = os.path.split(localdir)
         return foldername, parentdirpath, localdir
 
@@ -889,11 +898,13 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         if directory is None:
             directory = self.Localdirpath
+            logger.debug("No directory provided, using self.Localdirpath '%s'", directory)
         if directory is None:
             logger.error("Experiment.parseLocaldirSubentries() :: ERROR, no directory provided and no localdir in Props attribute.")
             return
         # Consider using glob.re
         regex_prog = self.Subentries_regex_prog
+        logger.debug("parsing subentries for directory %s ", directory)
         localdirs = sorted([dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ])
         if self.VERBOSE:
             logger.debug("Experiment.parseLocaldirSubentries() :: self.Props:\n{}".format(self.Props))

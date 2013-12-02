@@ -59,31 +59,32 @@ class ExperimentSelectorFrame(ttk.Frame):
 
     def init_widgets(self):
         # listboxes:
-        self.activeexpslist = ActiveExpsListbox(self, self.Confighandler, reversedsort=True)
+        self.activeexpslist = ActiveExpsListbox(self, self.Confighandler) # reversedsort=True is now default...
         self.localexpslist = LocalExpsListbox(self, self.Confighandler)
         self.wikiexpslist = WikiExpsListbox(self, self.Confighandler)
         # buttons:
-        self.localexps_selectbtn = ttk.Button(self, command=self.add_selectedlocalexps, text="Add selected >>")
-        self.wikiexps_selectbtn = ttk.Button(self, command=self.add_selectedwikiexps, text="<< Add selected")
+        #self.localexps_selectbtn = ttk.Button(self, command=self.add_selectedlocalexps, text="Add selected >>")
+        #self.wikiexps_selectbtn = ttk.Button(self, command=self.add_selectedwikiexps, text="<< Add selected")
         # labels:
-        self.activeexpsheader = ttk.Label(self, text="Active experiments")
+        #self.activeexpsheader = ttk.Label(self, text="Active experiments")
         self.localexpsheader = ttk.Label(self, text="Local experiments")
-        self.wikiexpsheader = ttk.Label(self, text="Wiki experiments")
+        #self.wikiexpsheader = ttk.Label(self, text="Wiki experiments")
 
     def init_layout(self):
-        self.activeexpslist.grid(row=2, column=3, rowspan=3, sticky="news")
+        #self.activeexpslist.grid(row=2, column=3, rowspan=3, sticky="news")
         self.localexpslist.grid(row=2, column=1, rowspan=3, sticky="news")
-        self.wikiexpslist.grid(row=2, column=5, rowspan=3, sticky="news")
-        self.localexps_selectbtn.grid(row=3, column=2)
-        self.wikiexps_selectbtn.grid(row=3, column=4)
-        self.activeexpsheader.grid(row=1, column=3)
+        #self.wikiexpslist.grid(row=2, column=5, rowspan=3, sticky="news")
+        #self.localexps_selectbtn.grid(row=3, column=2)
+        #self.wikiexps_selectbtn.grid(row=3, column=4)
+        #self.activeexpsheader.grid(row=1, column=3)
         self.localexpsheader.grid(row=1, column=1)
-        self.wikiexpsheader.grid(row=1, column=5)
+        #self.wikiexpsheader.grid(row=1, column=5)
 
         # row+column configuration:
-        self.columnconfigure((1,5), weight=2, minsize=200)
-        self.columnconfigure((3,), weight=1, minsize=150)
-        self.rowconfigure((2,4), weight=2, minsize=200)
+        #self.columnconfigure((1,5), weight=2, minsize=200)
+        #self.columnconfigure((3,), weight=1, minsize=150)
+        self.columnconfigure((1,), weight=1, minsize=400)
+        self.rowconfigure((2), weight=2, minsize=500)
 
 
     @property

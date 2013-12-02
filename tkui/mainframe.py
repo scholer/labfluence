@@ -42,7 +42,7 @@ from views.experimentselectorframe import ExperimentSelectorWindow
 from views.dialogs import Dialog
 
 from views.explistboxes import ActiveExpsListbox, RecentExpsListbox #LocalExpsListbox, WikiExpsListbox
-# Edit: Using the self-controlling ActiveExpsListbox and RecentExpListbox listboxes instead of having 
+# Edit: Using the self-controlling ActiveExpsListbox and RecentExpListbox listboxes instead of having
 # simple listboxes with controllers attached:
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 from controllers.filemanagercontroller import ExpFilemanagerController
@@ -83,7 +83,8 @@ class LabfluenceMainFrame(ttk.Frame):
 
         self.activeexps_frame = ttk.Frame(self.leftframe)
         self.activeexps_label = ttk.Label(self.activeexps_frame, text="Active experiments:")
-        self.activeexps_select_btn = ttk.Button(self.activeexps_frame, text="Select...", command=self.selectExperiments)
+        self.activeexps_select_btn = ttk.Button(self.activeexps_frame, text="<< Select", command=self.selectExperiments)
+        self.manageexps_btn = ttk.Button(self.activeexps_frame, text="Manage...", command=self.manageExperiments)
         self.activeexps_new_btn = ttk.Button(self.activeexps_frame, text="Create...", command=self.createNewExperiment)
         # you do not strictly need to be able to reference this from self.
         ## Active experiments list:
@@ -95,7 +96,7 @@ class LabfluenceMainFrame(ttk.Frame):
         # Recent experiments widgets
         ## TODO: Implement double-click action
         # (actually, this can be implemented in the class as a call to the model domain:
-        # generally, if you double-click an experiment on the recent experiments list,         
+        # generally, if you double-click an experiment on the recent experiments list,
         # it should move the the active experiments list.
         self.recentexps_frame = ttk.Frame(self.leftframe)
         self.recentexps_list = RecentExpsListbox(self.recentexps_frame, self.Confighandler,
@@ -142,8 +143,10 @@ class LabfluenceMainFrame(ttk.Frame):
         #self.activeexps_list.bind('<<ListboxSelect>>', self.show_notebook ) # Will throw the event to the show_notebook
         # Active experiments widgets layout:
         self.activeexps_label.grid(column=1, row=0, columnspan=3, sticky="nw")
-        self.activeexps_select_btn.grid(column=1, row=2)
+        self.activeexps_select_btn.grid(column=1, row=1, columnspan=2, sticky="we")
+        self.manageexps_btn.grid(column=1, row=2)
         self.activeexps_new_btn.grid(column=2, row=2)
+
         self.activeexps_list.grid(column=0, row=5, columnspan=4, sticky="nesw")
 
         # Recent experiment frame
@@ -245,5 +248,12 @@ class LabfluenceMainFrame(ttk.Frame):
     def showHome(self, event=None):
         self.backgroundframe.lift()
 
+
+    def manageExperiments(self, event=None):
+        self.Parent.manageExperiments()
+
+
     def selectExperiments(self, event=None):
+        if hasattr(self, 'localexpslist'):
+            pass
         self.Parent.selectExperiments()

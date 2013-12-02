@@ -199,8 +199,9 @@ class ExperimentManager(object):
         except ValueError:
             logger.warning("Expid '{}' not in ActiveExperimentIds.".format(expid))
         logger.debug("Appending expid '{}' to RecentExperimentIds".format(expid))
-        self.RecentExperimentIds.append(expid)
-        self.sortRecentExprimentIds()
+        if expid not in self.RecentExperimentIds:
+            self.RecentExperimentIds.append(expid)
+            self.sortRecentExprimentIds()
         self.Confighandler.invokeEntryChangeCallback('app_active_experiments')
         self.Confighandler.invokeEntryChangeCallback('app_recent_experiments')
         self.Confighandler.saveConfigForEntry('app_recent_experiments')
@@ -225,10 +226,13 @@ class ExperimentManager(object):
         """
         Adds an experiment ID to the list of active experiments (expids).
         """
-        self.ActiveExperimentIds.append(expid)
-        logger.debug("Appending expid '{}' to ActiveExperimentIds".format(expid))
-        # possibly do:
-        self.Confighandler.ChangedEntriesForCallbacks.add('app_active_experiments') # it is a set.
+        if expid not in self.ActiveExperimentIds:
+            self.ActiveExperimentIds.append(expid)
+            logger.debug("Appending expid '{}' to ActiveExperimentIds".format(expid))
+            # possibly do:
+            self.Confighandler.ChangedEntriesForCallbacks.add('app_active_experiments') # it is a set.
+        else:
+            logger.debug("expid '%s' already in ActiveExperimentIds.", expid)
         if removeFromRecent:
             # Doing a bit specially to make sure to remove all entries, just in case:
             for _ in range(self.RecentExperimentIds.count(expid)):
@@ -557,7 +561,7 @@ class ExperimentManager(object):
         return exps
 
 
-    def mergeCurrentWikiExperiments(self, autocreatelocaldirs=None):#, sync_exptitledesc=None):
+    def mergeCurrentWikiExperiments(self, autocreatelocaldirs=None, mergeonlyexpids=None):#, sync_exptitledesc=None):
         """
         Merges the current wiki experiments with the experiments from the local directory.
         sync_exptitledesc can be either of: (not implemented)
@@ -578,7 +582,7 @@ class ExperimentManager(object):
                 if not exp.PageId:
                     logger.info("Experiment %s : Connecting to page with id %s and title: %s", exp, page['id'], page['title'])
                     exp.PageId = page['id']
-            else:
+            elif mergeonlyexpids is None or expid in mergeonlyexpids:
                 exp = Experiment(props=gd, makelocaldir=autocreatelocaldirs,
                                  manager=self, confighandler=self.Confighandler,
                                  doparseLocaldirSubentries=False, wikipage=page)
@@ -586,6 +590,8 @@ class ExperimentManager(object):
                 logger.debug("Adding newly created experiment to list of active experiments...")
                 self.ExperimentsById[expid] = exp
                 newexpids.append(expid)
+            else:
+                logger.debug("Not merging expid %s", expid)
         if newexpids:
             logger.debug("Adding new expids to active experiments: %s", newexpids)
             self.addActiveExperiments( newexpids ) # This will take care of invoking registrered callbacks in confighandler.
