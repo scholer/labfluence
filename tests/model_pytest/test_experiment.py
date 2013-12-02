@@ -23,7 +23,7 @@ from model.experiment import Experiment
 
 ## Test doubles:
 from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
+#from tests.model_testdoubles.fake_server import FakeConfluenceServer
 
 ## Also consider mocking all other objects not part of the SUT (system under test, i.e. the Experiment class)
 # In addition to server and confighandler, this includes:
@@ -134,20 +134,28 @@ def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
 
 
 
+def test_getFoldernameFromFmtAndProps(exp_no_wikipage_or_subentries, expprops):
+    e = exp_no_wikipage_or_subentries
+    assert e.getFoldernameFromFmtAndProps() == 'RS099 Pytest titledesc'
 
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_setLocaldirpathAndFoldername():
     assert False
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test__getFoldernameAndParentdirpath():
     assert False
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_makeLocaldir():
     assert False
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_changeLocaldir():
     assert False
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_():
     assert False
 

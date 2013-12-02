@@ -17,8 +17,8 @@
 
 # python 2.7:
 import Tkinter as tk
-import ttk
-import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+#import ttk
+#import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 import logging
 logger = logging.getLogger(__name__)
 
@@ -158,12 +158,12 @@ class SubentriesListbox(ExpListbox):
             #return foldername if foldername in subentry else exp_subentry_dir_fmt.format(**subentry)
             return subentry.get('foldername',
                                 exp_subentry_dir_fmt.format(**self.Experiment.makeFormattingParams(subentry['subentry_idx'])) )
-        lst = [ (subentryrepr(subentry),idx,subentry) for idx,subentry in self.Experiment.Subentries.items()]
+        lst = [ (subentryrepr(subentry), idx,subentry) for idx, subentry in self.Experiment.Subentries.items()]
         #logger.debug("%s.updatelist() :: lst is: %s", self.__class__.__name__, lst)
         self.Subentrylist = zip(*lst) # self.Subentrylist[0] is repr, while [1] is subentry_idx and [2] is the actual subentry dict properties.
         #self.subentrieslistbox.delete(0,tk.END)
         #self.subentrieslistbox.insert(tk.END, *self.Subentrylist[0])
-        self.delete(0,tk.END)
+        self.delete(0, tk.END)
         if lst:
             self.insert(tk.END, *self.Subentrylist[0])
         else:
@@ -171,14 +171,17 @@ class SubentriesListbox(ExpListbox):
         #logger.debug("%s, self.get(0, tk.END) is now: %s", self.__class__.__name__, self.get(0, last=tk.END))
 
     def clearlist(self):
+        """ Clears the list of all items """
         #self.subentrieslistbox.delete(0,tk.END)
-        self.delete(0,tk.END)
+        self.delete(0, tk.END)
 
     def getSelectedSubentryIdxs(self):
+        """ Returns currently selected subentry indices """
         curselection = [int(i) for i in self.curselection()]
         return [self.Subentrylist[1][i] for i in curselection] # Subentrylist[1] is list of subentry_idxs
 
     def getSelectedSubentries(self):
+        """ Returns currently selected subentries """
         curselection = [int(i) for i in self.curselection()]
         return [self.Subentrylist[2][i] for i in curselection] # Subentrylist[1] is list of subentry_idxs
 
@@ -196,6 +199,10 @@ Notice: ActiveExpsListbox and RecentExpsListbox are implemented using controller
 """
 
 class ExpManagerListBox(tk.Listbox):
+    """
+    Listbox class for all listboxes that displays list of experiments as managed through
+    an ExperimentManager object/singleton.
+    """
 
     def __init__(self, parent, confighandler, isSelectingCurrent=False, reversedsort=True, **kwargs):
         self.before_init(kwargs)
@@ -265,8 +272,8 @@ class ExpManagerListBox(tk.Listbox):
     def update_widget(self, ):
         pass
 
-    def getConfigKey(self):
-        pass
+    def getConfigKey(self, key):
+        self.Confighandler.get(key)
 
     def getSelectedIds(self, ):
         # self.curselection() returns tuple with selected indices.
@@ -289,9 +296,9 @@ class ExpManagerListBox(tk.Listbox):
         # Reference implementation provided here:
         expids = self.getExpIds()
         experiments = self.ExperimentManager.getExpsById(expids)
-        display = (repr(exp) for exp in experiments )
+        display = [repr(exp) for exp in experiments]
         if self.Reversedsort:
-            tuplist = tuple(reversed(zip(display, expids, experiments)))
+            tuplist = reversed(zip(display, expids, experiments))
         else:
             tuplist = zip(display, expids, experiments)
         logger.debug("returning tuplelist: %s", tuplist)
@@ -300,11 +307,17 @@ class ExpManagerListBox(tk.Listbox):
     def populatelist(self, experiments):
         # For manual external use. And reference. This is not used internally.
         self.insert(tk.END, *experiments)
+
     def clearlist(self):
+        """Removes all items from the list"""
         self.delete(0, tk.END)
 
     def updatelist(self, event=None):
-        tuples = self.getTupleList()
+        """
+        Updates the list by first clearing it and then
+        calling self.getTupleList()
+        """
+        tuples = list(self.getTupleList())
         self.clearlist()
         if tuples:
             logger.debug("Updating %s listbox with experiment tuples:\n%s",
@@ -312,10 +325,27 @@ class ExpManagerListBox(tk.Listbox):
                          "\n".join("{e}".format(e=e) for e in tuples))
             # Note: The list will get the string representation from the experiment ( __repr__ method).
             # This is also what is returned upon querying.
-            self.TupleList = tuples # This list should be consolidated to match the (<display>, <identifier>, <full object>) tuple list structure
-            self.insert(tk.END, *[tup[0] for tup in tuples]) # Nope, keyword arguments cannot be used as far as I can tell...
+            self.TupleList = tuples # save (<display>, <identifier>, <full object>) tuple list structure
+            for tup in tuples:
+                logger.debug("Adding %s with self.insert(%s, %s)", tup[0], tk.END, tup[0])
+                self.insert(tk.END, tup[0])
+            #self.insert(tk.END, *[tup[0] for tup in tuples])
         else:
             logger.info("getTupleList() returned a boolean false result: %s", tuples)
+
+
+    def addSelectionToActiveExpsList(self, ):
+        """
+        Adds the current selection to the manager's active experiments list.
+        """
+        curselection = self.curselection() # Returns tuple of selected indices., e.g. (1, )
+        #selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
+        #logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
+        expid = self.TupleList[int(curselection[0])][1]
+        logger.info("curselection={}, expid={}".format(curselection, expid))
+        self.ExperimentManager.addActiveExperiments( (expid, )) # This takes care of invoking callbacks.
+
+
 
 
 class ActiveExpsListbox(ExpManagerListBox):
@@ -343,8 +373,11 @@ class ActiveExpsListbox(ExpManagerListBox):
         logger.debug("Here I would unbind: 'app_active_experiments', self.updatelist")
         self.Confighandler.unregisterEntryChangeCallback('app_active_experiments', self.updatelist)
 
-class RecentExpsListbox(ExpManagerListBox):
 
+class RecentExpsListbox(ExpManagerListBox):
+    """
+    Listbox class for displaying the recent experiments list:
+    """
     def getExpIds(self, ):
         """
         Using the default getTupleList and just overriding getExpsIds method:
@@ -354,6 +387,10 @@ class RecentExpsListbox(ExpManagerListBox):
     def init_bindings(self, ):
         self.Confighandler.registerEntryChangeCallback('app_recent_experiments', self.updatelist)
         self.bind('<Destroy>', self.unbind_on_destroy)
+
+    def on_doubleclick(self, event):
+        # NB: This is bound during __init__, not in init_bindings.
+        self.addSelectionToActiveExpsList()
 
     def unbind_on_destroy(self, event):
         """
@@ -386,9 +423,14 @@ class LocalExpsListbox(ExpManagerListBox):
         displaytuples = zip(display, expids, experiments)
         if self.Reversedsort:
             # Returning an iterator does not work for tkinter... :<
-            return tuple(reversed(displaytuples))
+            return reversed(displaytuples)
         else:
             return displaytuples
+
+    def on_doubleclick(self, event):
+        # NB: This is bound during __init__, not in init_bindings.
+        self.addSelectionToActiveExpsList()
+
 
 
 
@@ -399,8 +441,9 @@ class WikiExpsListbox(ExpManagerListBox):
         returns the familiar list of (<display>, <identifier>, <full object>) tuples.
         In this case, it is more efficient to re-implement the getTupleList:
         """
-        displaytuples = self.ExperimentManager.getCurrentWikiExperiments(ret='display-tuple')
+        displaytuples = list(self.ExperimentManager.getCurrentWikiExperiments(ret='display-tuple'))
+        logger.info("%s displaytuples: %s", self.__class__.__name__, displaytuples )
         if self.Reversedsort:
-            return tuple(reversed(displaytuples))
+            return reversed(displaytuples)
         else:
             return displaytuples

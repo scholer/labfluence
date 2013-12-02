@@ -112,8 +112,7 @@ class Experiment(object):
 
 
     def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None,
-                 doparseLocaldirSubentries=True, subentry_regex_prog=None, loadYmlFn='.labfluence.yml',
-                 autoattachwikipage=True, doserversearch=False, savepropsonchange=True,
+                 doparseLocaldirSubentries=True, subentry_regex_prog=None, autoattachwikipage=True, savepropsonchange=True,
                  makelocaldir=False, makewikipage=False):
         """
         Arguments:
@@ -133,27 +132,31 @@ class Experiment(object):
         self.Confighandler = confighandler
         self._server = server
         self._manager = manager
-        self._wikipage = wikipage
+        if isinstance(wikipage, WikiPage) or wikipage is None:
+            self._wikipage = wikipage
+        else:
+            # Assume page struct:
+            self._wikipage = WikiPage(wikipage.get('id', wikipage.get('pageId', None)), self.Server, pagestruct=wikipage)
+        # Attaching of wiki pages is done lazily on first call. _autoattachwikipage is not really used.
         self._autoattachwikipage = autoattachwikipage
         # NOTICE: Attaching wiki pages is done lazily using a property (unless makewikipage is not False)
         self.SavePropsOnChange = savepropsonchange
         self.PropsChanged = False # Flag,
         self.Subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
-        self.ConfigFn = loadYmlFn
+        self.ConfigFn = '.labfluence.yml',
         self._attachments_cache = None # cached list of wiki attachment_structs. None = <not initialized>
         self._fileshistory = dict()
         self._props = dict()
         self._expid = None
         self._allowmanualpropssavetofile = False # Set to true if you want to let this experiment handle Props file persisting without a confighandler.
+        self._doserversearch = False
         if localdir is None:
             localdir = props.get('localdir')
         if makelocaldir:
+            logger.debug("makelocaldir is boolean True, invoking self.makeLocaldir(props=%s, localdir=%s)", props, localdir)
             localdir = self.makeLocaldir(props, localdir, wikipage) # only props currently supported...
-        if not localdir:
-            self.Localdirpath = None
-            self.Foldername = None
-            self.Parentdirpath = None
-        else:
+            logger.debug("localdir after makeLocaldir: %s", localdir)
+        if localdir:
             # We have a localdir. Local dirs may be of many formats, e.g.:
             #   /some/abosolute/unix/folder
             #   C:\some\absolute\windows\folder
@@ -161,6 +164,11 @@ class Experiment(object):
             #   relative\windows\folder
             # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
             self.setLocaldirpathAndFoldername(localdir)
+        else:
+            logger.debug("localdir is: %s (and makelocaldir was: %s), setting Localdirpath, Foldername and Parentdirpath to None.", localdir, makelocaldir)
+            self.Localdirpath = None
+            self.Foldername = None
+            self.Parentdirpath = None
 
         ### Experiment properties/config related
         ### Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
@@ -177,15 +185,17 @@ class Experiment(object):
             ## regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)"
             self.Props.update(gd)
         elif not 'expid' in self.Props:
-            # self.Props is still too empty. Attempt to populate it using 1) the localdirpath and 2) the wikipage.
+            logger.debug("self.Props is still too empty (no expid field). Attempting to populate it using 1) the localdirpath and 2) the wikipage.")
             exp_regex = self.getConfigEntry('exp_series_regex')
             exp_regex_prog = re.compile(exp_regex)
-            regex_match = self.updatePropsByFoldername(exp_regex_prog)
+            regex_match = None
+            if self.Foldername:
+                regex_match = self.updatePropsByFoldername(exp_regex_prog)
             if not regex_match and wikipage: # equivalent to 'if wikipage and not regex_match', but better to check first:
                 regex_match = self.updatePropsByWikipage(exp_regex_prog)
 
         if not localdir:
-            logger.warning( "NOTICE: No localdir provided for expid '%s';\
+            logger.info( "NOTICE: No localdir provided for expid '%s'; \
 functionality of this object will be greatly reduced and may break at any time.", self.Expid)
 
         ### Subentries related...###
@@ -224,18 +234,25 @@ functionality of this object will be greatly reduced and may break at any time."
             props = self.Confighandler.getExpConfig(self.Localdirpath)
         else:
             props_cache = self.Confighandler.get('expprops_by_id_cache')
-            if props_cache and getattr(self, '_expid', None):
-                props = props_cache.setdefault(self._expid, dict())
+            _expid = getattr(self, '_expid', None)
+            if props_cache and _expid:
+                props = props_cache.setdefault(_expid, dict())
             else:
-                logger.warning("Warning, no localdirpath provided for this experiment and no props_cache or no self._expid.")
                 if not hasattr(self, '_props'):
+                    logger.debug("Setting self._props = dict()")
                     self._props = dict()
                 props = self._props
-        wikipage = self._wikipage # self.WikiPage calls self.attachWikiPage which calls self.Props -- circular loop.
-        if not props.get('wiki_pagetitle') and wikipage and wikipage.Struct \
-            and props.get('wiki_pagetitle') != wikipage.Struct['title']:
-            logger.info("Updating experiment props['wiki_pagetitle'] to '{}'".format(wikipage.Struct['title']))
-            props['wiki_pagetitle'] = wikipage.Struct['title']
+                logger.debug("(test mode?) self.Localdirpath is '%s', props_cache type: %s, self._expid is: %s, returning props: %s",
+                               getattr(self, 'Localdirpath', '<not set>'), type(props_cache), _expid, props)
+                #logger.debug("Returning self._props, which is: %s", props)
+        try:
+            wikipage = self._wikipage # Do NOT try to use self.WikiPage. self.WikiPage calls self.attachWikiPage which calls self.Props -- circular loop.
+            if not props.get('wiki_pagetitle') and wikipage and wikipage.Struct \
+                        and props.get('wiki_pagetitle') != wikipage.Struct['title']:
+                logger.info("Updating experiment props['wiki_pagetitle'] to '{}'".format(wikipage.Struct['title']))
+                props['wiki_pagetitle'] = wikipage.Struct['title']
+        except AttributeError as e:
+            logger.debug("AttributeError: %s", e)
         return props
     @property
     def Subentries(self):
@@ -508,6 +525,7 @@ functionality of this object will be greatly reduced and may break at any time."
         regex_match = regex_prog.match(self.Foldername)
         if regex_match:
             self.Props.update(regex_match.groupdict())
+            logger.debug("Props updated using foldername %s and regex, returning groupdict %s", self.Foldername, regex_match.groupdict())
             if self.SavePropsOnChange:
                 self.saveProps()
         return regex_match
@@ -526,6 +544,7 @@ functionality of this object will be greatly reduced and may break at any time."
         regex_match = regex_prog.match(wikipage.Struct.get('title'))
         if regex_match:
             self.Props.update(regex_match.groupdict())
+            logger.debug("Props updated using wikipage.Struct['title'] %s and regex, returning groupdict %s", regex_match.string, regex_match.groupdict())
             if self.SavePropsOnChange:
                 self.saveProps()
         return regex_match
@@ -558,11 +577,13 @@ functionality of this object will be greatly reduced and may break at any time."
         and use this to set self.Foldername, self.Parentdirpath and self.Localdirpath.
         """
         foldername, parentdirpath, localdirpath = self._getFoldernameAndParentdirpath(localdir)
+        logger.debug("self._getFoldernameAndParentdirpath(%s) returned: %s, %s, %s", localdir, foldername, parentdirpath, localdirpath)
         self.Parentdirpath = parentdirpath
         if not foldername:
             logger.warning( "Experiment.__init__() :: Warning, could not determine foldername...????" )
         self.Foldername = foldername
         self.Localdirpath = localdirpath
+        logger.debug("self.Parentdirpath=%s, self.Foldername=%s, self.Localdirpath=%s", self.Parentdirpath, self.Foldername, self.Localdirpath)
 
     def _getFoldernameAndParentdirpath(self, localdir):
         """
@@ -598,12 +619,15 @@ functionality of this object will be greatly reduced and may break at any time."
         localdir:   Not supported yet.
         wikipage:   Not supported yet.
         """
+        # Note: If this is called as part of __init__, it is called as one of the first things,
+        # before setting self.Props, and before pretty much anything.
+        logger.debug("Experiment makeLocaldir invoked with props=%s, localdir=%s", props, localdir)
         try:
-            foldername_fmt = self.getConfigEntry('exp_series_dir_fmt')
-            foldername = foldername_fmt.format(**props)
+            foldername = self.getFoldernameFromFmtAndProps(props)
             localexpsubdir = self.getConfigEntry('local_exp_subDir')
             localdirpath = os.path.join(localexpsubdir, foldername)
             os.mkdir(localdirpath)
+            #logger.info("Created new localdir: %s", localdirpath)
         except KeyError as e:
             logger.warning("KeyError making new folder: %s", e)
         except TypeError as e:
@@ -613,7 +637,21 @@ functionality of this object will be greatly reduced and may break at any time."
         except IOError as e:
             logger.warning("IOError making new folder: %s", e)
         logger.info("Created new localdir for experiment: %s", localdirpath)
+        return localdirpath
+
+
+    def getFoldernameFromFmtAndProps(self, props=None, foldername_fmt=None):
+        """
+        Generates a foldername formatted using props and the format string in
+        confighandler's exp_series_dir_fmt config entry.
+        """
+        if props is None:
+            props = self.Props
+        if foldername_fmt is None:
+            foldername_fmt = self.getConfigEntry('exp_series_dir_fmt')
+        foldername = foldername_fmt.format(**props)
         return foldername
+
 
 
     def changeLocaldir(self, newfolder):
@@ -1321,7 +1359,7 @@ functionality of this object will be greatly reduced and may break at any time."
         method_repr = "{}.{}".format(self.__class__.__name__, callinfo[2])
         logger.info("%s :: Searching on server...", method_repr)
         spaceKey = self.getConfigEntry('wiki_exp_root_spaceKey')
-        pageTitle = self.Foldername # No reason to make this more complicated...
+        pageTitle = self.Foldername or self.getFoldernameFromFmtAndProps() # No reason to make this more complicated...
         user = self.getConfigEntry('wiki_username') or self.getConfigEntry('username')
         try:
             # First try to find a wiki page with an exactly matching pageTitle.
@@ -1584,7 +1622,11 @@ functionality of this object will be greatly reduced and may break at any time."
 
     def __repr__(self):
         #return "Experiment in ('{}'), with Props:\n{}".format(self.Localdirpath, yaml.dump(self.Props))
-        return "e>"+self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)
+        try:
+            return "e>"+self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)
+        except KeyError:
+            logger.debug("KeyError for 'return e>+self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)'")
+            return "e>"+str(getattr(self, 'Foldername', '<no-foldername>'))+str(self.Props)
 
     def update(self, other_exp):
         """

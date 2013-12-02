@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201,W0141
 """
 experiment_manager module with ExperimentManager class,
 handles logic related to managing experiment objects.
@@ -25,6 +25,7 @@ import os
 import re
 import logging
 from collections import OrderedDict
+from itertools import ifilter
 logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
 #from operator import attrgetter, itemgetter, methodcaller
 
@@ -58,26 +59,16 @@ class ExperimentManager(object):
         #self.Experiments = list()       # list of experiment objects;
         if autoinit is None:
             autoinit = self.Confighandler.get('exp_manager_autoinit')
-        #self.ExperimentsById = OrderedDict()   # Is now a property. A dict of experiment instances, but keyed by expid
-        self._experimentsbyid = None #
+        self._experimentsbyid = None
         self._autoinit = autoinit
         self._experimentsources = experimentsources
         self._experiments = list()
         if autoinit:
             logger.info("Auto-initiating experiments for ExperimentManager...")
-            # Can be done by invoking the ExperimentsById property:
-            exps = self.ExperimentsById
-            logger.debug("self.ExperimentsById: %s", exps)
-            #if 'localexps' in autoinit:
-            #    self.ExperimentsById = self.makeExperimentByExpIdMap(self.getLocalExperiments())
-            #if 'wikiexps' in autoinit:
-            #    logger.info("wikiexps in autoinit not implemented...")
-        #self.ExpSummariesById = dict()  # yaml-persisted brief info, from cache. Edit, this is now a property ExperimentPropsById
-        # Discussion: Is it worth having a cached summary?
-        # - Note: I still think basic info should be persisted on a per-experiment basis, not in a single large yaml file.
-        # - Cons: It might be easier just to have the full info, perhaps as read-only (i.e. not the main...)
-        # - Cons: It might also be better to just always make experiment objects. What is the overhead on making exp objects vs just generating a dict with info?
-        # - Pro:
+            self.mergeLocalExperiments()
+            if 'wikiexps' in autoinit:
+                self.mergeCurrentWikiExperiments()
+            logger.debug("self.ExperimentsById: %s", self.ExperimentsById)
 
     @property
     def Experiments(self):
@@ -91,8 +82,10 @@ class ExperimentManager(object):
         """
         if self._experimentsbyid is None:
             #if 'local' in self._experimentsources:
-            exps = self.Experiments or self.getLocalExperiments()
-            self._experimentsbyid = self.makeExperimentByExpIdMap(exps, updateSelf=False)
+            #exps = self.Experiments or self.getLocalExperiments()
+            #self._experimentsbyid = self.makeExperimentByExpIdMap(exps, updateSelf=False)
+            self.mergeLocalExperiments()
+        # Perhaps throw in a sort?
         return self._experimentsbyid
     @ExperimentsById.setter
     def ExperimentsById(self, value):
@@ -113,6 +106,30 @@ class ExperimentManager(object):
         """
         self.Confighandler.Singletons.setdefault('experimentmanager', value)
 
+    @cached_property(ttl=60) # 1 minut cache...
+    def ServerInfo(self):
+        """ Remember, the cached_property makes a property, which must be nvoked without '()'!
+        """
+        return self.Server.getServerInfo()
+
+    @cached_property(ttl=120) # 2 minutes cache...
+    def CurrentWikiExperimentsPagestructsByExpid(self):
+        """
+        TTL-managed cached wrapper of getCurrentWikiExperiments(ret='pagestruct-by-expid')
+        # Note: the cached_property only works for property-like methods, it is not for generic methods.
+        # If you would like both argument-caching (like memorize) and TTL/expiration, you should try
+        # the @region.cache_on_arguments() decorator provided by dogpile.
+        """
+        logger.debug("invoked cache-wrapped CurrentWikiExperimentsPagestructsByExpid...")
+        pagestructs = list( self.getCurrentWikiExperiments(ret='pagestructs-by-expid') ) # Make sure you cache list and not generator.
+        return pagestructs
+
+
+    # Discussion: Is it worth having a cached summary?
+    # - Note: I still think basic info should be persisted on a per-experiment basis, not in a single large yaml file.
+    # - Cons: It might be easier just to have the full info, perhaps as read-only (i.e. not the main...)
+    # - Cons: It might also be better to just always make experiment objects. What is the overhead on making exp objects vs just generating a dict with info?
+    # - Pro:
     #@property
     #def ExperimentPropsById(self):
     #    return self.Confighandler.setdefault('experiments_by_id', dict())
@@ -139,8 +156,10 @@ class ExperimentManager(object):
     """
 
     def getCurrentExpid(self):
+        """Returns current experiment id from app_current_expid"""
         return self.Confighandler.setdefault('app_current_expid', None)
     def setCurrentExpid(self, new_expid):
+        """Sets current experiment id as app_current_expid"""
         old_expid = self.getCurrentExpid()
         if old_expid != new_expid:
             self.Confighandler.setkey('app_current_expid', new_expid)
@@ -207,12 +226,13 @@ class ExperimentManager(object):
         Adds an experiment ID to the list of active experiments (expids).
         """
         self.ActiveExperimentIds.append(expid)
-        logger.debug("Appending expid '{}' to RecentExperimentIds".format(expid))
+        logger.debug("Appending expid '{}' to ActiveExperimentIds".format(expid))
         # possibly do:
         self.Confighandler.ChangedEntriesForCallbacks.add('app_active_experiments') # it is a set.
         if removeFromRecent:
-            logger.debug("Removing expid '{}' from RecentExperimentIds".format(expid))
+            # Doing a bit specially to make sure to remove all entries, just in case:
             for _ in range(self.RecentExperimentIds.count(expid)):
+                logger.debug("Removing expid '{}' from RecentExperimentIds".format(expid))
                 self.RecentExperimentIds.remove(expid)
             self.Confighandler.ChangedEntriesForCallbacks.add('app_recent_experiments')
 
@@ -221,13 +241,13 @@ class ExperimentManager(object):
         Sort "in place", just in case there are direct references to the list in other places...:
         """
         self.ActiveExperimentIds.sort()
-        logger.debug("Sorted ActiveExperimentIds: ".format(self.ActiveExperimentIds))
+        logger.debug("Sorted ActiveExperimentIds: %s", self.ActiveExperimentIds)
     def sortRecentExprimentIds(self):
         """
         Sorts the list of recent experiment ids.
         """
         self.RecentExperimentIds.sort()
-        logger.debug("Sorted RecentExperimentIds: ".format(self.RecentExperimentIds))
+        logger.debug("Sorted RecentExperimentIds: %s", self.RecentExperimentIds)
 
     def initExpIds(self, expids):
         """
@@ -237,10 +257,11 @@ class ExperimentManager(object):
             if not expid:
                 logger.warning("expid '%s' present in expids for initExpIds()", expid)
             elif expid not in self.ExperimentsById:
-                logger.info( "expid '%s' not initialized, doing so manually...", expid)
-                exp = self.ExperimentsById[expid] = Experiment(manager=self, confighandler=self.Confighandler,
-                                                    props=dict(expid=expid))
-                logger.debug( "Experiment initialized: %s with props %s", exp, exp.Props)
+                logger.info( "expid '%s' not initialized !...", expid)
+                # Uhm... does it make sense to initialize experiments with no e.g. localdir? No.
+                #exp = self.ExperimentsById[expid] = Experiment(manager=self, confighandler=self.Confighandler,
+                #                                    props=dict(expid=expid))
+                #logger.debug( "Experiment initialized: %s with props %s", exp, exp.Props)
 
     def getExpsById(self, expids):
         """
@@ -250,7 +271,7 @@ class ExperimentManager(object):
         # Make sure all expids are initialized.
         # This is a lot faster if you have already initialized all experiments in the exp_local_subdir
         self.initExpIds(expids)
-        return [ self.ExperimentsById[expid] for expid in expids ]
+        return [ self.ExperimentsById[expid] for expid in expids if expid in self.ExperimentsById ]
 
 
 
@@ -276,16 +297,16 @@ class ExperimentManager(object):
         """relays to confighandler"""
         return self.Confighandler.get('local_exp_subDir') # E.g. the "2013_Aarhus/" dir
 
-    def getExpSeriesRegex(self):
+    def getExpSeriesRegex(self, path=None):
         """
         I currently try to use the same regex for both local experiment folders
         and wiki experiment pages.
         """
-        return self.Confighandler.get('exp_series_regex')
+        return self.Confighandler.get('exp_series_regex', path=path)
 
-    def getExpSubentryRegex(self):
+    def getExpSubentryRegex(self, path=None):
         """relays to confighandler"""
-        return self.Confighandler.get('exp_subentry_regex')
+        return self.Confighandler.get('exp_subentry_regex', path=path)
 
 
     #def getRealLocalExpRootDir(self):
@@ -304,7 +325,56 @@ class ExperimentManager(object):
 
 
 
-    def getLocalExperiments(self, directory=None, store=False, ret='experiment-object'):
+    ########################################
+    ### Loading/parsing wiki experiments ###
+    ########################################
+
+    def getLocalExperimentFolderpaths(self, directory=None):
+        """
+        Returns a generator of local experiment foldernames
+        """
+        if directory is None:
+            directory = self.getLocalExpSubDir()
+        # Consider using glob.re
+        if not directory:
+            logger.warning(" Search directory is '%s', aborting...", directory)
+            return False
+        # Note: sorted returns a list, not an iterator...
+        localdirs = sorted( dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ) #os.listdir(directory)
+        logger.debug("localdirs in directory %s: %s", directory, localdirs)
+        folderpaths = ( os.path.join(directory, dirname) for dirname in localdirs )
+        return folderpaths
+
+    def getLocalExpsDirMatchTuples(self, basedir=None):
+        """
+        Returns a generator with
+          (localdirpath, regex_match) for local experiment folders
+        """
+        exp_paths = self.getLocalExperimentFolderpaths(basedir)
+        if not exp_paths:
+            logger.warning("exp_paths is %s, aborting...", exp_paths)
+            return
+        regex_str = self.getExpSeriesRegex(basedir) # using basedir should enable per-directory regex definitions.
+        if not regex_str:
+            logger.warning( "ERROR, no exp_series_regex entry found in config (%s), aborting...", regex_str )
+            return
+        logger.debug( "Parsing local folders with regex: %s", regex_str )
+        regex_prog = re.compile(regex_str)
+        pathmatchtuples = (tup for tup in ( (path, regex_prog.match(os.path.basename(path))) for path in exp_paths) if tup[1])
+        return pathmatchtuples
+
+    def getLocalExpsDirGroupdictTuples(self, basedir=None):
+        """
+        Returns a generator with (path, match.groupdict() ) tuples,
+        for local experiment folders.
+        """
+        pathgds = ( (path, match.groupdict()) for path, match in self.getLocalExpsDirMatchTuples(basedir) )
+        return ((path, dict(date=next(ifilter(None, [gd.pop('date', None), gd.pop('date1', None), gd.pop('date2', None)]), None),
+                            **gd))
+                    for path, gd in pathgds)
+
+
+    def getLocalExperiments(self, ret='experiment-object', basedir=None):
         """
         Parse the local experiment (sub)directory and create experiment objects from these.
         This should probably be a bit more advanced, or used from another method that processes the returned objects.
@@ -319,67 +389,65 @@ class ExperimentManager(object):
         - 'expid'               -> Returns the expid only
         - 'display-tuple'       -> (<display>, <identifier>, <full object>) tuples. Well, currently not with the full object.
         """
-        if directory is None:
-            directory = self.getLocalExpSubDir()
-        # Consider using glob.re
-        if not directory:
-            logger.warning("ExperimentManager.getLocalExperiments initiated with directory: %s, aborting...", directory)
-            return False
-        logger.debug("Parsing local exp subdir: %s", directory)
-        localdirs = sorted([dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ]) #os.listdir(directory)
-        logger.debug( "ExperimentManager.getLocalExperiments() :: searching in directory '%s'", directory )
-        logger.debug( "ExperimentManager.getLocalExperiments() :: localdirs = %s", localdirs)
-        regex_str = self.getExpSeriesRegex()
-        logger.debug( "Parsing with regex: %s", regex_str )
-        if not regex_str:
-            logger.warning( "ExperimentManager.getLocalExperiments() :: ERROR, no exp_series_regex entry found in config!" )
+        if ret == 'experiment-object':
+            exps = ( Experiment(localdir=exppath, regex_match=match, manager=self, confighandler=self.Confighandler)
+                    for exppath, match in self.getLocalExpsDirMatchTuples(basedir) )
+        elif ret == 'regex-match':
+            exps = (tup[1] for tup in self.getLocalExpsDirMatchTuples(basedir))
+        elif ret in ('properties', 'groupdict'):
+            exps = (tup[0] for tup in self.getLocalExpsDirMatchTuples(basedir))
+        elif ret in ('properties', 'groupdict'):
+            exps = (tup[1] for tup in self.getLocalExpsDirGroupdictTuples(basedir))
+        elif ret == 'tuple':
+            exps = (    (os.path.basename(exppath),
+                        gd['expid'], gd.get('exp_titledesc'), gd.get('date', gd.get('date1', gd.get('date2', None))),
+                        exppath ) for exppath, gd in self.getLocalExpsDirGroupdictTuples(basedir) )
+        elif ret == 'expid':
+            exps = (tup[1].get('expid') for tup in self.getLocalExpsDirGroupdictTuples(basedir))
+        elif ret == 'display-tuple':
+            exps = ( (os.path.basename(exppath), gd.get('expid'), None ) for exppath, gd in self.getLocalExpsDirGroupdictTuples(basedir) )
+        else:
+            logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
             return
-        regex_prog = re.compile(regex_str)
-        experiments = list()
-        for localdir in localdirs:
-            match = regex_prog.match(localdir)
-            if self.VERBOSE > -1:
-                logger.debug( "%s found when testing '%s' dirname against regex '%s'", "MATCH" if match else "No match", localdir, regex_str)
-            if match:
-                #props = dict(localdir=localdir)
-                if ret == 'experiment-object':
-                    experiments.append(Experiment(localdir=os.path.join(directory, localdir), regex_match=match, manager=self, confighandler=self.Confighandler, autoattachwikipage=False) )
-                elif ret == 'regex-match':
-                    experiments.append(match)
-                elif ret in ('properties', 'groupdict'):
-                    experiments.append(dict(foldername=localdir, **match.groupdict()))
-                elif ret == 'tuple':
-                    d = match.groupdict()
-                    experiments.append(localdir, d['expid'], d.get('exp_titledesc'), d.get('date', d.get('date1', d.get('date2', None))), os.path.join(directory, localdir) )
-                elif ret == 'expid':
-                    experiments.append( match.groupdict().get('expid') )
-                elif ret == 'display-tuple':
-                    experiments.append( ( localdir, match.groupdict().get('expid'), None ) )
-                else:
-                    logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
-        if store and ret == 'experiment-object':
-            logger.debug("Persisting experiments list as self.Experiments")
-            self._experiments = experiments
-        logger.debug("Number of local experiments (matching regex): %s", len(experiments))
-        return experiments
+        return exps
 
-    @cached_property(ttl=120) # 2 minutes cache...
-    def getServerInfo(self):
-        """ Remember, the cached_property makes a property, which must be nvoked without '()'!
-        """
-        return self.Server.getServerInfo()
 
-    @cached_property(ttl=120) # 2 minutes cache...
-    def CurrentWikiExperimentsPagestructsByExpid(self):
+    def mergeLocalExperiments(self, basedir=None, addtoactive=False):#, sync_exptitledesc=None):
         """
-        TTL-managed cached wrapper of getCurrentWikiExperiments(ret='pagestruct-by-expid')
-        # Note: the cached_property only works for property-like methods, it is not for generic methods.
-        # If you would like both argument-caching (like memorize) and TTL/expiration, you should try
-        # the @region.cache_on_arguments() decorator provided by dogpile.
+        Merges the current wiki experiments with the experiments from the local directory.
+        sync_exptitledesc can be either of: (not implemented)
+        - None = Do not change anyting.
+        - 'foldername' = Change wikipage to match the local foldername
+        - 'wikipage' = Change local folder to match the wiki
         """
-        logger.debug("invoked cache-wrapped CurrentWikiExperimentsPagestructsByExpid...")
-        pagestructs = list( self.getCurrentWikiExperiments(ret='pagestructs-by-expid') ) # Make sure you cache list and not generator.
-        return pagestructs
+        logger.debug("mergeLocalExperiments called with basedir='%s'", basedir)
+        newexpids = list()
+        if self._experimentsbyid is None:
+            self._experimentsbyid = OrderedDict()
+        for path, gd in self.getLocalExpsDirGroupdictTuples(basedir):
+            logger.debug("Processing path: %s", path)
+            expid = gd['expid']
+            if expid in self._experimentsbyid: # do NOT use self.ExperimentsById as this property calls this method (cyclic reference!)
+                exp = self._experimentsbyid[expid]
+                if exp.Localdirpath != path:
+                    logger.info("Exp %s : exp.Localdirpath != path ( %s != %s)", exp, exp.Localdirpath, path)
+            else:
+                exp = Experiment(props=gd, localdir=path,
+                                 manager=self, confighandler=self.Confighandler,
+                                 doparseLocaldirSubentries=True)
+                logger.info("New experiment created: %s, with localdir: %s", exp, exp.Localdirpath)
+                self._experimentsbyid[expid] = exp
+                newexpids.append(expid)
+        if addtoactive and newexpids:
+            logger.debug("Adding new expids to active experiments: %s", newexpids)
+            self.addActiveExperiments( newexpids ) # This will take care of invoking registrered callbacks in confighandler.
+        return newexpids
+
+
+
+    ########################################
+    ### Loading/parsing wiki experiments ###
+    ########################################
 
 
     def getExpRootWikiPages(self):
@@ -407,8 +475,9 @@ class ExperimentManager(object):
         return wiki_pages
 
 
-    def getExpRootWikiPageMatchTuples(self):
+    def getCurrentWikiExpsPageMatchTuples(self):
         """
+        old name: getExpRootWikiPageMatchTuples
         Returns a generator with
          (page, title regex match) tuples
         for sub-pages to the wiki_exp_root page,
@@ -427,11 +496,12 @@ class ExperimentManager(object):
         pagematchtuples = (tup for tup in ( (page, regex_prog.match(page['title'])) for page in wiki_pages) if tup[1])
         return pagematchtuples
 
-    def getExpRootWikiPageGroupdictTuples(self, ):
+    def getCurrentWikiExpsPageGroupdictTuples(self, ):
         """
+        old name: getExpRootWikiPageGroupdictTuples
         Returns a generator with (page, match.groupdict() ) tuples.
         """
-        pagegds = ( (page, match.groupdict()) for page, match in self.getExpRootWikiPageMatchTuples())
+        pagegds = ( (page, match.groupdict()) for page, match in self.getCurrentWikiExpsPageMatchTuples())
         return (    (page, dict(title=page['title'], expid=gd['expid'], exp_titledesc=gd['exp_titledesc'],
                                 date=gd.get('date', gd.get('date1', gd.get('date2', None)))))
                     for page, gd in pagegds)
@@ -461,30 +531,33 @@ class ExperimentManager(object):
         logger.debug("getCurrentWikiExperiments called with ret='%s'", ret)
 
         if ret == 'regex-match':
-            return (tup[1] for tup in self.getExpRootWikiPageRegexMatches())
+            exps =  (tup[1] for tup in self.getCurrentWikiExpsPageMatchTuples())
         elif ret in ('pagestruct', 'pagestructs'):
-            return (tup[0] for tup in self.getExpRootWikiPageRegexMatches())
+            exps =  (tup[0] for tup in self.getCurrentWikiExpsPageMatchTuples())
         elif ret in ('pagestruct-by-expid', 'pagestructs-by-expid'): # the plural 's' is common mistake...
-            return dict( (match.groupdict().get('expid'), page) for page, match in self.getExpRootWikiPageRegexMatches() )
+            exps =  dict( (match.groupdict().get('expid'), page) for page, match in self.getCurrentWikiExpsPageMatchTuples() )
         elif ret in ('groupdict', 'groupdicts'):
             # Returns a generator with dicts, containing keys: title, expid, exp_titledesc, date or date1 or date2
-            return ( tup[1] for tup in self.getExpRootWikiPageGroupdictTuples() )
+            exps =  ( tup[1] for tup in self.getCurrentWikiExpsPageGroupdictTuples() )
         elif ret in ('tuple', 'tuples'):
             # Note: this tuple is NOT the same as the display tuple used for lists!
             # This is a memory efficient (pagetitle, expid, exp_titledesc, date) tuple
-            return ( ( gd['title'], gd['expid'], gd.get('exp_titledesc'), gd['date'] )
-                        for page, gd in self.getExpRootWikiPageGroupdictTuples() )
+            exps =  ( ( gd['title'], gd['expid'], gd.get('exp_titledesc'), gd['date'] )
+                        for page, gd in self.getCurrentWikiExpsPageGroupdictTuples() )
         elif ret in ('expid', 'expids'):
-            return ( gd.get('expid') for page, gd in self.getExpRootWikiPageGroupdictTuples() )
+            exps =  ( gd.get('expid') for page, gd in self.getCurrentWikiExpsPageGroupdictTuples() )
         elif ret in ('display-tuple', 'display-tuples'):
-            return ( ( page['title'], match.groupdict().get('expid'), None ) for page, match in self.getExpRootWikiPageRegexMatches() )
+            exps =  ( ( page['title'], match.groupdict().get('expid'), None ) for page, match in self.getCurrentWikiExpsPageMatchTuples() )
         elif ret in ('experiment-object', 'experiment-objects'):
-            return ( Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, autoattachwikipage=False, wikipage=page)
-                        for page, match in self.getExpRootWikiPageRegexMatches() )
-        logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
+            exps =  ( Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, wikipage=page)
+                        for page, match in self.getCurrentWikiExpsPageMatchTuples() )
+        else:
+            logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
+            return
+        return exps
 
 
-    def mergeCurrentWikiExperiments(self, autocreatelocaldirs=True):#, sync_exptitledesc=None):
+    def mergeCurrentWikiExperiments(self, autocreatelocaldirs=None):#, sync_exptitledesc=None):
         """
         Merges the current wiki experiments with the experiments from the local directory.
         sync_exptitledesc can be either of: (not implemented)
@@ -493,9 +566,12 @@ class ExperimentManager(object):
         - 'wikipage' = Change local folder to match the wiki
         """
         logger.debug("mergeCurrentWikiExperiments called with autocreatelocaldirs='%s'", autocreatelocaldirs)
-        if autocreatelocaldirs:
+        if autocreatelocaldirs is None:
             autocreatelocaldirs = self.Confighandler.get('app_autocreatelocalexpdirsfromwikiexps', False)
-        for page, gd in self.getExpRootWikiPageGroupdictTuples():
+        newexpids = list()
+        if self._experimentsbyid is None:
+            self._experimentsbyid = OrderedDict()
+        for page, gd in self.getCurrentWikiExpsPageGroupdictTuples():
             expid = gd['expid']
             if expid in self.ExperimentsById:
                 exp = self.ExperimentsById[expid]
@@ -505,11 +581,15 @@ class ExperimentManager(object):
             else:
                 exp = Experiment(props=gd, makelocaldir=autocreatelocaldirs,
                                  manager=self, confighandler=self.Confighandler,
-                                 doparseLocaldirSubentries=False)
+                                 doparseLocaldirSubentries=False, wikipage=page)
                 logger.info("New experiment created: %s, with localdir: %s, and wikipage: %s", exp, exp.Localdirpath, exp.PageId)
                 logger.debug("Adding newly created experiment to list of active experiments...")
                 self.ExperimentsById[expid] = exp
-                self.addActiveExperiments( (expid, ) ) # This will take care of invoking registrered callbacks in confighandler.
+                newexpids.append(expid)
+        if newexpids:
+            logger.debug("Adding new expids to active experiments: %s", newexpids)
+            self.addActiveExperiments( newexpids ) # This will take care of invoking registrered callbacks in confighandler.
+        return newexpids
 
 
 
@@ -522,7 +602,7 @@ class ExperimentManager(object):
         """
         if experiments is None:
             experiments = self.Experiments
-        elif experiments == 'local':
+        elif 'local' == experiments or 'local' in experiments:
             experiments = self.getLocalExperiments()
         elif experiments in ('wiki-current', 'wiki'):
             experiments = self.getCurrentWikiExperiments()
@@ -617,7 +697,7 @@ class ExperimentManager(object):
         exp = Experiment(props=props, makelocaldir=makelocaldir, makewikipage=makewikipage,
                          manager=self, confighandler=self.Confighandler,
                          doparseLocaldirSubentries=False)
-        logger.info("New experiment created: %s, with localdir: %s, and wikipage: %s", exp, exp.Localdirpath, exp.PageId)
+        logger.info("New experiment created: %s, with localdir: %s, and wikipage with pageId %s", exp, exp.Localdirpath, exp.PageId)
         logger.debug("Adding newly created experiment to list of active experiments...")
         self.ExperimentsById[expid] = exp
         self.addActiveExperiments( (expid, ) ) # This will take care of invoking registrered callbacks in confighandler.

@@ -107,9 +107,16 @@ if __name__ == '__main__':
     #parser.add_argument('--nofiltertips', action='store_true', help="Do not use filter-tips. Default is false (= do use filter tips)")
     #parser.add_argument('-r', '--rackfiles', nargs='*', help="Specify which rackfiles to use. If not specified, all files ending with *.rack.csv will be used. This arguments will take all following arguments, and can thus be used as staplemixer -r *.racks")
     parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment.")
+    parser.add_argument('--debug', nargs='*', help="Specify modules where you want to display logging.DEBUG messages.")
     parser.add_argument('--pathscheme', help="Specify a particulra pathscheme to use for the confighandler.")
 
     argsns = parser.parse_args() # produces a namespace, not a dict.
+
+
+    if argsns.debug:
+        for mod in argsns.debug:
+            logger.info("Enabling logging debug messages for module: %s", mod)
+            logging.getLogger(mod).setLevel(logging.DEBUG)
 
     if argsns.testing:
         #logging.getLogger("tkui.views.expjournalframe").setLevel(logging.DEBUG)
