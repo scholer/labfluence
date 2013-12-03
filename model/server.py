@@ -14,11 +14,14 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+"""
+Server module. Provides classes to access e.g. a Confluence server through xmlrpc.
+"""
 
 
 import xmlrpclib
 import socket
-import os.path
+#import os.path
 import itertools
 import string
 from Crypto.Cipher import AES
@@ -29,18 +32,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from confighandler import ConfigHandler, ExpConfigHandler
+#from confighandler import ConfigHandler, ExpConfigHandler
 
 # Decorators:
 from decorators.cache_decorator import cached_property
 
 
-def login_prompt(username=None, msg="", options=dict() ):
+def login_prompt(username=None, msg="", options=None ):
     """
     The third keyword argument, options, can be modified in-place by the login handler,
     changing e.g. persistance options ("save in memory").
     """
     import getpass
+    if options is None:
+        options = dict()
     if username is None:
         username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
     print "\n{}\nPlease enter credentials:".format(msg)
@@ -50,23 +55,24 @@ def login_prompt(username=None, msg="", options=dict() ):
     return username, password
 
 def display_message(message):
+    """Simply prints a message to the user, making sure to properly format it."""
     print "\n".join("\n\n", "-"*80, message, "-"*80, "\n\n")
 
-"""
-Edits:
--   Well, the whole ConfigEntries and automatic attribute creation was a bit overly complicated.
-    Especially considering that it was only used once, to make the URL from which the RpcServer
-    is initialized. Then, the RpcServer object is used the rest of the time.
-    Also, the whole "uh, I gotta make sure the base class does not override any attributes in the
-    child class is unnessecary.
 
-"""
 
 
 class AbstractServer(object):
     """
     To test if server is connected, just use "if server".
     (To test whether server is was not initialized, use the more specific "if server is None")
+
+    Edits:
+    -   Well, the whole ConfigEntries and automatic attribute creation was a bit overly complicated.
+        Especially considering that it was only used once, to make the URL from which the RpcServer
+        is initialized. Then, the RpcServer object is used the rest of the time.
+        Also, the whole "uh, I gotta make sure the base class does not override any attributes in the
+        child class is unnessecary.
+
     """
     def __init__(self, serverparams=None, username=None, password=None, logintoken=None, url=None,
                  confighandler=None, autologin=True, VERBOSE=0):
@@ -308,7 +314,10 @@ class AbstractServer(object):
                 logger.warning("AttributeError while calling self.UI.display_message: %s", e)
         display_message(message)
 
-    def autologin(self):
+    def autologin(self, prompt=None):
+        """
+        Is overridden in subclasses...
+        """
         pass
 
     def getToken(self, token_crypt=None):
@@ -440,7 +449,7 @@ to prevent the login token from expiring.
         if not appurl:
             logger.warning("WARNING: Server's AppUrl is '%s'", appurl)
             return None
-        self.RpcServer = xmlrpclib.Server(appurl)
+        self.RpcServer = xmlrpclib.ServerProxy(appurl) # Note: xmlrpclib line 1613: Server = ServerProxy # for compatability.
         if self.AutologinEnabled:
             self.autologin()
 

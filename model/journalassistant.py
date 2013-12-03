@@ -90,11 +90,6 @@ class JournalAssistant(object):
         """Confighandler property"""
         return self.Experiment.Confighandler
 
-    @property
-    def VERBOSE(self):
-        """VERBOSE property"""
-        return self.Experiment.VERBOSE
-
     def addEntry(self, text, entry_datetime=None, subentry_idx=None):
         """
         Adds an entry/line to the journal cache (stored locally as a file on disk).

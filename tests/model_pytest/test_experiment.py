@@ -60,8 +60,8 @@ def exp_no_wikipage_or_subentries(expprops):
 #
 #
 #def setup1(useserver=True):
-#    confighandler = ExpConfigHandler( pathscheme='test1', VERBOSE=1 )
-#    #em = ExperimentManager(confighandler=confighandler, VERBOSE=1)
+#    confighandler = ExpConfigHandler( pathscheme='test1' )
+#    #em = ExperimentManager(confighandler=confighandler)
 #    print "----"
 #    rootdir = confighandler.get("local_exp_subDir")
 #    print "rootdir: {}".format(rootdir)
@@ -75,22 +75,22 @@ def exp_no_wikipage_or_subentries(expprops):
 #    #ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
 ##                '/home/scholer/Documents/labfluence_data_testsetup/.labfluence
 #    #ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3":
-#    server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, autologin=True) if useserver else None
-#    e = Experiment(confighandler=confighandler, server=server, localdir=ldir, VERBOSE=10)
+#    server = ConfluenceXmlRpcServer(confighandler=confighandler, autologin=True) if useserver else None
+#    e = Experiment(confighandler=confighandler, server=server, localdir=ldir)
 #    return e
 
 # You cannot import or use ExprimentManager here due to circular imports.
 # You will need to create a separate test environment for that.
 #def setup2():
-#    confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
-#    em = ExperimentManager(confighandler=confighandler, VERBOSE=1, autoinit=False)
-#    server = ConfluenceXmlRpcServer(autologin=True, ui=None, confighandler=confighandler, VERBOSE=0)
+#    confighandler = ExpConfigHandler(pathscheme='default1')
+#    em = ExperimentManager(confighandler=confighandler, autoinit=False)
+#    server = ConfluenceXmlRpcServer(autologin=True, ui=None, confighandler=confighandler)
 #    confighandler.Singletons['server'] = server
 #    rootdir = confighandler.get("local_exp_subDir")
 #    print "experiment rootdir: {}".format(rootdir)
 #    print "glob res for RS102: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
 #    ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
-#    e = Experiment(confighandler=confighandler, server=server, localdir=ldir, manager=em, VERBOSE=10)
+#    e = Experiment(confighandler=confighandler, server=server, localdir=ldir, manager=em)
 #    return e
 
 

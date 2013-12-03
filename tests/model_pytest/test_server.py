@@ -14,21 +14,42 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0111,C0112
+"""
 
+Most of this is done using the fake-server.
+
+Actually, I should create a fake xmlrpc API, which responds
+exactly the same as the normal xmlrpclib does.
+This could then be used to test the server implementation.
+And, it would be rather easy, since I could use the existing
+FakeConfluenceServer and just have a light-weight
+fakexmlrpclib which acts as a proxy, routing all calls to
+FakeConfluenceServer.
+
+
+"""
+
+
+import pytest
 
 
 import logging
 logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 logging.getLogger("__main__").setLevel(logging.DEBUG)
-
-
-from model.server import ConfluenceXmlRpcServer
 logging.getLogger("model.server").setLevel(logging.DEBUG)
+
+
+#####################
+# System Under Test #
+#####################
+from model.server import ConfluenceXmlRpcServer
 
 
 ## Test doubles:
 from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
+from tests.model_testdoubles.fake_xmlrpclib
 #from tests.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
 
 
@@ -36,7 +57,7 @@ from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpC
 
 
 
-
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test1():
     logger.info("\n>>>>>>>>>>>>>> test_getLocalFilelist() started >>>>>>>>>>>>>")
     username = 'scholer'
@@ -45,37 +66,41 @@ def test1():
     server = ConfluenceXmlRpcServer(url=url, username=username, password=password)
 
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_login():
     username = 'scholer'
     url = 'http://10.14.40.245:8090/rpc/xmlrpc'
     server = ConfluenceXmlRpcServer(url=url, username=username)
 
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_config1():
     paths = [ os.path.join(os.path.dirname(os.path.abspath(__file__)), '../test/config', cfg) for cfg in ('system_config.yml', 'user_config.yml', 'exp_config.yml') ]
-    ch = ExpConfigHandler(*paths, VERBOSE=5)
+    ch = ExpConfigHandler(*paths)
     ch.setdefault('user', 'scholer') # set defaults only sets if not already set.
     #ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc') # setkey overrides.
     print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-    server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+    server = ConfluenceXmlRpcServer(confighandler=ch)
     if server.test_token():
         print "Succesfully connected to server (retrieved serverinfo)!"
     else:
         print "Failed to obtain valid token from server !!"
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test2():
-    confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+    confighandler = ExpConfigHandler(pathscheme='default1')
     ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
     print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-    server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+    server = ConfluenceXmlRpcServer(confighandler=ch)
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_loginAndSetToken(ch=None, persist=False):
     if ch is None:
-        ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch = confighandler = ExpConfigHandler(pathscheme='default1')
     ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
 #        ch.setkey('wiki_password', 'http://10.14.40.245:8090/rpc/xmlrpc')
     print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-    server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=False)
+    server = ConfluenceXmlRpcServer(confighandler=ch, autologin=False)
     token = server.Logintoken
     print "\ntoken (before forced login):\t{}".format(token)
     token = server.login(dopersist=persist, prompt=True)
@@ -86,26 +111,28 @@ def test_loginAndSetToken(ch=None, persist=False):
         token_decrypt = server.getToken(token_crypt)
         print "token_decrypt:\t\t\t{}".format(token_decrypt)
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_loadToken(ch=None):
     if ch is None:
-        ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch = confighandler = ExpConfigHandler(pathscheme='default1')
     ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
     print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
     # Deactivating autologin...
-    server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=False)
+    server = ConfluenceXmlRpcServer(confighandler=ch, autologin=False)
     token = server.find_and_test_tokens()
     print "\nFound token: {}".format(token)
     print "server.Logintoken: {}".format(token)
     return server
 
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getServerInfo(ch=None):
     if ch is None:
-        ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch = confighandler = ExpConfigHandler(pathscheme='default1')
     ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
     print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
     # Deactivating autologin...
-    server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=False)
+    server = ConfluenceXmlRpcServer(confighandler=ch, autologin=False)
     token = server.find_and_test_tokens()
     print "\nFound token: {}".format(token)
     print "server.Logintoken: {}".format(token)
@@ -118,11 +145,12 @@ def test_getServerInfo(ch=None):
     print serverinfo
 
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getPageById(ch=None, server=None):
     if ch is None:
-        ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch = confighandler = ExpConfigHandler(pathscheme='default1')
     if server is None:
-        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+        server = ConfluenceXmlRpcServer(confighandler=ch)
     spaceKey = "~scholer"
     pageId = 524310
     pageId_erroneous = '504310'
@@ -136,11 +164,12 @@ def test_getPageById(ch=None, server=None):
     except xmlrpclib.Fault as e:
         print "Retrival of on-existing pages by id raises error as expected."
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_getPageByName(ch=None, server=None):
     if ch is None:
-        ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch = confighandler = ExpConfigHandler(pathscheme='default1')
     if server is None:
-        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+        server = ConfluenceXmlRpcServer(confighandler=ch)
     spaceKey = "~scholer"
     title = "RS001 First test page CzkTW"
     title_err = "RS001 First test page CzTW"
@@ -155,11 +184,12 @@ def test_getPageByName(ch=None, server=None):
         print "Retrival of on-existing pages by id raises error as expected."
 
 
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_movePage1(ch=None, server=None):
     if ch is None:
-        ch = confighandler = ExpConfigHandler(pathscheme='default1', VERBOSE=1)
+        ch = confighandler = ExpConfigHandler(pathscheme='default1')
     if server is None:
-        server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5)
+        server = ConfluenceXmlRpcServer(confighandler=ch)
     spaceKey = "~scholer"
     title = "RS001 First test page CzkTW"
     page = server.getPage(spaceKey=spaceKey, pageTitle=title)

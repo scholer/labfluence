@@ -14,9 +14,14 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=W0621,C0111
+"""
+Testing journalassistant module/class.
+"""
 
-
-
+import pytest
+import os
+import tempfile
 import logging
 logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
@@ -27,32 +32,82 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 from model.experiment import Experiment
 
 ## Test doubles:
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
+from tests.model_testdoubles.fake_confighandler import FakeConfighandler
+from tests.model_testdoubles.fake_server import FakeConfluenceServer
 
 
 
 ## classical xunit setup in pytest: http://pytest.org/latest/xunit_setup.html
 ## Alternatively, consider using fixtures: http://pytest.org/latest/fixture.html
 # module-level setup:
-def setup_module(module):
-    """ setup any state specific to the execution of the given module."""
-    ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
-    ch = ExpConfigHandler(pathscheme='test1')
-    rootdir = confighandler.get("local_exp_subDir")
-    server = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=1, autologin=True)
-
-# per-function setup:
-def setup_function(function):
-    e = Experiment(confighandler=ch, server=server, localdir=ldir, VERBOSE=10)
-    e.attachWikiPage(dosearch=True)
-    ja = e.JournalAssistant
-    ja.Current_subentry_idx = 'c'
+#def setup_module(module):
+#    """ setup any state specific to the execution of the given module."""
+#    ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
+#    ch = FakeConfighandler(pathscheme='test1')
+#    rootdir = ch.get("local_exp_subDir")
+#    server = FakeConfluenceServer(confighandler=ch, autologin=True)
+#
+## per-function setup:
+#def setup_function(function):
+#    e = Experiment(confighandler=ch, server=server, localdir=ldir)
+#    e.attachWikiPage(dosearch=True)
+#    ja = e.JournalAssistant
+#    ja.Current_subentry_idx = 'c'
 
 
 ## I think using fixtures is a bit cleaner, for every test, you specify the name of
 ## a fixture as a required argument. pytest will do the code inspection and see what needs to be filled in,
 ## searching for functions marked with @pytest.fixture
+
+@pytest.fixture()
+def tempfiledir():
+    newpath = tempfile.mkdtemp() # Returns path to new temp directory, e.g. /tmp/tmpQ938Rj
+    return newpath
+
+
+##############################################################
+### JournalAssistant with complete, intact object network ####
+###  ordered to use a tempdir as working directory.       ####
+##############################################################
+
+@pytest.fixture
+def fakeconfighandler(monkeypatch, tempfiledir):
+    ch = FakeConfighandler(pathscheme='test1')
+    #testdir = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup')
+    testdir = os.path.join(tempfiledir, '2013_exp_subdir_test')
+    monkeypatch.setattr(ch, 'getConfigDir', lambda x: testdir)
+    ch.setkey('local_exp_subDir', testdir)
+    ch.setkey('local_exp_rootDir', os.path.dirname(testdir))
+    return ch
+
+@pytest.fixture
+def experiment_with_ch(monkeypatch, fakeconfighandler):
+    ch = fakeconfighandler
+    subdir = ch.get('local_exp_subDir')
+    foldername = 'RS001 Pytest test experiment'
+    localdir = os.path.join(subdir, foldername)
+    os.mkdir(localdir)
+    e = Experiment(confighandler=ch, localdir=localdir)
+    return e
+
+@pytest.fixture
+def ja_for_exp_with_subentry(experiment_with_ch):
+    e = experiment_with_ch
+    e.addNewSubentry(makefolder=True)
+    return e.JournalAssistant
+
+
+################################################################
+###   JournalAssistant with a mocked object network          ###
+### should be faster to initialize and more "unittest" like  ###
+################################################################
+
+@pytest.fixture
+def ja_mocked():
+    pass
+
+
+
 
 def test_addEntry():
     ja.addEntry("Buffer: 10/100 mM HEPES/KCl pH with 0.5 mM biotin."+random_string(5))

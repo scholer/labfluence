@@ -108,7 +108,7 @@ def em_with_ch_and_autoloaded_exps(fakeconfighandler):
 @pytest.fixture
 def em_with_ch_with_fakeserver():
     confighandler = ExpConfigHandler(pathscheme='test1')
-    server = FakeConfluenceServer(autologin=True, ui=None, confighandler=confighandler, VERBOSE=0)
+    server = FakeConfluenceServer(autologin=True, ui=None, confighandler=confighandler)
     confighandler.Singletons['server'] = server
     em = ExperimentManager(confighandler=confighandler)
     return em, confighandler, server
@@ -125,7 +125,7 @@ def em_with_fake_ch_and_patched_server(monkeypatch):
     - getChildren
     """
     confighandler = ExpConfigHandler(pathscheme='test1')
-    server = FakeConfluenceServer(autologin=True, ui=None, confighandler=confighandler, VERBOSE=0)
+    server = FakeConfluenceServer(autologin=True, ui=None, confighandler=confighandler)
     confighandler.Singletons['server'] = server
     em = ExperimentManager(confighandler=confighandler)
     def test_pagesummaries(self):

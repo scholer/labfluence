@@ -37,7 +37,7 @@ from tests.model_testdoubles.fake_server import FakeConfluenceServer as Confluen
 
 def test_factoryNew():
     ch = ExpConfigHandler(pathscheme='test1')
-    wikiserver = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=True)
+    wikiserver = ConfluenceXmlRpcServer(confighandler=ch, autologin=True)
     factory = WikiPageFactory(wikiserver, ch)
     expid_index = 1
     expid = ch.get('expid_fmt').format(exp_series_index=expid_index)

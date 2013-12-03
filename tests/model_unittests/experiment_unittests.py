@@ -35,12 +35,12 @@ class TestExperiment1(unittest.TestCase):
 
     def setUp(self):
         self.seq = range(10)
-        self.Confighandler = confighandler = ExpConfigHandler( pathscheme='default1', VERBOSE=1 )
+        self.Confighandler = confighandler = ExpConfigHandler( pathscheme='default1' )
         rootdir = confighandler.get("local_exp_subDir")
         print "rootdir: {}".format(rootdir)
         print "glob res: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
-        #self.Server = server = ConfluenceXmlRpcServer(confighandler=confighandler, VERBOSE=4, autologin=True) if useserver else None
-        #self.Experiment = e = Experiment(confighandler=confighandler, server=server, localdir=ldir, VERBOSE=10)
+        #self.Server = server = ConfluenceXmlRpcServer(confighandler=confighandler, autologin=True) if useserver else None
+        #self.Experiment = e = Experiment(confighandler=confighandler, server=server, localdir=ldir)
 
 
     def test_shuffle(self):

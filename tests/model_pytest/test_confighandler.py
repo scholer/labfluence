@@ -78,13 +78,13 @@ def test_schemes_test1_default1():
 
 
 def test_addNewConfig():
-    ch = ExpConfigHandler( pathscheme='test1', VERBOSE=10 )
+    ch = ExpConfigHandler( pathscheme='test1' )
     ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
     logger.info("ch.get('exp_subentry_template'):" )
     logger.info(ch.get('exp_subentry_template'))
 
 def test_cfgNewConfigDef():
-    ch = ExpConfigHandler( pathscheme='test1', VERBOSE=10 )
+    ch = ExpConfigHandler( pathscheme='test1' )
     #ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
     # I have added the following to the 'exp' config:
     # config_define_new:
