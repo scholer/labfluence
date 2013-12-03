@@ -28,8 +28,8 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 from model.page import WikiPageFactory
 
 ## Test doubles:
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
+from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
+from model.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
 
 
 

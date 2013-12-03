@@ -22,8 +22,8 @@ Test module for fake server.
 
 
 ## Test doubles:
-# from tests.model_testdoubles.fake_confighandler import FakeConfighandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer
+# from model.model_testdoubles.fake_confighandler import FakeConfighandler
+from model.model_testdoubles.fake_server import FakeConfluenceServer
 
 
 #import os
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
 logging.basicConfig(level=logging.INFO, format=logfmt)
 logging.getLogger("__main__").setLevel(logging.DEBUG)
-logging.getLogger("tests.model_testdoubles.fake_server").setLevel(logging.DEBUG)
+logging.getLogger("model.model_testdoubles.fake_server").setLevel(logging.DEBUG)
 
 
 

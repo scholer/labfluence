@@ -42,8 +42,8 @@ from model.experiment import Experiment
 from model.server import ConfluenceXmlRpcServer
 
 ### TEST DOUBLES IMPORT ###
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer
+from model.model_testdoubles.fake_confighandler import FakeConfighandler
+from model.model_testdoubles.fake_server import FakeConfluenceServer
 
 ### GUI IMPORTS ###
 from tkui.labfluence_tkapp import LabfluenceApp
@@ -130,8 +130,8 @@ if __name__ == '__main__':
         #logging.getLogger("model.confighandler").setLevel(logging.DEBUG)
         #logging.getLogger("model.confighandler").setLevel(logging.DEBUG)
         #logging.getLogger("model.server").setLevel(logging.DEBUG)
-        logging.getLogger("test.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
-        logging.getLogger("test.model_testdoubles.fake_server").setLevel(logging.DEBUG)
+        logging.getLogger("model.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
+        logging.getLogger("model.model_testdoubles.fake_server").setLevel(logging.DEBUG)
         logging.getLogger("tkui.labfluence_tkapp").setLevel(logging.DEBUG)
         logging.getLogger("tkui.labfluence_tkroot").setLevel(logging.DEBUG)
         logging.getLogger("tkui.mainframe").setLevel(logging.DEBUG)

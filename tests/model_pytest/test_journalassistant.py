@@ -32,8 +32,8 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 from model.experiment import Experiment
 
 ## Test doubles:
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer
+from model.model_testdoubles.fake_confighandler import FakeConfighandler
+from model.model_testdoubles.fake_server import FakeConfluenceServer
 
 
 

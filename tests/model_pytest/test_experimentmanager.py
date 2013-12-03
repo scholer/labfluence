@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO, format=logfmt)
 logging.getLogger("__main__").setLevel(logging.DEBUG)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
-logging.getLogger("tests.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
+logging.getLogger("model.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
 logging.getLogger("model.experimentmanager").setLevel(logging.DEBUG)
 logging.getLogger("model.experiment").setLevel(logging.DEBUG)
 
@@ -45,9 +45,9 @@ from model.experimentmanager import ExperimentManager
 
 
 ## Test doubles:
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
+from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
 FakeConfighandler = ExpConfigHandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer
+from model.model_testdoubles.fake_server import FakeConfluenceServer
 FakeConfluenceServer = FakeConfluenceServer
 
 logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"

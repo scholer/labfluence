@@ -22,8 +22,8 @@
 from model.experiment import Experiment
 
 ## Test doubles:
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
-#from tests.model_testdoubles.fake_server import FakeConfluenceServer
+from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
+#from model.model_testdoubles.fake_server import FakeConfluenceServer
 
 ## Also consider mocking all other objects not part of the SUT (system under test, i.e. the Experiment class)
 # In addition to server and confighandler, this includes:
