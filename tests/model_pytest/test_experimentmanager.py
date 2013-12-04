@@ -98,6 +98,9 @@ def em_with_ch_with_fakeserver():
     em = ExperimentManager(confighandler=confighandler)
     return em, confighandler, server
 
+def test_basics(experimentmanager_with_confighandler):
+    pass
+
 
 
 def test_getLocalExperiments(experimentmanager_with_confighandler):

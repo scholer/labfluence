@@ -82,7 +82,7 @@ class ExperimentManager(object):
     @property
     def Experiments(self):
         """property"""
-        return self._experiments
+        return self._experimentsbyid.values()
 
     @property
     def ExperimentsById(self):
@@ -351,8 +351,9 @@ class ExperimentManager(object):
                 else:
                     logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
         if store and ret == 'experiment-object':
-            logger.debug("Persisting experiments list as self.Experiments")
-            self._experiments = experiments
+            logger.debug("DEPRECHATED: Persisting experiments list as self.Experiments is deprechated.\
+                         Experiments can only be accessed as self.ExperimentsById (self._experimentsbyid)")
+            #self._experiments = experiments
         logger.debug("Number of local experiments (matching regex): %s", len(experiments))
         return experiments
 
