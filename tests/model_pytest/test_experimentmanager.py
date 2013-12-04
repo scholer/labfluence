@@ -113,6 +113,9 @@ def em_with_ch_with_fakeserver():
     em = ExperimentManager(confighandler=confighandler)
     return em, confighandler, server
 
+def test_basics(experimentmanager_with_confighandler):
+    pass
+
 
 @pytest.fixture
 def em_with_fake_ch_and_patched_server(monkeypatch):

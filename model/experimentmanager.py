@@ -73,7 +73,7 @@ class ExperimentManager(object):
     @property
     def Experiments(self):
         """property"""
-        return self._experiments
+        return self._experimentsbyid.values()
 
     @property
     def ExperimentsById(self):
@@ -414,6 +414,7 @@ class ExperimentManager(object):
             logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
             return
         return exps
+            #self._experiments = experiments
 
 
     def mergeLocalExperiments(self, basedir=None, addtoactive=False):#, sync_exptitledesc=None):
