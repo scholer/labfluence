@@ -6,5 +6,5 @@ baks/*
 code-examples-from-others/*
 third-party/*
 projectfiles/*
-*/test-data/*
+*/test_data/test_filestructure*
 *.yml

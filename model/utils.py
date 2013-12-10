@@ -51,7 +51,8 @@ def getmimetype(filepath):
             with magic.Magic(mime=True) as m:
                 mimetype = m.from_file(filepath)
     else:
-        mimetype = mimetypes.guess_type(filepath)
+        # mimetypes.guess_type returns
+        mimetype, encoding = mimetypes.guess_type(filepath, strict=False)
     return mimetype
 
 def increment_idx(idx):

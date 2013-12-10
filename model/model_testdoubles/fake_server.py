@@ -85,7 +85,7 @@ class FakeConfluenceServer(object):
             self._loaded_data = yaml.load(open(datafp))
             self._workdata = copy.deepcopy(self._loaded_data)
         except IOError as e:
-            logger.info(e)
+            logger.warning(e)
             self._workdata = dict()
         self._the_right_token = 'the_right_token'
         self._is_logged_in = True

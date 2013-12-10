@@ -31,11 +31,6 @@ import logging
 
 # Note: Switched to using pytest-capturelog, captures logging messages automatically...
 logger = logging.getLogger(__name__)
-logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
-logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
-logging.getLogger("model.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
-logging.getLogger("model.confighandler").setLevel(logging.DEBUG)
 
 
 

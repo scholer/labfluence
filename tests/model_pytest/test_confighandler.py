@@ -41,8 +41,8 @@ def confighandler1():
 def test_defaultscheme_test1():
     pathscheme = 'test1'
     pf = PathFinder(defaultscheme=pathscheme)
-    expectedscheme = dict(sys='setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml',
-                          user='setup/configs/test_configs/local_test_setup_1/labfluence_user.yml')
+    expectedscheme = dict(sys=os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml'.split('/')),
+                          user=os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_user.yml'.split('/')))
 #    for cfgtype, path in expectedscheme.items():
 #        expectedscheme[cfgtype] = os.path.join(os.getcwd(), path)
 
@@ -53,8 +53,8 @@ def test_defaultscheme_test1():
 def test_defaultscheme_default1():
     pathscheme = 'test1'
     pf = PathFinder(defaultscheme=pathscheme)
-    expectedscheme = dict(sys='setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml',
-                          user='setup/configs/test_configs/local_test_setup_1/labfluence_user.yml')
+    expectedscheme = dict(sys=os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml'.split('/')),
+                          user=os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_user.yml'.split('/')))
     #for cfgtype, path in expectedscheme.items():
     #    expectedscheme[cfgtype] = os.path.join(os.getcwd(), path)
 
@@ -65,13 +65,13 @@ def test_defaultscheme_default1():
 def test_schemes_test1_default1():
 
     pf = PathFinder()
-    testscheme = dict(sys='setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml',
-                          user='setup/configs/test_configs/local_test_setup_1/labfluence_user.yml')
+    testscheme = dict(  sys= os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml'.split('/')),
+                        user=os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_user.yml'.split('/')))
 
     assert pf.getScheme('test1') == testscheme
 
-    defaultscheme = dict(   sys='setup/configs/default/labfluence_sys.yml',
-                            user=os.path.expanduser('~/.Labfluence/labfluence_user.yml') )
+    defaultscheme = dict(   sys=os.path.join(*'setup/configs/default/labfluence_sys.yml'.split('/')),
+                            user=os.path.join(*os.path.expanduser('~/.Labfluence/labfluence_user.yml').split('/')) )
 
     assert pf.getScheme() == defaultscheme
     assert pf.getScheme('default1') == defaultscheme
