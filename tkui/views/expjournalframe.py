@@ -14,27 +14,31 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-
+# pylint: disable-msg=R0901,R0924
+"""
+Module with a tk frame for displaying and editing an experiment's wiki page journal.
+"""
 # python 2.7:
 import Tkinter as tk
 import ttk
-import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+#import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
-import htmllib, formatter
 from datetime import datetime
 from collections import OrderedDict
 import logging
 logger = logging.getLogger(__name__)
 
 #from subentrieslistbox import SubentriesListbox
-from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
+from explistboxes import SubentriesListbox #, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
 from shared_ui_utils import HyperLink, ExpFrame
-from rspysol.rstkhtml import tkHTMLParser, tkHTMLWriter
 from dialogs import Dialog
+from journalviewerframe import JournalViewer
+
 
 
 class ExpJournalFrame(ExpFrame):
     """
+    Frame displaying an experiment's wiki page journal.
     """
     #def __init__(self, parent, experiment, confighandler=None):
     #    ttk.Frame.__init__(self, parent, borderwidth=10)#, relief='flat')
@@ -51,11 +55,11 @@ class ExpJournalFrame(ExpFrame):
         #print "\n\n\n-----------------------------\nExpJournalFrame.init_variables invoked !!\n---------------------------\n"
         self.Fonts = self.getFonts()
         # Init StringVars:
-        v = ('wiki','cache','input', 'autoflush_interval', 'wiki_titledesc')
+        v = ('wiki', 'cache', 'input', 'autoflush_interval', 'wiki_titledesc')
         self.Variables = dict( (k, tk.StringVar()) for k in v )
         self.Variables['autoflush_interval'].set(self.Experiment.getConfigEntry('app_autoflush_interval', '10'))
         # Init BooleanVars:
-        v = ('autoflush',)
+        v = ('autoflush', )
         self.Boolvars = dict()# (k, tk.BooleanVar(value=False)) for k in v )
         self.Boolvars['autoflush'] = tk.BooleanVar( value=self.Experiment.getConfigEntry('app_autoflush_on', False) )
         #self.Labels = dict()
@@ -129,7 +133,7 @@ class ExpJournalFrame(ExpFrame):
 
         self.columnconfigure(1, weight=1, minsize=200)
         self.columnconfigure(2, weight=2)
-        self.rowconfigure((1,3), weight=2)
+        self.rowconfigure((1, 3), weight=2)
         self.rowconfigure(4, weight=1)
 
         # Direct children:
@@ -198,6 +202,9 @@ class ExpJournalFrame(ExpFrame):
         self.getConfighandler().registerEntryChangeCallback('wiki_server_status', self.on_serverstatus_change)
 
     def updatewidgets(self):
+        """
+        Updates all child widgets contained within this widget.
+        """
         self.subentries_listbox.updatelist()
         logger.debug("%s, subentries_listbox updated, subentries_listbox.get(0, tk.END) is now: %s", self.__class__.__name__, self.subentries_listbox.get(0, last=tk.END))
         self.update_cacheview()
@@ -205,6 +212,9 @@ class ExpJournalFrame(ExpFrame):
         self.update_wikiview()
 
     def update_wikiview(self):
+        """
+        Update the view displaying the subentry within the wiki page.
+        """
         xhtml = self.journalwiki_view.update_wiki_subentry()
         #subentrywiki_btns = (self.newwikipagesubentry_btn, self.flush_btn)
         #for button in subentrywiki_btns:
@@ -216,6 +226,9 @@ class ExpJournalFrame(ExpFrame):
             self.flush_btn['state'] = 'disabled'
 
     def update_cacheview(self):
+        """
+        Updates the view displaying the JournalAssistant's cache.
+        """
         # Label-like view with variable:
         #ja = self.Experiment.JournalAssistant
         #cache = ja.getCacheContent()
@@ -223,6 +236,9 @@ class ExpJournalFrame(ExpFrame):
         self.journalcache_view.update_cache()
 
     def update_wikititledesc(self, ):
+        """
+        Updates the title, reflecting which subentry is selected.
+        """
         v = self.Variables['wiki_titledesc']
         ja = self.Experiment.JournalAssistant
         titledesc = self.Experiment.getSubentryRepr(subentry_idx=ja.Current_subentry_idx, default="exp")
@@ -283,7 +299,7 @@ class ExpJournalFrame(ExpFrame):
 
     def autoflush_interval_var_write(self, varname, index, mode):
         """
-        Variable Trace based callback, 
+        Variable Trace based callback,
         is called when autoflush_interval tk.StringVar is set (written).
         Alternative approach to control widget event binding,
         binds directly to changes to the tk Variables.
@@ -297,12 +313,18 @@ class ExpJournalFrame(ExpFrame):
         self.Experiment.setConfigEntry('app_autoflush_on', varValue)
 
     def autoflush_changed(self):
+        """
+        Called when the autoflush interval value is changed to update the config.
+        """
         self.autoflush_reset()
         self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
         self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
-        self.Experiment.Confighandler.saveConfigForEntry('app_autoflush_on')
+        self.Experiment.Confighandler.saveConfigForEntry('app_autoflush_on') # Probably not required, should be saved on normal app exit.
 
     def autoflush_reset(self):
+        """
+        Resets the autoflush timer.
+        """
         for identifier in self.AutoflushAfterIdentifiers:
             self.after_cancel(identifier)
             logger.debug("afterTimer with id '{}' cancelled...".format(identifier))
@@ -390,7 +412,7 @@ class ExpJournalFrame(ExpFrame):
                     ('makewikientry', "Make wiki entry"),
                     ('subentry_date', "Subentry date")
                     )
-        fieldvars = OrderedDict( (key, [props[key], desc, dict()] ) for key,desc in entries )
+        fieldvars = OrderedDict( (key, [props[key], desc, dict()] ) for key, desc in entries )
         for items in fieldvars.values():
             if isinstance(items[0], bool):
                 items[0] = tk.BooleanVar(value=items[0])
@@ -413,6 +435,11 @@ class ExpJournalFrame(ExpFrame):
         # I'm not sure how much clean-up should be done? Do I need to e.g. destroy the dialog completely when I'm done?
 
     def insert_section_for_selected_subentry(self):
+        """
+        Inserts a new subentry section on the wiki page,
+        and update the required widgets to reflect the
+        update to the wiki page.
+        """
         current_subentry_idx = self.Experiment.JournalAssistant.Current_subentry_idx
         if not current_subentry_idx:
             logger.info("insert_section_for_selected_subentry() invoked, but the registered Current_subentry_idx in JournalAssistant is: %s", current_subentry_idx)
@@ -420,116 +447,11 @@ class ExpJournalFrame(ExpFrame):
         res = self.Experiment.JournalAssistant.newExpSubentry(current_subentry_idx)
         if res:
             logger.debug("Updated page to version %s", res['version'])
-            #self.journalwiki_view.set_xhtml(res['content'])
             self.update_wikiview()
-            self.Parent.update_info()
+            if hasattr(self.Parent, 'update_info'):
+                self.Parent.update_info()
         else:
             logger.info("self.Experiment.JournalAssistant.newExpSubentry(current_subentry_idx) returned '%s", res)
 
 
 
-
-class JournalViewer(ExpFrame):
-
-    #def __init__(self, parent, experiment, **frameopts):
-    #    """
-    #    **frameopts refer to options for the frame.
-    #    - however, if there is a textopts present in **frameopts, that item will be popped and used
-    #        as argument to the text widget.
-    #    """
-    #    ExpFrame.__init__(self, parent, experiment, **frameopts)
-        #self.Experiment = experiment
-    #    textopts = dict(state='disabled', width=60)
-    #    textopts.update(options)
-    #    #self.Parent = parent
-    #    # Uh, no. mega-widgets should always derive from ttk.Frame and not other widgets.
-
-    def before_init(self, kwargs):
-        textopts = dict(state='disabled')#, width=60)
-        textopts.update(kwargs.pop('textopts', dict()))
-        self.Textoptions = textopts
-
-    def init_variables(self):
-        self.JA = self.Experiment.JournalAssistant
-
-    #def frame_defaults(self):
-    #    pass
-
-    def init_widgets(self):
-        self.text = tk.Text(self, **self.Textoptions)
-        self.scrollbar = ttk.Scrollbar(self)
-        self.text.config(yscrollcommand=self.scrollbar.set)
-        self.text.config(state='disabled')
-        self.scrollbar.config(command=self.text.yview)
-
-    def init_layout(self):
-        self.text.grid(row=1, column=1, sticky="nesw")
-        self.scrollbar.grid(row=1, column=2, sticky="nesw")
-        self.columnconfigure(1, weight=1)
-        self.rowconfigure(1, weight=1)
-
-    def update_cache(self):
-        """
-        Sets the value of the text widget to the journal-assistant cache for the currently selected subentry:
-        """
-        cache = self.JA.getCacheContent()
-        self.set_value(cache)
-
-    def update_wiki_xhtml(self, ):
-        xhtml = self.Experiment.getWikiXhtml()
-        self.set_value(xhtml)
-
-
-    def update_wiki_subentry(self):
-        """
-        Sets the value of the text widget to the journal-assistant cache for the currently selected subentry:
-        Returns the html from experiment.getWikiSubentryXhtml().
-        If the regex search failed, this will be None.
-        """
-        xhtml = self.Experiment.getWikiSubentryXhtml()
-        #xhtml = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
-        logger.debug(u"xhtml is: \n{}".format(xhtml))
-        self.set_and_parse_xhtml(xhtml)
-        return xhtml
-
-
-    def set_and_parse_xhtml(self, xhtml):
-        """
-        Takes a xhtml text string and parses it using the tkHTMLWriter/Parser system.
-        """
-        # Ensure the input is ok:
-        if xhtml is None:
-            xhtml = ""
-        xhtml = xhtml.replace('&nbsp;', ' ')
-        
-        # prepare the text widget:
-        self.text.config(state="normal")
-        self.text.delete("1.0", "end")
-        self.text.update_idletasks()
-        if not xhtml:
-            logger.debug("No xhtml, aborting...")
-            self.text.config(state="disabled")
-            return xhtml
-        # Write the xhtml to the text widget:
-        writer = tkHTMLWriter(self.text)
-        fmt = formatter.AbstractFormatter(writer)
-        parser = tkHTMLParser(fmt)
-        parser.feed(xhtml)
-        parser.close()
-        # Finally, disable the text widget again
-        self.text.config(state="disabled")
-
-    def set_xhtml(self, xhtml):
-        logger.warning("Deprechated method! Use set_and_parse_xhtml() instead!")
-        self.set_and_parse_xhtml(xhtml)
-
-    def set_value(self, value):
-        #initial_state = self.configure()['state'][4]
-        initial_state = self.text.cget('state')
-        self.text.configure(state='normal')
-        if self.text.get('1.0', tk.END):
-            self.text.delete('1.0', tk.END)
-        if value:
-            self.text.insert('1.0', value)
-        self.text.configure(state='disabled')
-        self.text.see(tk.END)

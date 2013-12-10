@@ -14,6 +14,11 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=R0901,R0924
+"""
+Module with views to display and control experimentmanager model.
+"""
+
 
 # Tkinter import:
 import Tkinter as tk
@@ -23,7 +28,7 @@ import ttk
 import logging
 logger = logging.getLogger(__name__)
 
-from explistboxes import LocalExpsListbox, WikiExpsListbox
+from expmanagerlistboxes import LocalExpsListbox, WikiExpsListbox
 
 
 # This is generally called through a dialog or something...

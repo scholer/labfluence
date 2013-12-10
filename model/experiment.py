@@ -112,8 +112,7 @@ class Experiment(object):
 
 
     def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None,
-                 doparseLocaldirSubentries=True, subentry_regex_prog=None, autoattachwikipage=True, savepropsonchange=True,
-                 makelocaldir=False, makewikipage=False):
+                 doparseLocaldirSubentries=True, subentry_regex_prog=None, autoattachwikipage=True, savepropsonchange=True, makelocaldir=False, makewikipage=False):
         """
         Arguments:
         - localdir: path string
@@ -214,6 +213,8 @@ functionality of this object will be greatly reduced and may break at any time."
         #if self.WikiPage and self.WikiPage.Struct:
         #    self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
         if makewikipage:
+            # page attaching should only be done if you are semi-sure that a page does not already exist.
+            # trying to attach a wiki page will see if a page already exist.
             page_test = self.WikiPage # will do auto-attaching.
             if not page_test:
                 self.makeWikiPage()
@@ -281,25 +282,33 @@ functionality of this object will be greatly reduced and may break at any time."
         return self.Props.get('wiki_pagetitle')
     @property
     def PageId(self, ):
-        """Should be located only as a property of self.WikiPage"""
-        if self.WikiPage and self.WikiPage.PageId:
-            self.Props.setdefault('wiki_pageId', self.WikiPage.PageId)
-            return self.WikiPage.PageId
+        """
+        Should be located only as a property of self.WikiPage
+        Uhm... should calling self.PageId trigger attachment of wiki page, with all
+        of what that includes?
+        No. Thus, using self._wikipage and not self.WikiPage.
+        """
+        if self._wikipage and self._wikipage.PageId:
+            self.Props.setdefault('wiki_pageId', self._wikipage.PageId)
+            return self._wikipage.PageId
         elif self.Props.get('wiki_pageId'):
             pageid = self.Props.get('wiki_pageId')
-            if self.WikiPage:
-                self.WikiPage.PageId = pageid
+            if self._wikipage:
+                # we have a wikipage instance attached, but it does not have a pageid??
+                self._wikipage.PageId = pageid
             return pageid
     @PageId.setter
     def PageId(self, pageid):
         """
         Will update self.Props['wiki_pageId'], and make sure that self.WikiPage
         reflects the update.
+        Uhm... should calling self.PageId trigger attachment of wiki page, with all
+        of what that includes?
         """
-        if self.WikiPage:
-            if self.WikiPage.PageId != pageid:
-                self.WikiPage.PageId = pageid
-                self.WikiPage.reloadFromServer()
+        if self._wikipage:
+            if self._wikipage.PageId != pageid:
+                self._wikipage.PageId = pageid
+                self._wikipage.reloadFromServer()
         self.Props['wiki_pageId'] = pageid
 
 
@@ -338,7 +347,8 @@ functionality of this object will be greatly reduced and may break at any time."
         if not self._wikipage:
             self.attachWikiPage()
             if self._wikipage:
-                logger.info("Having just attached the wikipage, I will now parse wikipage subentries and merge them...")
+                logger.info("%s - Having just attached the wikipage (pageid=%s), I will now parse wikipage subentries and merge them...",
+                            self, self._wikipage.PageId)
                 self.mergeWikiSubentries(self._wikipage)
         return self._wikipage
     @WikiPage.setter
@@ -396,6 +406,8 @@ functionality of this object will be greatly reduced and may break at any time."
         """get wikipage url"""
         url = self.Props.get('url', None)
         if not url:
+            # Note: self.WikiPage will trigger attachWikipage including possible server search for wiki page.
+            # Using self._wikipage will not do this.
             if self.WikiPage and self.WikiPage.Struct:
                 url = self.WikiPage.Struct.get('url', None)
         # if no url is found, perhaps use the pageId to generate a url (via the server and the wiki_url or perhaps wiki_url_bypageId_fmt).
@@ -777,6 +789,14 @@ functionality of this object will be greatly reduced and may break at any time."
             return (False, folderpath, subentry_foldername)
         return False
 
+    def registerCallback(self, callbackkey):
+        """
+        It would be nice to be able to register various kinds of callbacks,
+        e.g. have a wikipage reload (fetch new struct from server)
+        trigger e.g. a new subentry merge, and have a new subentry init
+        invoking a UI widget reload.
+        """
+        pass
 
 
     def makeSubentryFolder(self, subentry_idx):
@@ -1333,9 +1353,10 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.warning("attachWikiPage invoked, but no (new) pageId was provided, and existing wikipage already attached, aborting. If a wrong pageId is registrered, you need to remove it manually.")
             return
         if not pageId and self.Server and dosearch:
-            logger.info("Experiment.attachWikiPage() :: Searching on server...")
+            logger.info("(exp with expid=%s), pageId is boolean false, invoking self.searchForWikiPage(%s)...", self.Expid, dosearch)
             pagestruct = self.searchForWikiPage(dosearch)
             if pagestruct:
+                logger.debug("searchForWikiPage returned a pagestruct with id: %s", pagestruct['id'])
                 self.Props['wiki_pageId'] = pageId = pagestruct['id']
                 if self.SavePropsOnChange:
                     self.saveProps()

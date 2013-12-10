@@ -30,13 +30,13 @@ from model.confighandler import ExpConfigHandler, PathFinder
 class PathFinder_Tests1(unittest.TestCase):
 
     def setUp():
-        self.Confighandler = ch = ExpConfigHandler( pathscheme='test1', VERBOSE=10 )
+        self.Confighandler = ch = ExpConfigHandler( pathscheme='test1' )
         self.Pathfinder = pf = PathFinder(VERBOSE=10)
 
 
     def testPfAndChain():
-        #ch3 = ExpConfigHandler( pathscheme='default1', VERBOSE=10 )
-        ch3 = self.Confighandler #ExpConfigHandler( pathscheme='test1', VERBOSE=10 )
+        #ch3 = ExpConfigHandler( pathscheme='default1' )
+        ch3 = self.Confighandler #ExpConfigHandler( pathscheme='test1' )
         ch3.printConfigs()
         logger.info("\nch3.HierarchicalConfigHandler.Configs:\n{}".format( ch3.HierarchicalConfigHandler.printConfigs() ))
         return ch3
@@ -49,7 +49,7 @@ class PathFinder_Tests1(unittest.TestCase):
 class Confighandler_Tests1(unittest.TestCase):
 
     def setUp():
-        self.Confighandler = ch = ExpConfigHandler( pathscheme='test1', VERBOSE=10 )
+        self.Confighandler = ch = ExpConfigHandler( pathscheme='test1' )
 
 class Confighandler_OldTests1(unittest.TestCase):
 
@@ -84,7 +84,7 @@ class Confighandler_OldTests1(unittest.TestCase):
         return ch
 
     def test_configTypeChain():
-        #ch2 = ExpConfigHandler('../test/config/system_config.yml', VERBOSE=10)
+        #ch2 = ExpConfigHandler('../test/config/system_config.yml')
         ch2 = self.Confighandler
         logger.info('ch2.Configs:\n{}'.format(ch2.Configs) )
         ch2.Configs

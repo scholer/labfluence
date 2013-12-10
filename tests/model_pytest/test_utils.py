@@ -14,16 +14,18 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0111
 
-
-
+import os
 import logging
 logger = logging.getLogger(__name__)
-#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
-#logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
 
+##################
+### SUT ##########
+##################
+from model.utils import increment_idx, idx_generator, random_string, getmimetype, getnearestfile, magic_available
 
 
 
@@ -31,27 +33,36 @@ logging.getLogger("__main__").setLevel(logging.DEBUG)
 def test_increment_idx():
     idxs = ['a', 'RS123a', 1, 'RS123', 'A', 'RS123A', 'RS123a1', 'RS123A1']
     incremented = [increment_idx(i) for i in idxs]
-    print "  ".join( "( {}->{} )".format(*pair) for pair in zip(idxs, incremented) )
+    expected = ['b', 'RS123b', 2, 'RS124', 'B', 'RS123B', 'RS123a2', 'RS123A2']
+    assert incremented == expected
+    #print "  ".join( "( {}->{} )".format(*pair) for pair in zip(idxs, incremented) )
 
 def test_idx_generator():
     idxs = ['d', 'RS123d', 4, 'RS123', 'D', 'RS123D', 'RS123a4', 'RS123A4']
-    print "\n".join( "{}: {}".format(idx, list(idx_generator(idx))) for idx in idxs )
+    expected = [['a', 'b', 'c', 'd'],
+                ['RS123a', 'RS123b', 'RS123c', 'RS123d'],
+                [1, 2, 3, 4],
+                ['RS121', 'RS122', 'RS123'],
+                ['A', 'B', 'C', 'D'],
+                ['RS123A', 'RS123B', 'RS123C', 'RS123D'],
+                ['RS123a1', 'RS123a2', 'RS123a3', 'RS123a4'],
+                ['RS123A1', 'RS123A2', 'RS123A3', 'RS123A4']]
+    assert [list(idx_generator(idx)) for idx in idxs] == expected
 
 def test_random_string():
-    print "Random string: {}".format(random_string(16))
+    st = random_string(16)
+    print "Random string: {}".format(st)
+    assert len(st) == 16
 
 def test_getarandomfile():
-    print "Random file in/near current directory: {}".format(getnearestfile())
+    fp = getnearestfile()
+    print "Random file in/near current directory: {}".format(fp)
+    assert os.path.basename(fp) in os.listdir('.')
 
 def test_getmimetype():
     print "Magic_available: {}".format(magic_available)
-    f = getnearestfile()
-    print "filepath: {}".format(f)
-    print "filetype: {}".format(getmimetype(f))
-
-
-#test_increment_idx()
-#test_idx_generator()
-#test_random_string()
-#test_getarandomfile()
-#test_getmimetype()
+    #f = getnearestfile()
+    f = 'FUNCTIONALITY.txt'
+    t = getmimetype(f)
+    print "filepath: {} -- MIMETYPE: {}".format(f, t)
+    assert t == 'text/plain'

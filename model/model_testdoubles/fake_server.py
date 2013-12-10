@@ -98,6 +98,8 @@ class FakeConfluenceServer(object):
         #self._autologin = autologin
         #self._url = url
 
+    def __nonzero__(self):
+        return bool(self._connectionok)
 
 
     def _resetworkdata(self, ):
@@ -118,8 +120,12 @@ class FakeConfluenceServer(object):
 
     def login(self, username=None, password=None, logintoken=None, doset=True,
               prompt=False, retry=3, dopersist=True, msg=None):
-
+        """
+        Simulates calling server.login()
+        Alternatively, simulates calling the login() method of the confluence2 API
+        """
         self._is_logged_in = True
+        self._connectionok = True
 
 
     def logout(self):
@@ -128,6 +134,7 @@ class FakeConfluenceServer(object):
         Returns None if no token could be found.
         """
         self._is_logged_in = False
+        self._connectionok = False
 
 
     def getServerInfo(self):

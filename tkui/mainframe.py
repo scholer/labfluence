@@ -41,7 +41,7 @@ from views.expnotebook import ExpNotebook, BackgroundFrame
 from views.experimentselectorframe import ExperimentSelectorWindow
 from views.dialogs import Dialog
 
-from views.explistboxes import ActiveExpsListbox, RecentExpsListbox #LocalExpsListbox, WikiExpsListbox
+from views.expmanagerlistboxes import ActiveExpsListbox, RecentExpsListbox #LocalExpsListbox, WikiExpsListbox
 # Edit: Using the self-controlling ActiveExpsListbox and RecentExpListbox listboxes instead of having
 # simple listboxes with controllers attached:
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController

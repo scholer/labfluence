@@ -16,36 +16,36 @@
 ##
 
 
-
+import pytest
+from datetime import datetime
+import random
+import string
 import logging
 logger = logging.getLogger(__name__)
-#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
-#logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
 
 
 from model.page import WikiPageFactory
 
 ## Test doubles:
-from tests.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
-from tests.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
+from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
+from model.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
 
 
+run_random_string = "".join(random.sample(string.ascii_letters, 5))
 
 
-
+@pytest.mark.skipif(True, reason="Not ready yet")
 def test_factoryNew():
     ch = ExpConfigHandler(pathscheme='test1')
-    wikiserver = ConfluenceXmlRpcServer(confighandler=ch, VERBOSE=5, autologin=True)
+    wikiserver = ConfluenceXmlRpcServer(confighandler=ch, autologin=True)
     factory = WikiPageFactory(wikiserver, ch)
     expid_index = 1
     expid = ch.get('expid_fmt').format(exp_series_index=expid_index)
     current_datetime = datetime.now()
     fmt_params = dict(expid=expid,
-                      exp_titledesc="First test page "+"".join(random.sample(string.ascii_letters, 5)),
+                      exp_titledesc="First test page"+run_random_string,
                       datetime=current_datetime,
                       date=current_datetime)
     newpage = factory.new('exp_page', fmt_params=fmt_params)
-
-test_factoryNew()

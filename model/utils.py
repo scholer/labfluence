@@ -16,8 +16,6 @@
 ##
 
 import os
-import yaml
-import re
 import random
 import string
 import logging
@@ -41,6 +39,10 @@ except ImportError:
 
 
 def getmimetype(filepath):
+    """
+    Returns the mime type of a file, using the best
+    methods available on the current installation.
+    """
     if magic_available:
         if magic_is_old:
             with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
@@ -53,6 +55,10 @@ def getmimetype(filepath):
     return mimetype
 
 def increment_idx(idx):
+    """
+    Take an index, e.g. 1 or 'a' and increment it to the
+    next logical value, e.g. 2 or 'b'.
+    """
     if isinstance(idx, int):
         return idx+1
     if isinstance(idx, basestring):
@@ -64,6 +70,9 @@ def idx_generator(start, idx=None, maxruns=100):
     One important difference against range, though:
     1) index starts at 'a' or optionally 1.
     2) range INCLUDES the final index, e.g. idx_generator('d') -> ['a','b','c','d']
+    USAGE:
+        idx_generator('d') -> generator('a', 'b', 'c', 'd')
+        idx_generator('b', 'f') -> generator('b', 'c', 'd', 'e', 'f')
     """
     if idx is None:
         idx = start
@@ -89,6 +98,21 @@ def idx_generator(start, idx=None, maxruns=100):
 
 
 def random_string(length, uppercase=True, lowercase=True, digits=True, punctuation=False, whitespace=False, ascii=True, allprintable=False, custom=None):
+    """
+    Returns a random string of length <length> consisting of
+    the specified character types:
+        uppercase, lowercase, digits,
+        punctuation,
+        whitespace.
+    ascii flag ensures that only ASCII characters are included.
+    (i.e. using string.ascii_uppercase rather than string.uppercase)
+    allprintable = string.printable.
+    if custom is defined, then the values in custom are appended
+    to the list of used characters.
+    Note: Currently just uses the default random library, but
+    could be easily adjusted to use a better library, e.g. the
+    one from the crypto library.
+    """
     chars = ""
     if allprintable:
         chars += string.printable
@@ -108,6 +132,9 @@ def random_string(length, uppercase=True, lowercase=True, digits=True, punctuati
     return "".join( random.sample(chars, length) )
 
 def getnearestfile(startpath=None):
+    """
+    Given a start path, return a random file close to that starting point.
+    """
     if startpath is None:
         startpath = os.getcwd()
     if os.path.isfile(startpath):

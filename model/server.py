@@ -14,11 +14,14 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+"""
+Server module. Provides classes to access e.g. a Confluence server through xmlrpc.
+"""
 
 
 import xmlrpclib
 import socket
-import os.path
+#import os.path
 import itertools
 import string
 from Crypto.Cipher import AES
@@ -29,18 +32,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from confighandler import ConfigHandler, ExpConfigHandler
+#from confighandler import ConfigHandler, ExpConfigHandler
 
 # Decorators:
 from decorators.cache_decorator import cached_property
 
 
-def login_prompt(username=None, msg="", options=dict() ):
+def login_prompt(username=None, msg="", options=None ):
     """
     The third keyword argument, options, can be modified in-place by the login handler,
     changing e.g. persistance options ("save in memory").
     """
     import getpass
+    if options is None:
+        options = dict()
     if username is None:
         username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
     print "\n{}\nPlease enter credentials:".format(msg)
@@ -50,23 +55,24 @@ def login_prompt(username=None, msg="", options=dict() ):
     return username, password
 
 def display_message(message):
+    """Simply prints a message to the user, making sure to properly format it."""
     print "\n".join("\n\n", "-"*80, message, "-"*80, "\n\n")
 
-"""
-Edits:
--   Well, the whole ConfigEntries and automatic attribute creation was a bit overly complicated.
-    Especially considering that it was only used once, to make the URL from which the RpcServer
-    is initialized. Then, the RpcServer object is used the rest of the time.
-    Also, the whole "uh, I gotta make sure the base class does not override any attributes in the
-    child class is unnessecary.
 
-"""
 
 
 class AbstractServer(object):
     """
     To test if server is connected, just use "if server".
     (To test whether server is was not initialized, use the more specific "if server is None")
+
+    Edits:
+    -   Well, the whole ConfigEntries and automatic attribute creation was a bit overly complicated.
+        Especially considering that it was only used once, to make the URL from which the RpcServer
+        is initialized. Then, the RpcServer object is used the rest of the time.
+        Also, the whole "uh, I gotta make sure the base class does not override any attributes in the
+        child class is unnessecary.
+
     """
     def __init__(self, serverparams=None, username=None, password=None, logintoken=None, url=None,
                  confighandler=None, autologin=True, VERBOSE=0):
@@ -83,6 +89,7 @@ class AbstractServer(object):
         self._serverparams = serverparams
         self._username = username
         self._password = password
+        #logger.debug("%s, init arguments: %s", self.__class__.__name__, locals())
         self._logintoken = logintoken
         self._autologin = autologin
         self._url = url
@@ -124,10 +131,13 @@ class AbstractServer(object):
     def AutologinEnabled(self, ):
         serverparams = self.Serverparams
         if 'autologin_enabled' in serverparams:
+            logger.debug("AutologinEnabled found in serverparams.")
             return serverparams['autologin_enabled']
         elif self._autologin is not None:
+            logger.debug("AutologinEnabled as self._autologin: %s", self._autologin)
             return self._autologin
         else:
+            logger.debug("AutologinEnabled defaulting to True")
             return True
 
     @property
@@ -250,11 +260,12 @@ class AbstractServer(object):
                 token = self.autologin() # autologin will setok/notok
             if not token:
                 logger.warning("%s, token could not be obtained (is '%s'), aborting.", self.__class__.__name__, token)
-            return None
+                return None
         try:
             logger.debug("%s, trying to execute for function %s with args %s", self.__class__.__name__, inspect.stack()[1][3], args)
             ret = function(token, *args)
             self.setok()
+            logger.debug("server request completed, returned value is: %s", type(ret))
             return ret
         except socket.error as e:
             logger.debug("%s, socket error during execution of function %s:\n%s", self.__class__.__name__, inspect.stack()[1][3], e)
@@ -293,6 +304,10 @@ class AbstractServer(object):
             elif cause == 'PageNotAvailable':
                 logger.info("PageNotAvailable: %s called with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
                 raise e
+            else:
+                logger.info("Unknown Fault excepted after calling %s with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
+                raise e
+        logger.debug("end of execute method reached. This should not happen.")
         return None # Default if... But consider raising an exception instead.
 
 
@@ -308,8 +323,11 @@ class AbstractServer(object):
                 logger.warning("AttributeError while calling self.UI.display_message: %s", e)
         display_message(message)
 
-    def autologin(self):
-        pass
+    def autologin(self, prompt=None):
+        """
+        Is overridden in subclasses...
+        """
+        logger.warning("autologin called, but not implemented for class %s", self.__class__.__name__)
 
     def getToken(self, token_crypt=None):
         """
@@ -383,6 +401,9 @@ class AbstractServer(object):
         return (token_crypt, crypt_iv, crypt_key)
 
     def clearToken(self):
+        """
+        Deletes the current token from all locations.
+        """
         self.Logintoken = None
         cfgtypes = set()
         for key in ('wiki_logintoken','wiki_logintoken_crypt'):
@@ -429,6 +450,7 @@ to prevent the login token from expiring.
                  #serverparams=None, username=None, password=None, logintoken=None,
                  #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
+        logger.debug("New %s initializing...", self.__class__.__name__)
         self.CONFIG_FORMAT = 'wiki_{}'
         #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
@@ -440,9 +462,10 @@ to prevent the login token from expiring.
         if not appurl:
             logger.warning("WARNING: Server's AppUrl is '%s'", appurl)
             return None
-        self.RpcServer = xmlrpclib.Server(appurl)
+        self.RpcServer = xmlrpclib.ServerProxy(appurl) # Note: xmlrpclib line 1613: Server = ServerProxy # for compatability.
         if self.AutologinEnabled:
             self.autologin()
+        logger.debug("%s initialized.", self.__class__.__name__)
 
     def autologin(self, prompt='auto'):
         """
@@ -463,14 +486,15 @@ to prevent the login token from expiring.
         # it is only this autologin() and the execute() method that does that.
         #self._raiseerrors = True # Ensure that e.g. timeout errors are raised.
         token = None
+        logger.debug("%s.autologin(prompt='%s') invoked.", self.__class__.__name__, prompt)
         try:
             #
             if prompt in ('force', ):
                 token = self.login(prompt=True) # doset defaults to True
             else:
                 if self._logintoken and self.test_token(self._logintoken, doset=True):
-                    logger.info('Connected to server using provided login token...')
                     token = self._logintoken
+                    logger.info('Connected to server using token from self._logintoken, is type: %s', token)
                 elif self.Username and self.Password and self.login(doset=True):
                     # Providing a plain-text password should generally not be used;
                     # there is really no need for a password other than for login, only store the token.
@@ -482,7 +506,11 @@ to prevent the login token from expiring.
                     logger.info('Token found in the config is valid, login ok...')
                     token = self._logintoken
                 elif prompt in ('auto'):
+                    logger.debug("Trying to obtain credentials via login(prompt=True)...")
                     token = self.login(prompt=True)
+                    logger.debug("login(prompt=True) returned token of type: %s", type(token))
+                else:
+                    logger.info("Uhm... what?")
         except socket.error as e:
             logger.warning("%s - socket error prevented login, probably timeout, error is: %s", self.__class__.__name__, e)
         #self._raiseerrors = oldflag
@@ -529,6 +557,7 @@ to prevent the login token from expiring.
             return None
         try:
             serverinfo = self._testConnection(logintoken) # _testConnection() and _login() does NOT use the execute method.
+            logger.debug("Successfully obtained serverinfo from server via _testConnection using token of type %s", logintoken)
             if doset:
                 self.Logintoken = logintoken
                 self.setok()
@@ -536,6 +565,21 @@ to prevent the login token from expiring.
         except xmlrpclib.Fault as err:
             logger.debug("ConfluenceXmlRpcServer.test_token() : tested token '%s' did not work; %s: %s", logintoken, err.faultCode, err.faultString)
             return False
+
+    def promptForUserPass(self, username=None, msg=None):
+        """
+        Prompts for user credentials, using either the registrered UI,
+        if it has an attribute login_prompt, or else using standard
+        terminal prompt.
+        """
+        promptopts = self.Loginpromptoptions
+        if self.UI and hasattr(self.UI, 'login_prompt'):
+            promptfun = self.UI.login_prompt
+        else: # use command line login prompt, defined above.
+            promptfun = login_prompt
+        username, password = promptfun(username=username, msg=msg, options=promptopts)
+        return username, password
+
 
     def login(self, username=None, password=None, logintoken=None, doset=True,
               prompt=False, retry=3, dopersist=True, msg=None):
@@ -547,40 +591,51 @@ to prevent the login token from expiring.
 
         This method should NOT attempt to catch socket errors;
         only autologin() and execute() may do that.
+        The method SHOULD catch xmlrpclib.Fault errors,
         """
-        #logger.debug("server.login invoked with args (locals): {}".format(locals()))
-        if username is None: username=self.Username
-        if password is None: password=self.Password
+        logger.debug("server.login invoked, retry=%s, prompt=%s, msg=%s", retry, prompt, msg)
+        if retry < 0:
+            logger.debug("retry (%s) is less than zero, aborting...", retry)
+            return
+        if username is None:
+            username = self.Username
+        if password is None:
+            password = self.Password
         if prompt is True:
             #msg = "Please provide your credentials" # Uh, no do not override.
-            promptopts = self.Loginpromptoptions
-            if self.UI and hasattr(self.UI, 'login_prompt'):
-                promptfun = self.UI.login_prompt
-            else: # use command line login prompt, defined above.
-                promptfun = login_prompt
-            username, password = promptfun(username=username, msg=msg, options=promptopts)
+            #promptopts = self.Loginpromptoptions
+            #if self.UI and hasattr(self.UI, 'login_prompt'):
+            #    promptfun = self.UI.login_prompt
+            #else: # use command line login prompt, defined above.
+            #    promptfun = login_prompt
+            #username, password = promptfun(username=username, msg=msg, options=promptopts)
+            logger.debug("Calling prompt...")
+            username, password = self.promptForUserPass(username=username, msg=msg)
+            #logger.debug("Prompt called, average length of username and password: {}".format((len(username)+len(password)/2)))
             # The prompt method may modify the promptopts dict in-place:
         if not (username and password):
-            logger.info( "ConfluenceXmlRpcServer.login() :: Username or password is boolean False; retrying..." )
+            logger.info( "%s :: Username or password is boolean False; retrying...", self.__class__.__name__ )
             newmsg = "Empty username or password; please try again. Use Ctrl+C (or cancel) to cancel."
             token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=newmsg)
             return token
         try:
             logger.debug("Attempting server login with username: {}".format(username))
-            token = self._login(username,password)
+            token = self._login(username, password)
+            logger.debug("Token of type %s obtained from server.", type(token))
             if doset:
                 self.Logintoken = token
                 self.setok()
             if dopersist:
                 self.saveToken(token, username=username)
             if prompt:
-                if promptopts.get('save_username_inmemory', True):
+                if self.Loginpromptoptions.get('save_username_inmemory', True):
                     self._username = username
-                if promptopts.get('save_password_inmemory', True):
+                if self.Loginpromptoptions.get('save_password_inmemory', True):
                     self._password = password
             logger.info("Logged in as '{}', received token of length {}".format(username, len(token)))
         except xmlrpclib.Fault as err:
             err_msg = "Login error, catched xmlrpclib.Fault. faultCode and -String is:\n{}: {}".format( err.faultCode, err.faultString)
+            logger.info(err_msg)
             # NOTE: In case of too many failed logins, it will not be possible to log in with xmlrpc,
             # and a browser login is required.
             # Unfortunately, the error is pretty similar, same faultCode and only slightly different faultString.
@@ -591,6 +646,7 @@ to prevent the login token from expiring.
             #logger.debug("%d: %s" % ( err.faultCode, err.faultString)
             # In case the password has been changed or whatever, reset it:
             if not prompt and self._password:
+                # The password did not work. Make sure to unset it, so automatic login attempts will not try to use it again.
                 self._password = None
             if prompt and int(retry)>0:
                 token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=err_msg)
@@ -729,6 +785,7 @@ to prevent the login token from expiring.
         """
         returns a list of dicts with space info for spaces that the user can see.
         """
+        logger.debug('self.RpcServer.confluence2.getSpaces() invoked...')
         return self.execute(self.RpcServer.confluence2.getSpaces)
 
 

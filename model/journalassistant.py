@@ -77,7 +77,8 @@ class JournalAssistant(object):
         self.JournalFilenameFmt = "{subentry_idx}_journal.txt"
         self.JournalFlushBackup = "{subentry_idx}_journal.flushed.bak"
         self.JournalFlushXhtml = "{subentry_idx}_journal.flushed.xhtml"
-        self.Current_subentry_idx = None # This could also just be the self.Experiments.Subentries subentry dict directly...? Nah, it is actually good to have for reference.
+        #self.Current_subentry_idx = None
+        self._current_subentry_idx = None
         self.AppendAtEndIfNoTokenFound = False
 
     @property
@@ -91,9 +92,24 @@ class JournalAssistant(object):
         return self.Experiment.Confighandler
 
     @property
-    def VERBOSE(self):
-        """VERBOSE property"""
-        return self.Experiment.VERBOSE
+    def Current_subentry_idx(self, ):
+        """ Current_subentry_idx property.
+        Returns self._current_subentry_idx if set, otherwise the first available
+        Experiment subentry
+        """
+        if self._current_subentry_idx:
+            return self._current_subentry_idx
+        if self.Experiment.Subentries:
+            return min(self.Experiment.Subentries.keys())
+        return None
+
+    @Current_subentry_idx.setter
+    def Current_subentry_idx(self, value):
+        """property setter: Set current subentry"""
+        if value not in self.Experiment.Subentries:
+            logger.warning("subentry %s not in Experiment.Subentries...")
+        self._current_subentry_idx = value
+
 
     def addEntry(self, text, entry_datetime=None, subentry_idx=None):
         """
@@ -120,21 +136,47 @@ class JournalAssistant(object):
             except OSError as e:
                 logger.warning("JournalAssistant.addEntry() failed while doing os.makedirs(journal_folderpath) due to an OSError: %s", e)
                 return False
+        logger.debug("Adding entry: %s\nto file: %s", entry_text, journal_path)
+        if self._writetofile(journal_path, entry_text):
+            return entry_text
+        else:
+            logger.info("self._writetofile seems to have failed, returning False...")
+            return False
+
+    def _writetofile(self, journal_path, entry_text):
+        """
+        Does actual writing to file. Refactored and encapsulated
+        in separate method to allow better testing/mocking.
+        """
+        # Open journal file in append mode:
         with open_utf(journal_path, 'a') as f:
             try:
-                logger.debug("Entry text type: %s", type(entry_text))
-                logger.debug("Entry text is: %s", entry_text)
+                #logger.debug("Entry text type: %s", type(entry_text))
                 f.write(u"\n"+entry_text)
             except IOError as e:
                 logger.warning("JournalAssistant.addEntry() failed due to an IOError: %s", e)
                 return False
-        return entry_text
+        logger.debug("%s chars written to file: %s", len(entry_text), journal_path)
+        return True
+
+    def _readfromfile(self, journal_path):
+        """
+        Returns the content of file <journal_path>.
+        """
+        try:
+            with open_utf(journal_path) as f:
+                journal_content = f.read()
+            logger.debug("%s chars read from journal cache in file '%s'", len(journal_content), journal_path)
+            return journal_content
+        except IOError as e:
+            logger.debug("could not read from file '%s', probably because there is none. Error was: %s", journal_path, e)
 
 
     def getCacheContent(self, subentry_idx=None):
         """
         subentry_idx is e.g. 'a', 'b', 'c', ...
         """
+        logger.debug("cache requested for subentry_idx: '%s'", subentry_idx)
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
             if subentry_idx is None:
@@ -142,13 +184,8 @@ class JournalAssistant(object):
                 return False
         subentryprops = self.makeSubentryProps(subentry_idx=subentry_idx)
         journal_path = os.path.join(self.Experiment.getAbsPath(), self.JournalFilesFolder, self.JournalFilenameFmt.format(**subentryprops))
-        try:
-            with open_utf(journal_path) as f:
-                journal_content = f.read()
-            return journal_content
-        except IOError as e:
-            logger.debug("could not read cache content for subentry '%s' (file '%s'), probably because there is none. Error was: %s", subentry_idx, journal_path, e)
-
+        logger.debug("Reading journal cache for subentry '%s' in file: '%s'", subentry_idx, journal_path)
+        return self._readfromfile(journal_path)
 
     def flushAll(self):
         """

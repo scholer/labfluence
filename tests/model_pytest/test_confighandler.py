@@ -24,9 +24,11 @@ import os
 from datetime import datetime
 import logging
 logger = logging.getLogger(__name__)
-logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
-logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
+
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
+#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
+#logging.basicConfig(level=logging.INFO, format=logfmt)
+#logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
@@ -78,13 +80,13 @@ def test_schemes_test1_default1():
 
 
 def test_addNewConfig():
-    ch = ExpConfigHandler( pathscheme='test1', VERBOSE=10 )
+    ch = ExpConfigHandler( pathscheme='test1' )
     ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
     logger.info("ch.get('exp_subentry_template'):" )
     logger.info(ch.get('exp_subentry_template'))
 
 def test_cfgNewConfigDef():
-    ch = ExpConfigHandler( pathscheme='test1', VERBOSE=10 )
+    ch = ExpConfigHandler( pathscheme='test1' )
     #ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
     # I have added the following to the 'exp' config:
     # config_define_new:
