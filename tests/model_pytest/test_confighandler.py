@@ -24,9 +24,11 @@ import os
 from datetime import datetime
 import logging
 logger = logging.getLogger(__name__)
-logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
-logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
+
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
+#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
+#logging.basicConfig(level=logging.INFO, format=logfmt)
+#logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 

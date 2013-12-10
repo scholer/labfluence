@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0111,C0112
+# pylint: disable-msg=C0111,C0112,W0212,W0621
 """
 
 Most of this is done using the fake-server.
@@ -36,62 +36,84 @@ import pytest
 
 import logging
 logger = logging.getLogger(__name__)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
-logging.getLogger("model.server").setLevel(logging.DEBUG)
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
 
-#####################
-# System Under Test #
-#####################
+#########################
+### System Under Test ###
+#########################
+#import model.server
 from model.server import ConfluenceXmlRpcServer
 
 
-## Test doubles:
-from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
-from model.model_testdoubles.fake_xmlrpclib
+#####################
+## Test doubles:   ##
+#####################
+from model.model_testdoubles.fake_confighandler import FakeConfighandler
+from model.model_testdoubles.fake_xmlrpclib import FakeXmlRpcServerProxy
 #from model.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
 
 
-
-
-
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test1():
-    logger.info("\n>>>>>>>>>>>>>> test_getLocalFilelist() started >>>>>>>>>>>>>")
-    username = 'scholer'
-    username, password = login_prompt()
-    url = 'http://10.14.40.245:8090/rpc/xmlrpc'
-    server = ConfluenceXmlRpcServer(url=url, username=username, password=password)
-
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_login():
-    username = 'scholer'
-    url = 'http://10.14.40.245:8090/rpc/xmlrpc'
-    server = ConfluenceXmlRpcServer(url=url, username=username)
-
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_config1():
-    paths = [ os.path.join(os.path.dirname(os.path.abspath(__file__)), '../test/config', cfg) for cfg in ('system_config.yml', 'user_config.yml', 'exp_config.yml') ]
-    ch = ExpConfigHandler(*paths)
-    ch.setdefault('user', 'scholer') # set defaults only sets if not already set.
-    #ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc') # setkey overrides.
-    print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-    server = ConfluenceXmlRpcServer(confighandler=ch)
-    if server.test_token():
-        print "Succesfully connected to server (retrieved serverinfo)!"
-    else:
-        print "Failed to obtain valid token from server !!"
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test2():
-    confighandler = ExpConfigHandler(pathscheme='default1')
+@pytest.fixture
+def server_fake_ch_and_proxy(monkeypatch):
+    """
+    Creates a testable server object that uses:
+    - Fake ServerProxy from xmlrpclib
+    - Fake confighandler.
+    """
+    ch = FakeConfighandler()
     ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
-    print "confighandler wiki_url: {}".format(ch.get('wiki_url'))
-    server = ConfluenceXmlRpcServer(confighandler=ch)
+    #monkeypatch.setattr(model.server, 'login_prompt', lambda **x: ('fakeusername', 'fakepassword'))
+    server = ConfluenceXmlRpcServer(autologin=False, confighandler=ch)
+    def prompt_mock(**kwargs):
+        logger.info("Call to promptForUserPass with kwargs %s intercepted by monkeypatched attribute, returning 'fakeuser', 'fakepassword'", kwargs)
+        return 'fakeuser', 'fakepassword'
+    monkeypatch.setattr(server, 'promptForUserPass', prompt_mock)
+    fake_proxy = FakeXmlRpcServerProxy('https://some.url')
+    monkeypatch.setattr(server, 'RpcServer', fake_proxy)
+    #monkeypatch.setattr(server, 'Logintoken', lambda x: 'avalidtoken23456')
+    return server
+
+
+def test_promptForUserPass(server_fake_ch_and_proxy):
+    s = server_fake_ch_and_proxy
+    username, password = s.promptForUserPass()
+    assert (username, password) == ('fakeuser', 'fakepassword')
+
+
+
+def test_login(server_fake_ch_and_proxy):
+    s = server_fake_ch_and_proxy
+    assert s.login() is None
+    assert s.login(prompt=True) == 'very_random_token'
+
+
+def test_autologin(server_fake_ch_and_proxy):
+    s = server_fake_ch_and_proxy
+    token = s.autologin()
+    assert token == 'very_random_token'
+    #assert s.autologin(prompt=True) == 'very_random_token'
+
+def test_getSpaces(server_fake_ch_and_proxy):
+    s = server_fake_ch_and_proxy
+    s._autologin = True
+    spaces = s.getSpaces()
+    print spaces
+    assert {space['key'] for space in spaces} ==  {'ds', '~scholer', 'TSP'}
+
+def test_fixture(server_fake_ch_and_proxy):
+    s = server_fake_ch_and_proxy
+    assert s._connectionok is None
+    assert s.login() == None
+    s._autologin = True # autologin must be set, otherwise the server will refuse to login automatically.
+    serverinfo = s.getServerInfo()
+    assert 'majorVersion' in serverinfo
+
+
+
+
+
+
 
 @pytest.mark.skipif(True, reason="Not ready yet")
 def test_loginAndSetToken(ch=None, persist=False):

@@ -28,6 +28,8 @@ import pytest
 from datetime import datetime
 import os
 import logging
+
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 logger = logging.getLogger(__name__)
 logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():: %(message)s\n"
 logging.basicConfig(level=logging.INFO, format=logfmt)

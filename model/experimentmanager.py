@@ -63,6 +63,7 @@ class ExperimentManager(object):
         self._autoinit = autoinit
         self._experimentsources = experimentsources
         self._experiments = list()
+        self._localexpdirsparsed = False
         if autoinit:
             logger.info("Auto-initiating experiments for ExperimentManager...")
             self.mergeLocalExperiments()
@@ -121,7 +122,7 @@ class ExperimentManager(object):
         # the @region.cache_on_arguments() decorator provided by dogpile.
         """
         logger.debug("invoked cache-wrapped CurrentWikiExperimentsPagestructsByExpid...")
-        pagestructs = list( self.getCurrentWikiExperiments(ret='pagestructs-by-expid') ) # Make sure you cache list and not generator.
+        pagestructs = self.getCurrentWikiExperiments(ret='pagestructs-by-expid') # In this case, a dict is returned, never a generator.
         return pagestructs
 
 
@@ -424,7 +425,7 @@ class ExperimentManager(object):
         - 'foldername' = Change wikipage to match the local foldername
         - 'wikipage' = Change local folder to match the wiki
         """
-        logger.debug("mergeLocalExperiments called with basedir='%s'", basedir)
+        logger.debug("mergeLocalExperiments called with basedir='%s', addtoactive=%s", basedir, addtoactive)
         newexpids = list()
         if self._experimentsbyid is None:
             self._experimentsbyid = OrderedDict()
@@ -445,6 +446,8 @@ class ExperimentManager(object):
         if addtoactive and newexpids:
             logger.debug("Adding new expids to active experiments: %s", newexpids)
             self.addActiveExperiments( newexpids ) # This will take care of invoking registrered callbacks in confighandler.
+        logger.info("mergeLocalExperiments(basedir=%s, addtoactive=%s) completed. Local experiment directory parsed and merged.", basedir, addtoactive)
+        self._localexpdirsparsed = True
         return newexpids
 
 
@@ -569,8 +572,13 @@ class ExperimentManager(object):
         - 'foldername' = Change wikipage to match the local foldername
         - 'wikipage' = Change local folder to match the wiki
         """
-        logger.debug("mergeCurrentWikiExperiments called with autocreatelocaldirs='%s'", autocreatelocaldirs)
-        if autocreatelocaldirs is None:
+        logger.debug("mergeCurrentWikiExperiments called with autocreatelocaldirs='%s' and mergeonlyexpids=%s", autocreatelocaldirs, mergeonlyexpids)
+        if not self._localexpdirsparsed:
+            logger.info("mergeCurrentWikiExperiments called with autocreatelocaldirs=%s, \
+                        but self._localexpdirsparsed=%s, so re-setting autocreatelocaldirs to False.",
+                        autocreatelocaldirs, self._localexpdirsparsed)
+            autocreatelocaldirs = False
+        elif autocreatelocaldirs is None:
             autocreatelocaldirs = self.Confighandler.get('app_autocreatelocalexpdirsfromwikiexps', False)
         newexpids = list()
         if self._experimentsbyid is None:
@@ -578,11 +586,16 @@ class ExperimentManager(object):
         for page, gd in self.getCurrentWikiExpsPageGroupdictTuples():
             expid = gd['expid']
             if expid in self.ExperimentsById:
+                logger.debug("expid %s already in self.ExperimentsById.", expid)
                 exp = self.ExperimentsById[expid]
-                if not exp.PageId:
-                    logger.info("Experiment %s : Connecting to page with id %s and title: %s", exp, page['id'], page['title'])
-                    exp.PageId = page['id']
+                # Uh, notice: Calling exp.PageId property will call exp.WikiPage, which will attach it if not already attached.
+                # Thus, it is much better to use exp.Props.get('wiki_pageId')
+                if not exp.Props.get('wiki_pageId'):
+                    logger.info("Experiment %s : Updating exp.PageId to '%s', since expid was matched in title of page: %s", exp, page['id'], page['title'])
+                    exp.Props['wiki_pageId'] = page['id']
             elif mergeonlyexpids is None or expid in mergeonlyexpids:
+                logger.debug("mergeonlyexpids=%s is None or expid(=%s) in mergeonlyexpids(=%s), creating new experiment instance with props/gd=%s and makelocaldir=%s",
+                             mergeonlyexpids, expid, mergeonlyexpids, gd, autocreatelocaldirs )
                 exp = Experiment(props=gd, makelocaldir=autocreatelocaldirs,
                                  manager=self, confighandler=self.Confighandler,
                                  doparseLocaldirSubentries=False, wikipage=page)
@@ -591,10 +604,13 @@ class ExperimentManager(object):
                 self.ExperimentsById[expid] = exp
                 newexpids.append(expid)
             else:
-                logger.debug("Not merging expid %s", expid)
+                logger.debug("Not merging expid %s (it is not in self.ExperimentsById, but mergeonlyexpids is: %s)", expid, mergeonlyexpids)
         if newexpids:
             logger.debug("Adding new expids to active experiments: %s", newexpids)
             self.addActiveExperiments( newexpids ) # This will take care of invoking registrered callbacks in confighandler.
+        logger.info("Completed mergeCurrentWikiExperiments(autocreatelocaldirs=%s, mergeonlyexpids=%s), saving configs...:", autocreatelocaldirs, mergeonlyexpids)
+        self.Confighandler.saveConfigs()
+        logger.debug("Returning newexpids: %s", newexpids)
         return newexpids
 
 

@@ -40,95 +40,58 @@ This module provides a fake confluence server which can be used for testing (and
 """
 
 
-import os
-import yaml
 from datetime import datetime
-import copy
 import logging
 from xmlrpclib import Fault
 logger = logging.getLogger(__name__)
 
+from fake_server import FakeConfluenceServer
 
 
-class FakeConfluenceServer(object):
+class FakeConfluence2Api(FakeConfluenceServer):
     """
-    A fake confluence server which can be used for testing.
+    A fake confluence API which can be used for testing.
     Can also work as a mimic for the persistance layer of a faked confluence RPC API.
+    I had to subclass this from the FakeConfluenceServer
+    because the API generally takes a token as first argument.
+    The server(proxy) does not do that.
+    So, generally, I need to make new 'API' methods for all methods that
+    the real ConfluenceXmlRpcServer routes through execute().
+    I.e. all, except login().
+
+    One other thing is the login() method:
+    - The API login() is quite different from server.login()
+        and the API login() is really closer to the existing server._login()
     """
 
     def __init__(self, **kwargs):
-        """
-        _workdata_copy dict has items:
-        - pages[pageId] = page-struct dict
-        - comments[pageId] = list of comment-struct dicts for page with pageId
-        - attachments[pageId] = list of attachment-struct dicts for page with pageId
-        - serverinfo = serverinfo dict
-        - spaces = list of space-struct dicts
-        General pagestruct fields:
-        - content
-        - id
-        - parentId
-        - space
-        - created
-        - creator
-        - modifier
-        - version
-        - url
-        - contentStatus
-        - permissions
-
-        """
-        logger.debug("FakeConfluenceServer initiated with kwargs (will not be used): %s", kwargs)
-        try:
-            datafp = os.path.join(os.path.dirname(__file__), "testdouble_data", "fakeserver_testdata_large.yml")
-            logger.debug("Attempting to load data from: %s", datafp)
-            self._loaded_data = yaml.load(open(datafp))
-            self._workdata = copy.deepcopy(self._loaded_data)
-        except IOError as e:
-            logger.info(e)
-            self._workdata = dict()
-        self._the_right_token = 'the_right_token'
-        self._is_logged_in = True
-        self.Username = 'fake_testusername'
-        self._connectionok = True
-        #self._serverparams = serverparams
-        #self._username = username
-        #self._password = password
-        #self._logintoken = logintoken
-        #self._autologin = autologin
-        #self._url = url
-
-    def __nonzero__(self):
-        return bool(self._connectionok)
+        FakeConfluenceServer.__init__(self, **kwargs)
+        self._users = {'fakeuser':'fakepassword'}
+        self._tokens = dict()
 
 
-    def _resetworkdata(self, ):
-        del self._workdata
-        self._workdata = copy.deepcopy(self._loaded_data)
 
-    def autologin(self, prompt='auto'):
-        self.login()
-
-    def find_and_test_tokens(self, doset=False):
-        return 'the_right_token'
-
-    def test_token(self, logintoken=None, doset=True):
-        return True
-
-    def clearToken(self, ):
-        self._the_right_token = None
-
-    def login(self, username=None, password=None, logintoken=None, doset=True,
-              prompt=False, retry=3, dopersist=True, msg=None):
+    def login(self, username, password):
         """
         Simulates calling server.login()
         Alternatively, simulates calling the login() method of the confluence2 API
+        From 1.3 onwards, you can supply an empty string as the token to be treated
+        as being the anonymous user.
+        Raises xmlrpclib.Fault on error.
         """
-        self._is_logged_in = True
-        self._connectionok = True
+        if username in self._users and self._users[username] == password:
+            logger.debug('username and password accepted, returning new login token...')
+            self._is_logged_in = True
+            newtoken = 'very_random_token'
+            self._tokens[newtoken] = username
+            return newtoken
+        else:
+            raise Fault(0, "java.lang.Exception: com.atlassian.confluence.rpc.AuthenticationFailedException: \
+Attempt to log in user '%s' failed - incorrect username/password combination." % username)
 
 
-    def logout(self):
+
+    def logout(self, token):
         """
         Returns True if token was present (and now removed), False if token was not present.
         Returns None if no token could be found.
@@ -137,16 +100,15 @@ class FakeConfluenceServer(object):
         self._connectionok = False
 
 
-    def getServerInfo(self):
+    def getServerInfo(self, token):
         """
         returns a list of dicts with space info for spaces that the user can see.
         """
         logger.debug("self._workdata.keys() = %s", self._workdata.keys())
         return self._workdata.get('serverinfo')
-        #return self.RpcServer.confluence2.getServerInfo(token)
 
 
-    def getSpaces(self):
+    def getSpaces(self, token):
         """
         returns a list of dicts with space info for spaces that the user can see.
         """
@@ -156,23 +118,23 @@ class FakeConfluenceServer(object):
     #### USER methods       ########
     ################################
 
-    def getUser(self, username):
+    def getUser(self, token, username):
         """
         returns a dict with name, email, fullname, url and key.
         """
         return None
-    def createUser(self, newuserinfo, newuserpasswd):
+    def createUser(self, token, newuserinfo, newuserpasswd):
         return None
-    def getGroups(self):
+    def getGroups(self, token):
         # returns a list of all groups. Requires admin priviledges.
         return self._workdata.get('usergroups')
 
-    def getGroup(self, group):
+    def getGroup(self, token, group):
         # returns a single group. Requires admin priviledges.
         return None
 
 
-    def getActiveUsers(self, viewAll):
+    def getActiveUsers(self, token, viewAll):
         # returns a list of all active users.
         return None
 
@@ -183,11 +145,11 @@ class FakeConfluenceServer(object):
     #### PAGE-level methods ########
     ################################
 
-    def getPages(self, spaceKey):
+    def getPages(self, token, spaceKey):
         #return filter(lambda page: page['space']==spaceKey, self._workdata.get('pages', dict()).values() )
         return [ page for page in self._workdata.get('pages', dict()).values() if page['space'] == spaceKey ]
 
-    def getPage(self, pageId=None, spaceKey=None, pageTitle=None):
+    def getPage(self, token, pageId=None, spaceKey=None, pageTitle=None):
         """
         Wrapper for xmlrpc getPage method.
         Takes pageId as long (not int but string!).
@@ -206,7 +168,7 @@ class FakeConfluenceServer(object):
         else:
             raise Fault(0, "Must specify either pageId or spaceKey/pageTitle.")
 
-    def removePage(self, pageId):
+    def removePage(self, token, pageId):
         """
         Removes a page, returns None.
         takes pageId as string.
@@ -221,7 +183,7 @@ class FakeConfluenceServer(object):
         except KeyError:
             return False
 
-    def movePage(self, sourcePageId, targetPageId, position='append'):
+    def movePage(self, token, sourcePageId, targetPageId, position='append'):
         """
         moves a page's position in the hierarchy.
         takes pageIds as strings.
@@ -237,7 +199,7 @@ class FakeConfluenceServer(object):
         sourcePageId, targetPageId = str(sourcePageId), str(targetPageId)
         return None
 
-    def getPageHistory(self, pageId):
+    def getPageHistory(self, token, pageId):
         """
         Returns all the PageHistorySummaries
          - useful for looking up the previous versions of a page, and who changed them.
@@ -246,7 +208,7 @@ class FakeConfluenceServer(object):
         pageId = str(pageId)
         return None
 
-    def getAncestors(self, pageId):
+    def getAncestors(self, token, pageId):
         """
         # Returns list of page attachments
         takes pageId as string.
@@ -254,7 +216,7 @@ class FakeConfluenceServer(object):
         pageId = str(pageId)
         return None
 
-    def getChildren(self, pageId):
+    def getChildren(self, token, pageId):
         """
         # Returns all the direct children of this page.
         takes pageId as string.
@@ -263,7 +225,7 @@ class FakeConfluenceServer(object):
         childpages = [page for page in self._workdata.get('pages', dict()).values() if page['parentId'] == pageId]
         return childpages
 
-    def getDescendents(self, pageId):
+    def getDescendents(self, token, pageId):
         pass
 
 
@@ -271,11 +233,11 @@ class FakeConfluenceServer(object):
     #### Comment  methods   ######
     ##############################
 
-    def getComments(self, pageId):
+    def getComments(self, token, pageId):
         pageId = str(pageId)
         return self._workdata.get('comments', dict()).get(pageId)
 
-    def getComment(self, commentId):
+    def getComment(self, token, commentId):
         commentId = str(commentId)
         # alternative, based on http://stackoverflow.com/questions/1658505/searching-within-nested-list-in-python
         return next( (comment for pagecomments in self._workdata.get('comments', dict()).values() for comment in pagecomments if comment['id'] == commentId), None )
@@ -285,7 +247,7 @@ class FakeConfluenceServer(object):
         #        if comment['id'] == commentId:
         #            return comment
 
-    def removeComment(self, commentId):
+    def removeComment(self, token, commentId):
         """
         Based on the docs, I'd say this should return True upon successful removal
         and False otherwise.
@@ -300,7 +262,7 @@ class FakeConfluenceServer(object):
                     #del comment # This didn't work...
         return False
 
-    def addComment(self, comment_struct):
+    def addComment(self, token, comment_struct):
         """
         Should return the added comment struct.
         """
@@ -308,7 +270,7 @@ class FakeConfluenceServer(object):
         self._workdata.setdefault('comments', dict()).setdefault(pid, list()).append(comment_struct)
         return comment_struct
 
-    def editComment(self, comment_struct):
+    def editComment(self, token, comment_struct):
         """
         Should return the updated comment struct.
         """
@@ -326,7 +288,7 @@ class FakeConfluenceServer(object):
     #### Attachment-level methods   ######
     ######################################
 
-    def getAttachments(self, pageId):
+    def getAttachments(self, token, pageId):
         """
         Returns list of page attachments,
         takes pageId as string.
@@ -334,7 +296,7 @@ class FakeConfluenceServer(object):
         pageId = str(pageId)
         return self._workdata.get('attachments', dict()).get(pageId)
 
-    def getAttachment(self, pageId, fileName, versionNumber=0):
+    def getAttachment(self, token, pageId, fileName, versionNumber=0):
         """
         For FakeConfluenceServer, the test data only includes file/attachment info for the most recent versions.
         Thus, the versionNumber argument does not work.
@@ -343,16 +305,16 @@ class FakeConfluenceServer(object):
                         for attachment in pageattachments
                             if attachment['pageId'] == pageId and attachment['fileName'] == fileName), None )
 
-    def getAttachmentData(self, pageId, fileName, versionNumber=0):
+    def getAttachmentData(self, token, pageId, fileName, versionNumber=0):
         pass
 
-    def addAttachment(self, contentId, attachment_struct, attachmentData):
+    def addAttachment(self, token, contentId, attachment_struct, attachmentData):
         pass
 
-    def removeAttachment(self, contentId, fileName):
+    def removeAttachment(self, token, contentId, fileName):
         pass
 
-    def moveAttachment(self, originalContentId, originalName, newContentEntityId, newName):
+    def moveAttachment(self, token, originalContentId, originalName, newContentEntityId, newName):
         pass
 
 
@@ -361,7 +323,7 @@ class FakeConfluenceServer(object):
     ####################################
 
 
-    def storePage(self, page_struct):
+    def storePage(self, token, page_struct):
         """
         Should be re-designed so not to raise KeyError and ValueError,
         but correct xmlrpc errors.
@@ -409,7 +371,7 @@ class FakeConfluenceServer(object):
         return page_struct
 
 
-    def updatePage(self, page_struct, pageUpdateOptions):
+    def updatePage(self, token, page_struct, pageUpdateOptions):
         """
         Not sure how to handle PageUpdateOptions here in FakeConfluenceServer.
         It is probably only relevant if I extend the test data to include historical informations.
@@ -427,11 +389,11 @@ It is likely that the page has been updated on the server since it was last retr
         server_page.update(page_struct)
 
 
-    def convertWikiToStorageFormat(self, wikitext):
+    def convertWikiToStorageFormat(self, token, wikitext):
         pass
 
 
-    def renderContent(self, spaceKey=None, pageId=None, content=None):
+    def renderContent(self, token, spaceKey=None, pageId=None, content=None):
         """
         Returns the HTML rendered content for this page. The behaviour depends on which arguments are passed:
         * If only pageId is passed then the current content of the page will be rendered.
@@ -445,7 +407,7 @@ It is likely that the page has been updated on the server since it was last retr
 
 
 
-    def search(self, query, maxResults, parameters=None):
+    def search(self, token, query, maxResults, parameters=None):
         """
 Parameters for Limiting Search Results
 spaceKey:   search a single space, Values: (any valid space key), Default: Search all spaces
@@ -476,7 +438,7 @@ contributor:The original creator or any editor of Confluence content. For mail, 
         return pages
 
 
-    def storePageContent(self, pageId, spaceKey, newContent, contentformat='xml'):
+    def storePageContent(self, token, pageId, spaceKey, newContent, contentformat='xml'):
         """
         Modifies the content of a Confluence page.
         :param page:

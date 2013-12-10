@@ -14,11 +14,12 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
-# pylint: disable-msg=C0111,W0613
+# pylint: disable-msg=C0301,C0302,R0903,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0111,W0613,W0611
 # messages:
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
 #   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   R0903: Too few public methods.
 #   R0904: Too many public methods (20 max); R0913: Too many arguments;
 #   W0221: Arguments differ from overridden method,
 #   W0402: Use of deprechated module (e.g. string)
@@ -40,28 +41,58 @@ This module provides a fake xmlrpclib  which can be used for testing (and offlin
 """
 
 
-from model_testdoubles.fake_server import FakeConfluenceServer
+from fake_confluence2api import FakeConfluence2Api
+from xmlrpclib import Error, ProtocolError, ResponseError, Fault
 
 
-class FakeServerProxy(object):
+class FakeXmlRpcServerProxy(object):
+    """
+    Inserting a FakeConfluenceServer in self.confluence2 should make any
+    instance of this class behave similarly to a regular ServerProxy
+    targeted towards a confluence site.
+
+    """
     def __init__(self, uri, transport=None, encoding=None, verbose=0,
                  allow_none=0, use_datetime=0):
         self.Uri = uri
-        self.confluence2 = FakeConfluenceServer()
+        self.confluence2 = FakeConfluence2Api()
 
 
 
-ServerProxy = Server = FakeServerProxy
+ServerProxy = Server = FakeServerProxy = FakeXmlRpcServerProxy
 
 
-class Fault(Error):
-    """Indicates an XML-RPC fault package."""
-    def __init__(self, faultCode, faultString, **extra):
-        Error.__init__(self)
-        self.faultCode = faultCode
-        self.faultString = faultString
-    def __repr__(self):
-        return (
-            "<Fault %s: %s>" %
-            (self.faultCode, repr(self.faultString))
-            )
+#class Error(Exception):
+#    """Base class for client errors."""
+#    def __str__(self):
+#        return repr(self)
+#
+#class ProtocolError(Error):
+#    """Indicates an HTTP protocol error."""
+#    def __init__(self, url, errcode, errmsg, headers):
+#        Error.__init__(self)
+#        self.url = url
+#        self.errcode = errcode
+#        self.errmsg = errmsg
+#        self.headers = headers
+#    def __repr__(self):
+#        return (
+#            "<ProtocolError for %s: %s %s>" %
+#            (self.url, self.errcode, self.errmsg)
+#            )
+#
+#class ResponseError(Error):
+#    """Indicates a broken response package."""
+#    pass
+#
+#class Fault(Error):
+#    """Indicates an XML-RPC fault package."""
+#    def __init__(self, faultCode, faultString, **extra):
+#        Error.__init__(self)
+#        self.faultCode = faultCode
+#        self.faultString = faultString
+#    def __repr__(self):
+#        return (
+#            "<Fault %s: %s>" %
+#            (self.faultCode, repr(self.faultString))
+#            )

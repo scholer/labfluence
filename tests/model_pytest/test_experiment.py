@@ -36,9 +36,7 @@ import re
 import pytest
 import logging
 logger = logging.getLogger(__name__)
-#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
-#logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
 
 

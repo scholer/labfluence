@@ -61,6 +61,8 @@ from tkui.labfluence_tkapp import LabfluenceApp
 
 if __name__ == '__main__':
 
+    global confighandler
+
     ###########################
     #### LOGGER SETUP #########
     ###########################
@@ -89,11 +91,6 @@ if __name__ == '__main__':
     # calling logging.basicConfig(), just make sure to set logger.propagate=0,
     # otherwise any records will be emitted both by the custom handler and the root logger.
 
-    # Examples of different log formats:
-    #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
-    logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
-    #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
-    logging.basicConfig(level=logging.INFO, format=logfmt)
 
 
 
@@ -107,16 +104,39 @@ if __name__ == '__main__':
     #parser.add_argument('--nofiltertips', action='store_true', help="Do not use filter-tips. Default is false (= do use filter tips)")
     #parser.add_argument('-r', '--rackfiles', nargs='*', help="Specify which rackfiles to use. If not specified, all files ending with *.rack.csv will be used. This arguments will take all following arguments, and can thus be used as staplemixer -r *.racks")
     parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment.")
+    parser.add_argument('--logtofile', action='store_true', help="Log logging outputs to files.")
     parser.add_argument('--debug', nargs='*', help="Specify modules where you want to display logging.DEBUG messages.")
     parser.add_argument('--pathscheme', help="Specify a particulra pathscheme to use for the confighandler.")
 
     argsns = parser.parse_args() # produces a namespace, not a dict.
 
 
-    if argsns.debug:
-        for mod in argsns.debug:
-            logger.info("Enabling logging debug messages for module: %s", mod)
-            logging.getLogger(mod).setLevel(logging.DEBUG)
+    # Examples of different log formats:
+    #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
+    logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+    #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
+    if argsns.debug and 'all' in argsns.debug:
+        logging.basicConfig(level=logging.DEBUG, format=logfmt)
+    else:
+        logging.basicConfig(level=logging.INFO, format=logfmt)
+        if argsns.debug:
+            for mod in argsns.debug:
+                logger.info("Enabling logging debug messages for module: %s", mod)
+                logging.getLogger(mod).setLevel(logging.DEBUG)
+
+    if argsns.logtofile or True: # always log for now...
+        # based on http://docs.python.org/2/howto/logging-cookbook.html
+        if not os.path.exists('logs'):
+            os.mkdir('logs')
+        if argsns.testing:
+            fh = logging.FileHandler('logs/labfluence_testing.log')
+        else:
+            fh = logging.FileHandler('logs/labfluence_debug.log')
+        fh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        #  logging.root == logging.getLogger('')
+        logging.getLogger('').addHandler(fh)
 
     if argsns.testing:
         # These should be enabled with --debug <modules>.

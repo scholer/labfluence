@@ -23,7 +23,7 @@ import ttk
 import logging
 logger = logging.getLogger(__name__)
 
-from explistboxes import ActiveExpsListbox, LocalExpsListbox, WikiExpsListbox
+from expmanagerlistboxes import ActiveExpsListbox, LocalExpsListbox, WikiExpsListbox
 
 
 # This is generally called through a dialog or something...

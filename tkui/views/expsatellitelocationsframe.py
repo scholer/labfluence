@@ -14,25 +14,28 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=R0901,R0924
+"""
+Unfinished module.
+Intended to be used to display files and directories of satellite locations,
+e.g. mounted ftp shares, etc.
+"""
 
 # python 2.7:
-import Tkinter as tk
 import ttk
-import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
-import htmllib, formatter
 import logging
 logger = logging.getLogger(__name__)
 
 #from subentrieslistbox import SubentriesListbox
-from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
-from shared_ui_utils import HyperLink, ExpFrame
-from rspysol.rstkhtml import tkHTMLParser, tkHTMLWriter
-from expjournalframe import JournalViewer
+#from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
+from shared_ui_utils import ExpFrame
 
 
 class ExpSatellitelocationsFrame(ExpFrame):
     """
+    Intended to be used to display files and directories of satellite locations,
+    e.g. mounted ftp shares, etc.
     """
     #def __init__(self, parent, experiment):
     #    ttk.Frame.__init__(self, parent)

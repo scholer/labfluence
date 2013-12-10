@@ -19,9 +19,7 @@
 import os
 import logging
 logger = logging.getLogger(__name__)
-#logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
-#logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
 
 ##################
@@ -59,7 +57,7 @@ def test_random_string():
 def test_getarandomfile():
     fp = getnearestfile()
     print "Random file in/near current directory: {}".format(fp)
-    assert fp in os.listdir('.')
+    assert os.path.basename(fp) in os.listdir('.')
 
 def test_getmimetype():
     print "Magic_available: {}".format(magic_available)

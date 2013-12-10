@@ -29,13 +29,27 @@ def report():
 
 import logging
 logger = logging.getLogger(__name__)
+
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 #logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
 #logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
-logging.getLogger("model.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
-logging.getLogger("model.experimentmanager").setLevel(logging.DEBUG)
-logging.getLogger("model.experiment").setLevel(logging.DEBUG)
+#logging.getLogger("__main__").setLevel(logging.DEBUG)
+#logging.getLogger(__name__).setLevel(logging.DEBUG)
+#logging.getLogger("model.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
+#logging.getLogger("model.experimentmanager").setLevel(logging.DEBUG)
+#logging.getLogger("model.experiment").setLevel(logging.DEBUG)
+#logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+#logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
+#logging.basicConfig(filename='/tmp/test.log', level=logging.DEBUG, format='%(asctime)s | %(levelname)s | %(funcName)s |%(message)s')
+#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s | %(levelname)s | %(funcName)s |%(message)s')
+#logging.basicConfig(level=logging.INFO, format=logfmt)
+#logging.getLogger("views.expjournalframe").setLevel(logging.DEBUG)
+#logging.getLogger("views.shared_ui_utils").setLevel(logging.DEBUG)
+#logging.getLogger("views.explistboxes").setLevel(logging.DEBUG)
+#logging.getLogger("model.journalassistant").setLevel(logging.DEBUG)
+#logging.getLogger("model.experiment").setLevel(logging.DEBUG)
+#logging.getLogger("model.experiment_manager").setLevel(logging.DEBUG)
+#logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
@@ -50,20 +64,7 @@ FakeConfighandler = ExpConfigHandler
 from model.model_testdoubles.fake_server import FakeConfluenceServer
 FakeConfluenceServer = FakeConfluenceServer
 
-logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
-#logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
 
-#logging.basicConfig(filename='/tmp/test.log', level=logging.DEBUG, format='%(asctime)s | %(levelname)s | %(funcName)s |%(message)s')
-#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s | %(levelname)s | %(funcName)s |%(message)s')
-logging.basicConfig(level=logging.INFO, format=logfmt)
-
-#logging.getLogger("views.expjournalframe").setLevel(logging.DEBUG)
-#logging.getLogger("views.shared_ui_utils").setLevel(logging.DEBUG)
-#logging.getLogger("views.explistboxes").setLevel(logging.DEBUG)
-#logging.getLogger("model.journalassistant").setLevel(logging.DEBUG)
-#logging.getLogger("model.experiment").setLevel(logging.DEBUG)
-#logging.getLogger("model.experiment_manager").setLevel(logging.DEBUG)
-#logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 @pytest.fixture()
 def tempfiledir():
@@ -292,6 +293,8 @@ def test_mergeCurrentWikiExperiments(em_with_fake_ch_and_patched_server, monkeyp
         ]
         return summaries
     monkeypatch.setattr(server, 'getChildren', test_pagesummaries)
+    em._localexpdirsparsed = True # Act like the local dirs have been parsed.
+    # If this is not set, then (as a precaution) em.mergeCurrentWikiExperiments will reset autocreatelocaldirs to False.
     em.mergeCurrentWikiExperiments(autocreatelocaldirs=True) # Defaults to app_autocreatelocalexpdirsfromwikiexps or False
     assert em.ExperimentsById['RS004'].PageId == '04'
     print "\n\ntempfiledir: %s" % tempfiledir

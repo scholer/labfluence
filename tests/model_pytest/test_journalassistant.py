@@ -24,8 +24,6 @@ import os
 import tempfile
 import logging
 logger = logging.getLogger(__name__)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
-logging.getLogger("__main__").setLevel(logging.DEBUG)
 
 
 
@@ -59,6 +57,31 @@ from model.model_testdoubles.fake_server import FakeConfluenceServer
 ## a fixture as a required argument. pytest will do the code inspection and see what needs to be filled in,
 ## searching for functions marked with @pytest.fixture
 
+debug_modules = ('model.journalassistant', 'model.experiment')
+logger_states = dict()
+
+
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
+#def setup_module(module):
+#    """ setup any state specific to the execution of the given module."""
+#    logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s(): %(message)s\n"
+#    logging.basicConfig(level=logging.INFO, format=logfmt)
+#    logging.getLogger(__name__).setLevel(logging.DEBUG)
+#    logging.getLogger("__main__").setLevel(logging.DEBUG)
+#    for module in debug_modules:
+#        logger_states[module] = logging.getLogger(module).level
+#        logging.getLogger(module).setLevel(logging.DEBUG)
+#
+#def teardown_module(module):
+#    """
+#    teardown any state that was previously setup with a setup_module method.
+#    """
+#    for module in debug_modules:
+#        #logger_states[module] = logging.getLogger(module).level
+#        logging.getLogger(module).setLevel(logger_states[module])
+
+
+
 @pytest.fixture()
 def tempfiledir():
     newpath = tempfile.mkdtemp() # Returns path to new temp directory, e.g. /tmp/tmpQ938Rj
@@ -81,19 +104,21 @@ def fakeconfighandler(monkeypatch, tempfiledir):
     return ch
 
 @pytest.fixture
-def experiment_with_ch(monkeypatch, fakeconfighandler):
+def experiment_with_ch(fakeconfighandler):
     ch = fakeconfighandler
     subdir = ch.get('local_exp_subDir')
     foldername = 'RS001 Pytest test experiment'
     localdir = os.path.join(subdir, foldername)
-    os.mkdir(localdir)
+    if not os.path.isdir(localdir):
+        logger.info("Creating dir (os.makedirs): %s", localdir)
+        os.makedirs(localdir)
     e = Experiment(confighandler=ch, localdir=localdir)
     return e
 
 @pytest.fixture
 def ja_for_exp_with_subentry(experiment_with_ch):
     e = experiment_with_ch
-    e.addNewSubentry(makefolder=True)
+    e.addNewSubentry(subentry_titledesc="First subentry in this experiment", makefolder=True)
     return e.JournalAssistant
 
 
@@ -103,22 +128,70 @@ def ja_for_exp_with_subentry(experiment_with_ch):
 ################################################################
 
 @pytest.fixture
-def ja_mocked():
-    pass
+def ja_mocked(monkeypatch, experiment_with_ch):
+    """
+    A JournalAssistant where, instead of creating a tempdir,
+    all non-SUT methods are simply mocked.
+    """
+    e = experiment_with_ch
+    e.addNewSubentry(subentry_titledesc="First subentry in this experiment", makefolder=False)
+    ja = e.JournalAssistant
+    ja.__mock_writetofile_cache = dict()
+    def mock_writetofile(path, entry_text):
+        cache = ja.__mock_writetofile_cache.setdefault(path, "")
+        ja.__mock_writetofile_cache[path] = cache + u"\n"+entry_text
+        logger.debug("ja.__mock_writetofile_cache.keys(): %s", ja.__mock_writetofile_cache.keys())
+        return True
+    monkeypatch.setattr(ja, '_writetofile', mock_writetofile)
+    def mock_readfromfile(path):
+        cache = ja.__mock_writetofile_cache.get(path)
+        if cache is None:
+            logger.info("mock_readfromfile, path not found in cache; cache is: %s", ja.__mock_writetofile_cache)
+        else:
+            logger.debug("mock_readfromfile returning cache '%s' for path %s", cache, path)
+        return cache
+    monkeypatch.setattr(ja, '_readfromfile', mock_readfromfile)
+    return ja
 
 
+#@pytest.mark.skipif(True, reason="Not ready yet")
+def test_addEntry_with_mock(ja_mocked):
+    ja = ja_mocked
+    str1 = "Buffer: 10/100 mM HEPES/KCl pH with 0.5 mM biotin."
+    ja.addEntry(str1)
+    ja.addEntry("Adding 100 ul buffer to RS102b and running through amicon 3k filter")
 
 
-def test_addEntry():
-    ja.addEntry("Buffer: 10/100 mM HEPES/KCl pH with 0.5 mM biotin."+random_string(5))
-    ja.addEntry("""Adding 100 ul buffer to RS102b and running through amicon 3k filter. I dont dilute to 400 ul because I want to be able to trace unreacted DBCO-ddUTP.
-Washing retentate 4 more times with 400 ul buffer, collecting filt2-3 and filt4-6.""")
-    ja.addEntry("""Doing UVvis quant on nanodrop (if it is still running during the chemists move).
-- EDIT: Nanodrop is down due to move, so no quant. I will assume we have 75% yield and recovery during synthesis, so 1.5 nmol in 30 ul giving a concentration of 1500pmol/30ul = 50 uM. (?)""")
+#@pytest.mark.skipif(True, reason="Not ready yet")
+def test_getCacheContent(monkeypatch, ja_mocked):
+    ja = ja_mocked
+    str1 = "Buffer: 10/100 mM HEPES/KCl pH with 0.5 mM biotin."
+    ja.addEntry(str1)
+    cache = ja.getCacheContent()
+    assert len(cache) > len(str1)
 
-def test_getCacheContent():
-    print ja.getCacheContent()
 
-def test_flush():
-    ja.addEntry("test entry for flush test"+random_string(10))
+@pytest.mark.skipif(True, reason="Not ready yet")
+def test_addEntry_with_tempdir(ja_for_exp_with_subentry):
+    ja = ja_mocked
+    str1 = "Buffer: 10/100 mM HEPES/KCl pH with 0.5 mM biotin."
+    ja.addEntry(str1)
+    ja.addEntry("Adding 100 ul buffer to RS102b and running through amicon 3k filter")
+
+
+@pytest.mark.skipif(True, reason="Not ready yet")
+def test_flush(monkeypatch, ja_for_exp_with_subentry):
+    """
+    It would be very nice if flush() was made more testable, e.g. by refactoring
+    the file-handling stuff to independent, encapsulated/mockable methods.
+    Of course, this also makes flush() it self a bit more fragile...
+    """
+    ja = ja_for_exp_with_subentry
+    def insertJournalContentOnWikiPage_mock(self, journal_content, subentryprops):
+        res = "<the page's updated xhtml>"
+        new_xhtml = "<p>"+"<br/>".join(line.strip() for line in journal_content.split('\n') if line.strip())+"</p>"
+        return res, new_xhtml
+    monkeypatch.setattr(ja, 'insertJournalContentOnWikiPage', insertJournalContentOnWikiPage_mock)
+    str1 = "Buffer: 10/100 mM HEPES/KCl pH with 0.5 mM biotin."
+    ja.addEntry(str1)
     ja.flush()
