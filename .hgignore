@@ -8,3 +8,4 @@ third-party/*
 projectfiles/*
 */test_data/test_filestructure*
 *.yml
+*.log

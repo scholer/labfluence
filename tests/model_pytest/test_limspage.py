@@ -19,10 +19,9 @@
 Testing limspage/LimsPage module/class.
 """
 
-from model.limspage import LimsPage
+from model.limspage import WikiLimsPage
 
 
 
-def
-
-
+def test_addEntry():
+    pass

@@ -1,0 +1,24 @@
+
+[hooks]
+# Note: When I invoke these, it appears the cwd is automatically
+# changed to the repo root dir, which is also the dir from where
+# pytest should be invoked. Thus, these hooks work nicely:
+# 1. Run pytest after updating the working directory
+# (It is good practice to ensure that tests succeed before starting to make changes)
+update.pytest = python -m pytest
+# 2. Run pytest before committing (all tests should succeed before committing).
+precommit.pytest = python -m pytest
+# Note: python modules can also be invoked using:
+# precommit.hookname = python:module.submodule.callable
+# precommit.hookname = python:/path/to/module.py:callable
+# For pytest from python, http://pytest.org/latest/usage.html#pytest-main-usage
+# precommit.pytest = python:pytest:main # Nope, doesn't work.
+
+# Important notice for using python:modules invokation
+# The modules will be invoked using the python process invoked for hg.
+# If you have installed hg on windows with TortoiseHg, the 
+# python interpreter is a minimal install located in the library.zip
+# file in the TortoiseHg installation directory.
+# This will, of course, not include extra python modules,
+# in particular, it will not include pytest.
+
