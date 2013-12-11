@@ -71,7 +71,7 @@ def test_schemes_test1_default1():
     assert pf.getScheme('test1') == testscheme
 
     defaultscheme = dict(   sys=os.path.join(*'setup/configs/default/labfluence_sys.yml'.split('/')),
-                            user=os.path.join(*os.path.expanduser('~/.Labfluence/labfluence_user.yml').split('/')) )
+                            user=os.path.realpath(os.path.expanduser('~/.Labfluence/labfluence_user.yml')) )
 
     assert pf.getScheme() == defaultscheme
     assert pf.getScheme('default1') == defaultscheme

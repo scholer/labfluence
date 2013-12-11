@@ -22,3 +22,5 @@ precommit.pytest = python -m pytest
 # This will, of course, not include extra python modules,
 # in particular, it will not include pytest.
 
+# Regarding having update.pytest hook:
+# It seems that failed  does not 
