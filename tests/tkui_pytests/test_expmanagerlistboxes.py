@@ -50,12 +50,18 @@ def ch_with_server_and_manager():
 
 @pytest.fixture
 def tkroot():
-    root = tk.Tk()
+    try:
+        root = tk.Tk()
+    except TclError:
+        logger.warning("Tk could not initialize, probably because there is no display available: %s", e)
+        return
     return root
 
 
 
 def test_ExpManagerListBox(ch_with_server_and_manager, tkroot):
+    if tkroot is None:
+         logger.info("tkroot is None, aborting...")
     ch = ch_with_server_and_manager
     lb = ExpManagerListBox(tkroot, ch)
     assert lb.update_widget() is None
