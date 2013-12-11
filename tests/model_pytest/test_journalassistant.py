@@ -82,7 +82,7 @@ logger_states = dict()
 
 
 
-@pytest.fixture()
+@pytest.fixture
 def tempfiledir():
     newpath = tempfile.mkdtemp() # Returns path to new temp directory, e.g. /tmp/tmpQ938Rj
     return newpath

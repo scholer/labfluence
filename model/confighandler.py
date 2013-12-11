@@ -122,7 +122,7 @@ class ConfigHandler(object):
         config_define_new = {<cfgtype> : <path>}
         where path if relative, is loaded relative to the current config path.
         """
-        logger.info("ConfigPaths : %s", self.ConfigPaths)
+        logger.debug("ConfigPaths : %s", self.ConfigPaths)
 
     def getSingleton(self, key):
         """
@@ -601,7 +601,7 @@ class ExpConfigHandler(ConfigHandler):
 
         else:
             self.HierarchicalConfigHandler = None
-        logger.info("ConfigPaths : %s", self.ConfigPaths)
+        logger.debug("ConfigPaths : %s", self.ConfigPaths)
 
 
     def getHierarchicalEntry(self, key, path, traverseup=True):

@@ -89,7 +89,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
 
     """
 
-    def __init__(self, pageId, server, confighandler=None, pagestruct=None):
+    def __init__(self, pageId, server=None, confighandler=None, pagestruct=None):
         """
         Experiment and localdir currently not implemented.
         These are mostly intended to provide local-dir-aware config items, e.g. string formats and regexs.
