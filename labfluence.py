@@ -105,7 +105,8 @@ if __name__ == '__main__':
     #parser.add_argument('-r', '--rackfiles', nargs='*', help="Specify which rackfiles to use. If not specified, all files ending with *.rack.csv will be used. This arguments will take all following arguments, and can thus be used as staplemixer -r *.racks")
     parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment.")
     parser.add_argument('--logtofile', action='store_true', help="Log logging outputs to files.")
-    parser.add_argument('--debug', nargs='*', help="Specify modules where you want to display logging.DEBUG messages.")
+    parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
+                        help="Specify modules where you want to display logging.DEBUG messages.")
     parser.add_argument('--pathscheme', help="Specify a particulra pathscheme to use for the confighandler.")
 
     argsns = parser.parse_args() # produces a namespace, not a dict.
@@ -115,14 +116,22 @@ if __name__ == '__main__':
     #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
     logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
     #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
-    if argsns.debug and 'all' in argsns.debug:
-        logging.basicConfig(level=logging.DEBUG, format=logfmt)
-    else:
+    if argsns.debug is None:
+        #and 'all' in argsns.debug:
         logging.basicConfig(level=logging.INFO, format=logfmt)
-        if argsns.debug:
-            for mod in argsns.debug:
-                logger.info("Enabling logging debug messages for module: %s", mod)
-                logging.getLogger(mod).setLevel(logging.DEBUG)
+    # argsns.debug is a list (possibly empty)
+    elif argsns.debug:
+    # argsns.debug is a non-empty list
+        logging.basicConfig(level=logging.INFO, format=logfmt)
+        for mod in argsns.debug:
+            logger.info("Enabling logging debug messages for module: %s", mod)
+            logging.getLogger(mod).setLevel(logging.DEBUG)
+    else:
+        # argsns.debug is an empty list
+        logging.basicConfig(level=logging.DEBUG, format=logfmt)
+    logging.getLogger("__main__").setLevel(logging.DEBUG)
+
+
 
     if argsns.logtofile or True: # always log for now...
         # based on http://docs.python.org/2/howto/logging-cookbook.html
