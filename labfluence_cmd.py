@@ -170,7 +170,7 @@ if __name__ == '__main__':
         print xhtmlcontent
 
     if argsns.getpagestruct:
-        pageid = str(argsns.getpagexhtml)
+        pageid = str(argsns.getpagestruct)
         assert pageid
         pagestruct = getPageStruct(pageid)
         print pagestruct
