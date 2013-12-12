@@ -5,7 +5,8 @@
 # pytest should be invoked. Thus, these hooks work nicely:
 # 1. Run pytest after updating the working directory
 # (It is good practice to ensure that tests succeed before starting to make changes)
-update.pytest = python -m pytest
+# Probably run as post-update (rather than e.g. update)
+post-update.pytest = python -m pytest
 # 2. Run pytest before committing (all tests should succeed before committing).
 precommit.pytest = python -m pytest
 # Note: python modules can also be invoked using:
