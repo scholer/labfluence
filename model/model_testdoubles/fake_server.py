@@ -118,7 +118,7 @@ class FakeConfluenceServer(object):
     def clearToken(self, ):
         self._the_right_token = None
 
-    def login(self, username=None, password=None, logintoken=None, doset=True,
+    def login(self, username=None, password=None, doset=True,
               prompt=False, retry=3, dopersist=True, msg=None):
         """
         Simulates calling server.login()
