@@ -25,3 +25,9 @@ precommit.pytest = python -m pytest
 
 # Regarding having update.pytest hook:
 # It seems that failed  does not 
+
+# For more info on hg hooks:
+# http://www.selenic.com/mercurial/hgrc.5.html#hooks
+# http://hgbook.red-bean.com/read/handling-repository-events-with-hooks.html
+# http://mercurial.selenic.com/wiki/Hook
+# http://mercurial.selenic.com/wiki/HookExamples - a bit old and somewhat obsolete, but contains a few informative discussions.
