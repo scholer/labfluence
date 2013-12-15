@@ -81,7 +81,7 @@ class LabfluenceApp(object):
     def __init__(self, confighandler=None):
         #self.ActiveExperiments = list() # Probably better to use a property attribute
         #self.RecentExperiments = list()
-        print "\n\n\n>>>>>>>>>>>>>>  Starting init of LabfluenceGUI  >>>>>>>>>>>>>>>>\n"
+        logger.info( "\n\n\n>>>>>>>>>>>>>>  Starting init of LabfluenceGUI  >>>>>>>>>>>>>>>>\n" )
 
         self.Confighandler = confighandler or ExpConfigHandler(pathscheme='default1')
         #self.Confighandler.Singletons.setdefault('app', self)
@@ -93,10 +93,10 @@ class LabfluenceApp(object):
         #self.init_ui()
         self.tkroot = LabfluenceTkRoot(confighandler)
         logger.debug("self.tkroot initialized")
-        self.init_bindings()
-        self.init_fonts()
         self.Controllers = dict()
         self.ExpNotebooks = dict()
+        self.init_bindings()
+        self.init_fonts()
         self.connect_controllers()
         #persisted_windowstate = self.Confighandler.get('tk_window_state', None)
         #if persisted_windowstate == 'zoomed':

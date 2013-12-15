@@ -15,7 +15,9 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
+from __future__ import print_function
 import os
+import sys
 import random
 import string
 import logging
@@ -157,6 +159,28 @@ def getnearestfile(startpath=None):
                 logger.debug("'{}' is not a file...".format(f))
         return walkup(parpath)
     return walkup(startpath)
+
+
+def login_prompt(username=None, msg="", options=None ):
+    """
+    The third keyword argument, options, can be modified in-place by the login handler,
+    changing e.g. persistance options ("save in memory").
+    """
+    import getpass
+    if options is None:
+        options = dict()
+    if username is None:
+        username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
+    print("\n{}\nPlease enter credentials:".format(msg), file=sys.stderr)
+    username = raw_input('Username (enter={}):'.format(username)) or username # use 'username' if input is empty.
+    password = getpass.getpass()
+    logger.debug("login_prompt returning username '%s' and password of length {}".format(username, "0" if len(password) < 1 else ">0"))
+    return username, password
+
+def display_message(message):
+    """Simply prints a message to the user, making sure to properly format it."""
+    print( "\n".join("\n\n", "-"*80, message, "-"*80, "\n\n") )
+
 
 
 

@@ -18,12 +18,13 @@
 Server module. Provides classes to access e.g. a Confluence server through xmlrpc.
 """
 
-
+from __future__ import print_function
 import xmlrpclib
 import socket
 #import os.path
 import itertools
 import string
+import sys
 from Crypto.Cipher import AES
 #import Crypto.Random
 from Crypto.Random import random as crypt_random
@@ -33,30 +34,11 @@ logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
 #from confighandler import ConfigHandler, ExpConfigHandler
+from utils import login_prompt, display_message
 
 # Decorators:
-from decorators.cache_decorator import cached_property
+#from decorators.cache_decorator import cached_property
 
-
-def login_prompt(username=None, msg="", options=None ):
-    """
-    The third keyword argument, options, can be modified in-place by the login handler,
-    changing e.g. persistance options ("save in memory").
-    """
-    import getpass
-    if options is None:
-        options = dict()
-    if username is None:
-        username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
-    print "\n{}\nPlease enter credentials:".format(msg)
-    username = raw_input('Username (enter={}):'.format(username)) or username # use 'username' if input is empty.
-    password = getpass.getpass()
-    logger.debug("login_prompt returning username, password: {}, {}".format(username, password))
-    return username, password
-
-def display_message(message):
-    """Simply prints a message to the user, making sure to properly format it."""
-    print "\n".join("\n\n", "-"*80, message, "-"*80, "\n\n")
 
 
 
@@ -93,12 +75,12 @@ class AbstractServer(object):
         self._logintoken = logintoken
         self._autologin = autologin
         self._url = url
+        self.Confighandler = confighandler
         self._loginpromptoptions = None
         self._defaultpromptoptions = dict(save_username_inmemory=True, save_password_inmemory=True)
         self._raiseerrors = None # For temporary overwrite.
         #self._raisetimeouterrors = True # Edit: Hardcoded not here but in the attribute getter.
         self._connectionok = None # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
-        self.Confighandler = confighandler
        ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
         ## It is nice, but not sure why this was so important, though...
         if not hasattr(self, 'CONFIG_FORMAT'):
@@ -107,26 +89,39 @@ class AbstractServer(object):
     # Properties
     @property
     def Username(self):
+        "Property: Returns the username to use (if available)."
         return  self._username or \
                 self.Confighandler.get(self.CONFIG_FORMAT.format('username'), None) or \
                 self.Confighandler.get('username', None)
     @property
     def Password(self):
+        "Property: Returns the password to use (if available)."
         return  self._password or \
                 self.Confighandler.get(self.CONFIG_FORMAT.format('password'), None) or \
                 self.Confighandler.get('password', None)
     @property
     def Logintoken(self):
+        "Property: Returns the login token to use (if available)."
         return self._logintoken
     @Logintoken.setter
     def Logintoken(self, newtoken):
+        "Property setter: Sets the login token to use."
         # Possibly include som auto-persisting, provided it has been requested in config or at runtime?
         self._logintoken = newtoken
     @property
     def Loginpromptoptions(self):
+        """
+        Property: properties specifying the login prompt behaviour,
+        including whether to set username and password in memory.
+        (save_username_inmemory, save_password_inmemory).
+        Can be set either as self._loginpromptoptions
+        or using the confighandlers CONFIG_FORMAT loginpromptoptions
+        or app_loginpromptoptions config key,
+        defaulting to self._defaultpromptoptions.
+        """
         return  self._loginpromptoptions or \
                 self.Confighandler.get(self.CONFIG_FORMAT.format('loginpromptoptions'), None) or \
-                self.Confighandler.get('loginpromptoptions', self._defaultpromptoptions)
+                self.Confighandler.get('app_loginpromptoptions', self._defaultpromptoptions)
     @property
     def AutologinEnabled(self, ):
         serverparams = self.Serverparams
@@ -333,18 +328,14 @@ class AbstractServer(object):
         """
         Get encrypted token from the confighandler and decrypt it.
         """
+        # Obtain encrypted token from sources (currently only confighandler)
         if token_crypt is None:
             token_crypt = self.Confighandler.get('wiki_logintoken_crypt')
-        if token_crypt is None:
-            logger.warning("\nAbstractServer.getToken() :: ERROR, token_crypt is None; aborting...")
+        if not token_crypt:
+            logger.warning("\nAbstractServer.getToken() :: ERROR, token_crypt is '%s'; aborting...", token_crypt)
             return
         crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', crypt_key_default)
-        if crypt_key == crypt_key_default:
-            logger.info("Using default crypt_key for encryption. You should manually edit the labfluence system config and set this to something else.")
-            new_crypt_key = "".join(crypt_random.sample(string.ascii_letters+string.digits, 16))
-            self.Confighandler.setkey('crypt_key', new_crypt_key, 'system')
-            logger.info("System encryption key set to new random string of length %s", len(new_crypt_key))
         crypt_iv = self.Confighandler.get('crypt_iv', None)
         # The IV is set along with the encrypted token; if the IV is not present, the encrypted token cannot be decrypted.
         # Using an initiation vector different from the one used to encrypt the message will produce scamble.
@@ -366,17 +357,22 @@ class AbstractServer(object):
             if char not in char_space:
                 logger.error("getToken() :: ERROR, invalid token decrypted, token is '{}'".format(token))
                 return None
-        logger.debug("getToken returns token: {}".format(token))
+        logger.debug("getToken returns token of type %s and length %s", type(token), len(token))
         return token
 
-    def saveToken(self, token, persist=True, username=None):
+    def encryptToken(self, token):
         """
-        When saving token, it is probably only sane also to be able to persist the username.
-        From what I can tell, it is not easy to retrieve a username based on a token...
-        Note that AES encryption of tokens are different from e.g. saving a password or password hash.
-        If saving a password or password hash, you should use a slow encrypting or hashing algorithm,
-        e.g. bcrypt or similar for making password hashes.
+        Encrypts token, returning:
+            (token_crypt, crypt_iv, crypt_key)
+        where:
+            token_crypt : encrypted token
+            crypt_iv    : the initialization vector used for encryption
+            crypt_key   : the encryption key used for encryption
         """
+        if token is None:
+            logger.error("\nAbstractServer.saveToken() :: ERROR, token is None; aborting...")
+            return
+        crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', '6xytURQ4JITKMhgN') # crypt key should generally be stored in the system config; different from the one where crypt_iv is stored...
         # Note: I'm pretty sure the initiation vector needs to be randomly generated on each encryption,
         # but not sure how to do this in practice... should the IV be saved for later decryption?
@@ -384,20 +380,42 @@ class AbstractServer(object):
         # crypt_iv = self.Confighandler.get('crypt_key', 'Ol6beVHM91ZBh7XP')
         # ok, edit: I'm generating a random IV on every new save; this can be "publically" readable...
         # But, it probably does not make a difference either way; the crypt_key is readable anyways...
+        if crypt_key == crypt_key_default:
+            new_crypt_key = "".join(crypt_random.sample(string.ascii_letters+string.digits, 16))
+            if 'system' in self.Confighandler.Configs:
+                self.Confighandler.setkey('crypt_key', new_crypt_key, 'system', autosave=True)
+                crypt_key = new_crypt_key
+                logger.info("System encryption key set to new random string of length %s", len(new_crypt_key))
+            else:
+                logger.info("Using default crypt_key for encryption. You should create a 'system' config file, \
+                            optionally using labfluence --createconfig system.")
+        else:
+            logger.debug("Using crypt_key from confighandler...")
         crypt_iv = "".join(crypt_random.sample(string.ascii_letters+string.digits, 16))
         # Not exactly 128-bit worth of bytes since ascii_letters+digits is only 62 in length, but should be ok still; I want to make sure it is realiably persistable with yaml.
         cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
-        if token is None:
-            logger.error("\nAbstractServer.saveToken() :: ERROR, token is None; aborting...")
-            return
         token_crypt = cryptor.encrypt(token)
-        if persist:
-            cfgtypes = set()
-            cfgtypes.add(self.Confighandler.setkey('wiki_logintoken_crypt', token_crypt, 'user'))
-            cfgtypes.add(self.Confighandler.setkey('crypt_iv', crypt_iv, 'user'))
-            if username:
-                cfgtypes.add(self.Confighandler.setkey('wiki_username', username, 'user'))
-            self.Confighandler.saveConfigs(cfgtypes)
+        logger.debug("Token successfully encrypted (using newly generated crypt iv)")
+        return (token_crypt, crypt_iv, crypt_key)
+
+
+    def saveToken(self, token, username=None):
+        """
+        When saving token, it is probably only sane also to be able to persist the username.
+        From what I can tell, it is not easy to retrieve a username based on a token...
+        Note that AES encryption of tokens are different from e.g. saving a password or password hash.
+        If saving a password or password hash, you should use a slow encrypting or hashing algorithm,
+        e.g. bcrypt or similar for making password hashes.
+        """
+        token_crypt, crypt_iv, crypt_key = self.encryptToken(token)
+        # cfgtype only specifies the "recommended config" to store the config item in.
+        # If a key is already set in another config, that is the config that will be used.
+        cfgtypes = set()
+        if username:
+            cfgtypes.add(self.Confighandler.setkey('wiki_username', username, 'user', autosave=False))
+        cfgtypes.add(self.Confighandler.setkey('wiki_logintoken_crypt', token_crypt, 'user', autosave=False))
+        cfgtypes.add(self.Confighandler.setkey('crypt_iv', crypt_iv, 'user', autosave=False))
+        self.Confighandler.saveConfigs(cfgtypes)
         return (token_crypt, crypt_iv, crypt_key)
 
     def clearToken(self):
@@ -532,7 +550,7 @@ to prevent the login token from expiring.
         """
         # 1) Check the config...:
         token = self.getToken() # returns unencrypted token stored in config (encrypted, hopefully)
-        if token and self.test_token(token, doset=True):
+        if token and self.test_token(token, doset=doset):
             return token
         else:
             logger.info("find_and_test_tokens() :: No valid token found in config...")
@@ -557,7 +575,9 @@ to prevent the login token from expiring.
             return None
         try:
             serverinfo = self._testConnection(logintoken) # _testConnection() and _login() does NOT use the execute method.
-            logger.debug("Successfully obtained serverinfo from server via _testConnection using token of type %s", logintoken)
+            logger.debug("Successfully obtained serverinfo from server (version %s.%s.%s, build %s) via _testConnection using token of type %s",
+                         serverinfo['majorVersion'], serverinfo['minorVersion'], serverinfo['patchLevel'], serverinfo['buildId'],
+                         logintoken)
             if doset:
                 self.Logintoken = logintoken
                 self.setok()
@@ -574,6 +594,7 @@ to prevent the login token from expiring.
         """
         promptopts = self.Loginpromptoptions
         if self.UI and hasattr(self.UI, 'login_prompt'):
+            logger.debug("Using login_prompt method registrered with self.UI.")
             promptfun = self.UI.login_prompt
         else: # use command line login prompt, defined above.
             promptfun = login_prompt
@@ -581,7 +602,7 @@ to prevent the login token from expiring.
         return username, password
 
 
-    def login(self, username=None, password=None, logintoken=None, doset=True,
+    def login(self, username=None, password=None, doset=True,
               prompt=False, retry=3, dopersist=True, msg=None):
         """
         Attempt server login.
@@ -623,9 +644,11 @@ to prevent the login token from expiring.
             token = self._login(username, password)
             logger.debug("Token of type %s obtained from server.", type(token))
             if doset:
+                logger.debug("Saving login token as server attribute (in memory).")
                 self.Logintoken = token
                 self.setok()
             if dopersist:
+                logger.debug("Persisting login token to config file.")
                 self.saveToken(token, username=username)
             if prompt:
                 if self.Loginpromptoptions.get('save_username_inmemory', True):

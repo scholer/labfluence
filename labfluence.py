@@ -158,7 +158,7 @@ if __name__ == '__main__':
         #logging.getLogger("model.experiment_manager").setLevel(logging.DEBUG)
         #logging.getLogger("model.confighandler").setLevel(logging.DEBUG)
         #logging.getLogger("model.confighandler").setLevel(logging.DEBUG)
-        #logging.getLogger("model.server").setLevel(logging.DEBUG)
+        logging.getLogger("model.server").setLevel(logging.DEBUG)
         logging.getLogger("model.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
         logging.getLogger("model.model_testdoubles.fake_server").setLevel(logging.DEBUG)
         logging.getLogger("tkui.labfluence_tkapp").setLevel(logging.DEBUG)
@@ -175,21 +175,30 @@ if __name__ == '__main__':
         confighandler.ConfigPaths['exp'] = os.path.join('tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '.labfluence.yml')
         server = FakeConfluenceServer(confighandler=confighandler)
 
+
     else:
+        logger.debug("Initiating real confighandler and server...")
         pathscheme = argsns.pathscheme or 'default1'
         confighandler = ExpConfigHandler(pathscheme='default1')
         try:
+            logger.debug("Confighandler instantiated, Initiating server...")
             server = ConfluenceXmlRpcServer(autologin=True, confighandler=confighandler)
         except socket.error:
             print "This should not happen; autologin is shielded by try-clause."
             server = None
     confighandler.Singletons['server'] = server
+    logger.debug("Server instantiated, initiating ExperimentManager...")
     manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ))
     confighandler.Singletons['experimentmanager'] = manager
-
-
+    logger.debug("ExperimentManager instantiated, starting LabfluenceApp...")
 
     app = LabfluenceApp(confighandler=confighandler)
+    logger.debug("LabfluenceApp instantiated.")
+
+    if argsns.testing:
+        #server.promptForUserPass()
+        server.promptForUserPass(username='prompt-test-user', msg="Test message")
+
 
     # How to maximize / set window size:
     # http://stackoverflow.com/questions/15981000/tkinter-python-maximize-window
@@ -220,8 +229,9 @@ if __name__ == '__main__':
     else:
         print "\n\nNo active experiments? -- {}".format(exps)
 
+    logger.debug("Invoking app.start()")
     app.start()
-    # uh... after initiating start_loop, it will not go further until tkroot is destroyed.
+    # After initiating start_loop, it will not go further until tkroot is destroyed.
 
 
 """

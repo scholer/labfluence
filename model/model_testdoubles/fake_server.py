@@ -49,6 +49,9 @@ from xmlrpclib import Fault
 logger = logging.getLogger(__name__)
 
 
+from model.utils import login_prompt, display_message
+
+
 
 class FakeConfluenceServer(object):
     """
@@ -56,7 +59,7 @@ class FakeConfluenceServer(object):
     Can also work as a mimic for the persistance layer of a faked confluence RPC API.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, confighandler=None, **kwargs):
         """
         _workdata_copy dict has items:
         - pages[pageId] = page-struct dict
@@ -78,6 +81,7 @@ class FakeConfluenceServer(object):
         - permissions
 
         """
+        self.Confighandler = confighandler
         logger.debug("FakeConfluenceServer initiated with kwargs (will not be used): %s", kwargs)
         try:
             datafp = os.path.join(os.path.dirname(__file__), "testdouble_data", "fakeserver_testdata_large.yml")
@@ -97,6 +101,11 @@ class FakeConfluenceServer(object):
         #self._logintoken = logintoken
         #self._autologin = autologin
         #self._url = url
+
+    @property
+    def UI(self, ):
+        if self.Confighandler:
+            return self.Confighandler.getSingleton("ui")
 
     def __nonzero__(self):
         return bool(self._connectionok)
@@ -118,7 +127,7 @@ class FakeConfluenceServer(object):
     def clearToken(self, ):
         self._the_right_token = None
 
-    def login(self, username=None, password=None, logintoken=None, doset=True,
+    def login(self, username=None, password=None, doset=True,
               prompt=False, retry=3, dopersist=True, msg=None):
         """
         Simulates calling server.login()
@@ -127,6 +136,20 @@ class FakeConfluenceServer(object):
         self._is_logged_in = True
         self._connectionok = True
 
+    def promptForUserPass(self, username=None, msg=None):
+        """
+        Prompts for user credentials, using either the registrered UI,
+        if it has an attribute login_prompt, or else using standard
+        terminal prompt.
+        """
+        promptopts = None
+        if self.UI and hasattr(self.UI, 'login_prompt'):
+            logger.debug("Using login_prompt method registrered with self.UI.")
+            promptfun = self.UI.login_prompt
+        else: # use command line login prompt, defined above.
+            promptfun = login_prompt
+        username, password = promptfun(username=username, msg=msg, options=promptopts)
+        return username, password
 
     def logout(self):
         """

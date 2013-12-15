@@ -89,6 +89,11 @@ class ConfigHandler(object):
         This does not require any hard-coding/changes in the source code, but might add some security
         concerns. Therefore, using this requries ch.AllowNewConfigDefinitions=True.
         This is used for e.g. defining 'templates' cfgtype.
+
+        Defining a new config can be done in a yaml as:
+        config_define_new = {<cfgtype> : <path>}
+        where path if relative, is loaded relative to the current config path.
+
     """
 
     def __init__(self, systemconfigfn=None, userconfigfn=None):
@@ -106,23 +111,31 @@ class ConfigHandler(object):
         self.Configs['system'] = dict()
         self.Configs['user'] = dict()
         self.Singletons = dict() # dict for singleton objects; makes it easy to share objects across application objects that already have access to the confighandler singleton.
-        self.EntryChangeCallbacks = dict()
-        self.ChangedEntriesForCallbacks = set()
-        self.DefaultConfig = 'user'
+        self.DefaultConfig = 'user' # which config to save new config items to.
         self.AutoreadNewFnCache = dict() #list()
-        self.ReadFiles = set()
-        self.ReadConfigTypes = set()
+        self.ReadFiles = set() # which files have been read.
+        self.ReadConfigTypes = set() # which config types have been read. Used to avoid circular imports.
+        self.Autosave = False # if set to true, will automatically save a config to file after
+        self.CheckFileTimeBeforeSave = False # (not implemented) if set to True, will check the file's changetime before overwriting.
+        self.CheckFileTimeAgainstCache = False # (not implemented) if set to True, will check
+        # a config file's last-modified time status before returning the cached value.
+        # If the file's last-modified time is later than the cache's last-save time, the
+        # config is read from file and used to update the cache. If self.Autosave is True,
+        # the updated config is then saved to file.
+
         # Setting either of these to true requires complete trust in the putative users:
         self.AllowChainToSameType = True # If one system config file has been loaded, allow loading another?
         self.AllowNextConfigOverrideChain = True # Similar, but does not alter the original config filepath.
         self.AllowNewConfigDefinitions = True   # Allow one config to define a new config.
         self.AllowCfgtypeOverwrite = False
-        """
-        Defining a new config can be done in a yaml as:
-        config_define_new = {<cfgtype> : <path>}
-        where path if relative, is loaded relative to the current config path.
-        """
+
+        # Attributes for the callback system:
+        self.EntryChangeCallbacks = dict()   # dict with: config_key : <list of callbacks>
+        self.ChangedEntriesForCallbacks = set() # which config keys has been changed.
+
         logger.debug("ConfigPaths : %s", self.ConfigPaths)
+
+        # end __init__
 
     def getSingleton(self, key):
         """
@@ -203,7 +216,7 @@ class ConfigHandler(object):
         """
         return self.getConfig(what='combined').get(key, default)
 
-    def setdefault(self, key, value=None):
+    def setdefault(self, key, value=None, autosave=None):
         """
         Mimicks dict.setdefault, will return configentry <key>.
         Use as:
@@ -214,13 +227,19 @@ class ConfigHandler(object):
         If a configentry already exists, will simply return that value,
         without setting anything.
         """
+        if autosave is None:
+            autosave = self.Autosave
         for config in self.Configs.values():
             if key in config:
                 return config[key]
-        # If key is not found, set default in default config ('user')
-        return self.Configs.get(self.DefaultConfig).setdefault(key, value)
+        # If key is not found, set default in default config (usually 'user')
+        val = self.Configs[self.DefaultConfig].setdefault(key, value)
+        self.ChangedEntriesForCallbacks.add(key)
+        if autosave:
+            self.saveConfig(self.DefaultConfig)
+        return val
 
-    def setkey(self, key, value, cfgtype=None, check_for_existing_entry=True):
+    def setkey(self, key, value, cfgtype=None, check_for_existing_entry=True, autosave=None):
         """
         Sets a config key.
         If key is already set in one of the main configs, and check_for_existing_entry
@@ -231,6 +250,8 @@ class ConfigHandler(object):
         PLEASE NOTE THAT setkey IS DIFFERENT FROM A NORMAL set METHOD, IN THAT setkey()
         returns the cfgtype where the key was persisted, e.g. 'user'.
         """
+        if autosave is None:
+            autosave = self.Autosave
         if check_for_existing_entry:
             for cfgtyp, config in self.Configs.items():
                 if key in config:
@@ -245,6 +266,9 @@ class ConfigHandler(object):
             logger.warning("TypeError when trying to set key '%s' in cfgtype '%s', self.Configs.get('%s') returned: %s, self.Configs.keys(): %s",
                            key, cfgtype, cfgtype, self.Configs.get(cfgtype), self.Configs.keys())
             return False
+        self.ChangedEntriesForCallbacks.add(key)
+        if autosave:
+            self.saveConfig(cfgtype)
         return cfgtype
 
     def popkey(self, key, cfgtype=None, check_all_configs=False):
@@ -351,7 +375,8 @@ class ConfigHandler(object):
         Persist config specified by what argument.
         Use as:
             saveConfigs('all') --> save all configs (default)
-            saveConfigs('sys') --> save the 'sys' config.
+            saveConfigs('sys') --> save the 'sys' config. (or use the simpler: saveConfig(cfgtype))
+            saveConfigs(('sys', 'exp') --> save the 'sys' and 'exp' config.
         """
         logger.info("saveConfigs invoked with configtosave '%s'", what)
         #for (outputfn, config) in zip(self.getConfigPath(what='all'), self.getConfig(what='all')):
@@ -364,6 +389,20 @@ class ConfigHandler(object):
                     logger.info("saveConfigs() :: No filename specified for config '{}'".format(cfgtype))
             else:
                 logger.debug("configtosave '{}' not matching cfgtype '{}' with outputfn '{}'".format(what, cfgtype, outputfn))
+
+    def saveConfig(self, cfgtype):
+        """
+        Saves a particular config.
+        saveConfig('system') --> save the 'system' config.
+        """
+        if cfgtype not in self.ConfigPaths or cfgtype not in self.Configs:
+            logger.warning("cfgtype '%s' not found in self.Configs or self.ConfigPaths, aborting...")
+            return False
+        config = self.Configs[cfgtype]
+        outputfn = self.ConfigPaths[cfgtype]
+        self._saveConfig(outputfn, config)
+        return True
+
 
     def _saveConfig(self, outputfn, config):
         """
@@ -631,6 +670,8 @@ class ExpConfigHandler(ConfigHandler):
         """
         if path and self.HierarchicalConfigHandler:
             val = self.getHierarchicalEntry(key, path)
+            # perhaps raise a KeyError if key is not found in the hierarchical confighandler;
+            # None could be a valid value in some cases...?
             if val is not None:
                 return val
         # Optimized, and accounting for the fact that later added cfgs overrides the first added
@@ -1018,6 +1059,10 @@ class PathFinder(object):
                                               user= ('labfluence_user.yml', ('setup/configs/test_configs/local_test_setup_1', ) )
                                               )
 
+        self._schemeSearch['install'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/default/',) ),
+                                                user= ('labfluence_user.yml', ('setup/configs/default/', ) )
+                                              )
+
         #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
         if VERBOSE > 2:
             logger.debug("PathFinder: Schemedicts --> \n{}".format( self.printSchemes() ) )
@@ -1056,22 +1101,29 @@ class PathFinder(object):
         Given an ordered list of candidate directories, return the first directory
         in which filename is found. If filename is not present in either
         of the directory candidates, return None.
+        Changes: replaced for-loops with a sequence of generators.
         """
         #print "filename '{}', dircands: {}".format(filename, dircands)
-        for dircand in dircands:
-            if not os.path.isdir(dircand):
-                if self.VERBOSE > 2:
-                    logger.debug("'{}' is not a directory...".format(dircand) )
-                continue
-            dircand = os.path.normpath(dircand)
-            if filename in os.listdir(dircand):
-                if self.VERBOSE > 1:
-                    logger.debug("config file found: {}".format(os.path.join(dircand, filename)) )
-                return os.path.join(dircand, filename)
-                # could also be allowed to be a glob pattern, and do
-                # matches = glob.glob(os.join(dircand, filename))
-                # if matches: return matches[0]
-        logger.debug("Warning, no config found for config filename: '{}'\ntested:{}".format(filename, dircands) )
+
+        okdirs = ( dircand for dircand in dircands if os.path.isdir(dircand) )
+        normdirs = ( os.path.normpath(dircand) for dircand in okdirs )
+        dirswithfilename = ( dircand for dircand in normdirs if filename in os.listdir(dircand) )
+        firstdir = next(dirswithfilename, None)
+        if firstdir:
+            winnerpath = os.path.join(firstdir, filename)
+            logger.debug("%s, config file found: {}".format(self.__class__.__name__, winnerpath))
+            return winnerpath
+        else:
+            logger.debug("Warning, no config found for config filename: '{}'\ntested:{}".format(filename, dircands) )
+
+        #for dircand in normdirs:
+        #    if filename in os.listdir(dircand):
+        #        logger.debug("%s, config file found: {}".format(os.path.join(dircand, filename)), self.__class__.__name__)
+        #        return os.path.join(dircand, filename)
+        #        # could also be allowed to be a glob pattern, and do
+        #        # matches = glob.glob(os.join(dircand, filename))
+        #        # if matches: return matches[0]
+        #logger.debug("Warning, no config found for config filename: '{}'\ntested:{}".format(filename, dircands) )
 
     def printSchemes(self):
         """
