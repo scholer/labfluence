@@ -19,11 +19,11 @@
 #from tkinter import ttk
 # python 2.7:
 import Tkinter as tk
-import ttk
-import tkFont
+#import ttk
+#import tkFont
 
 # Other standard lib modules:
-import socket
+#import socket
 from datetime import datetime
 from collections import OrderedDict
 import logging
@@ -43,6 +43,7 @@ from views.expnotebook import ExpNotebook #, BackgroundFrame
 from views.experimentselectorframe import ExperimentSelectorWindow
 from views.experimentmanagerframe import ExperimentManagerWindow
 from views.dialogs import Dialog
+from views.loginprompt import LoginPrompt
 
 from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
 #from controllers.filemanagercontroller import ExpFilemanagerController
@@ -267,6 +268,15 @@ class LabfluenceTkRoot(tk.Tk):
         # Well, med mindre du vil til at re-binde events hver gang et nyt eksperiment vises,
         # saa bor du nok have een controller for hver aaben ExpNotebook.
         #self.FilemanagerController = ExpFilemanagerController(self.Confighandler)
+
+
+    def login_prompt(self, username=None):
+        """
+        Creates a login prompt asking for username and password, which are returned.
+        """
+        dia = LoginPrompt(self, "Please enter credentials", fieldvars)
+        return dia.result
+
 
 
     def createNewExperiment(self, event=None):
