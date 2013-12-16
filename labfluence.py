@@ -14,21 +14,19 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+"""
 
-# python 3.x:
-#from tkinter import ttk
-# python 2.7:
-import Tkinter as tk
-import ttk
-import tkFont
+Main labfluence module for starting labfluence with Tkinter GUI.
+
+"""
+
+
 
 # Other standard lib modules:
 import socket
 import argparse
 import os
 
-from datetime import datetime
-from collections import OrderedDict
 import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
@@ -38,7 +36,6 @@ logger = logging.getLogger(__name__)
 ### MODEL IMPORT ###
 from model.confighandler import ExpConfigHandler
 from model.experimentmanager import ExperimentManager
-from model.experiment import Experiment
 from model.server import ConfluenceXmlRpcServer
 
 ### TEST DOUBLES IMPORT ###
@@ -60,8 +57,6 @@ from tkui.labfluence_tkapp import LabfluenceApp
 
 
 if __name__ == '__main__':
-
-    global confighandler
 
     ###########################
     #### LOGGER SETUP #########
@@ -107,7 +102,7 @@ if __name__ == '__main__':
     parser.add_argument('--logtofile', action='store_true', help="Log logging outputs to files.")
     parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
                         help="Specify modules where you want to display logging.DEBUG messages.")
-    parser.add_argument('--pathscheme', help="Specify a particulra pathscheme to use for the confighandler.")
+    parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.")
 
     argsns = parser.parse_args() # produces a namespace, not a dict.
 
@@ -174,7 +169,6 @@ if __name__ == '__main__':
         # set basedir for exp:
         confighandler.ConfigPaths['exp'] = os.path.join('tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '.labfluence.yml')
         server = FakeConfluenceServer(confighandler=confighandler)
-
 
     else:
         logger.debug("\n\n >>>>>> Initiating real confighandler and server... >>>>>>\n")

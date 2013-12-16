@@ -69,7 +69,7 @@ class Dialog(tk.Toplevel):
         else:
             self.Message = msg
         tk.Toplevel.__init__(self, parent)
-        self.transient(parent)
+        self.transient(parent) # Makes this TopLevel a transient of parent.
         if title:
             self.title(title)
         self.parent = parent
@@ -78,7 +78,7 @@ class Dialog(tk.Toplevel):
         self.result = None
 
         body = tk.Frame(self)
-        self.initial_focus = self.body(body)
+        self.initial_focus = self.body(body) # body returns the entry widget that should have initial focus.
         #body.pack(padx=5, pady=5)
         body.grid(row=1, column=0, sticky="news")
         self.buttonbox()
@@ -99,7 +99,8 @@ class Dialog(tk.Toplevel):
         initial focus.
         This method can/should be overridden by children deriving from this class.
         Uses self.Fieldvars attribute, a <key> = <speclist> ordered dict,
-        where <speclist> = (tk-variable, label-text, widget-kwargs, widget)
+        where <speclist> = [tk-variable, label-text, widget-kwargs, widget]
+        Note: speclist is mutable and therefore not a tuple.
         """
         if self.Message is not None:
             l = tk.Label(master, textvariable=self.Message)

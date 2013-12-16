@@ -48,14 +48,20 @@ class WikiLimsPage(WikiPage):
 
     @property
     def LimstableRegexProg(self):
-        if not self._limstableregexprog:
+        if not getattr(self, '_limstableregexprog', None):
             regex = self.Confighandler.get('lims_table_regex')
             if not regex:
                 regex = r"<table>\s*?<tbody>\s*?(P<headerrow><tr>.*?</tr>)(P<tablerows>.*)\s*?</tbody>\s*?</table>"
             self._limstableregexprog = re.compile(regex)
         return self._limstableregexprog
 
-    def addEntry(self, entry):
+    def addEntry(self, entry, persistToServer=False):
         """
         Entry is dict with fields corresponding to the lims table.
+        Implementation:
+        1) Get table header info by using the limstable regex.
+        2) Generate html row (string) looking up fields in entry.
+        3) 
+
+
         """

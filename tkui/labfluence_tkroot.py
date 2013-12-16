@@ -287,6 +287,10 @@ class LabfluenceTkRoot(tk.Tk):
 
 
     def createNewExperiment(self, event=None):
+        """
+        Creates a new experiment, prompting the user for relevant info
+        via a dialog box.
+        """
 
         em = self.Confighandler.Singletons.get('experimentmanager')
         logger.info("Not implemented yet: createNewExperiment()")

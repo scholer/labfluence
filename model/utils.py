@@ -183,6 +183,64 @@ def display_message(message):
 
 
 
+def findFieldByHint(candidates, hints):
+    """
+    Takes a list of candidates, e.g.
+        ['Pos', 'Sequence', 'Volume']
+    and a hint, e.g. 'seq' or a (prioritized!) list of hints, e.g.
+        ('sequence', 'seq', 'nucleotide code')
+    and returns the best candidate matching the (case-insensitive)
+    hint(s) e.g. for the above arguments, returns 'Sequence'.
+    If more than one hint is given, the first hint that yields a
+    resonable score will be used. In other words, this function will
+    NOT screen ALL hints and use the best hint, but only use the next
+    hint in the sequence if the present hint does not yield a resonable
+    match for any of the candidates.
+    Thus, the hints can be provided with decreasing level of specificity,
+    e.g. start with very explicit hints and end with the last acceptable
+    hint, e.g. the sequence: ('Well position', 'Rack position', 'Position', 'Well Pos', 'Well', 'Pos')
+    If no candidates are suited, returns None.
+
+    """
+    if not isinstance(hints, (list, tuple)):
+        hints = (hints,)
+    def calculate_score(candidate, hint):
+        """
+        Compares a candidate and hint and returns a score.
+        This is not intended to be "align" based, but should return
+        a "probability like" value for the change that the candidate
+        is the right choice for the hint.
+        """
+        score = 0
+        if candidate in hint:
+            # candidate is 'seq' and hint is 'sequence'
+            # However, we do not want the hint 'Rack position' to yield
+            # high score for the candidate e.g. 'Rack name', nor do we want
+            # 'sequence' to yield a high score for the field 'sequence name'
+            score += 0.1 + float(len(candidate))/len(hint)
+        if hint in candidate:
+            score += 1 + float(len(hint))/len(candidate)
+        return score
+    for hint in hints:
+        scores = [ calculate_score(candidate.lower(), hint.lower()) for candidate in candidates ]
+        #print "="
+        scores_list = [cand+"({}) ({:.3f})".format(type(cand), score) for cand, score in zip(candidates, scores)]
+        #print scores_list
+        scores_str = ", ".join( scores_list )
+        #print scores_str
+        #print "--------"
+        # do NOT attempt to use u"string" here, doesn't work?
+        logger.debug("Candidate scores for hint '%s': %s" , hint, scores_str)
+        if max(scores) > 0.2:
+            return candidates[scores.index(max(scores))]
+        #for candidate in candidates:
+        #    if hint in candidate.lower():
+        #        return candidate
+    # None of the hints were found in either of the options.
+    return None
+
+
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

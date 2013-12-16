@@ -14,11 +14,13 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+"""
+Contains notebook for displaying experiment information.
+"""
 
 # GUI
 import Tkinter as tk
 import ttk
-import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
 # Other standard lib modules:
 import logging
@@ -33,6 +35,9 @@ from expsatellitelocationsframe import ExpSatellitelocationsFrame
 
 
 class BackgroundFrame(tk.Frame):
+    """
+    The background frame is displayed when all notebooks are closed/hidden.
+    """
 
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)#, background='red') # note: background etc only for tk.Frame, not ttk.Frame.
@@ -86,13 +91,11 @@ class ExpNotebook(ttk.Notebook):
 
 
     def updatewidgets(self, ):
+        """
+        Update all child widgets.
+        """
         for f in (self.overviewframe, self.journalframe, self.filemanagerframe):
             f.updatewidgets()
-
-    def experiment_updated(self, ):
-        # currently just an alias, but I intend to do something with this, I swear :)
-        self.updatewidgets()
-
 
     def update_info(self):
         self.overviewframe.update_variables()
