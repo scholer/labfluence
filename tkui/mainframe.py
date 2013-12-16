@@ -218,7 +218,14 @@ class LabfluenceMainFrame(ttk.Frame):
         if the server's connection status changes.
         """
         server = self.Confighandler.Singletons.get('server')
-        logger.debug( "SERVER: %s, isconnected: %s", server, server._connectionok )
+        if server is None:
+            self.serverstatus_btn.configure(background="red", text="(offline)")
+            logger.debug( "No server available, server is: %s", server)
+            return
+        logger.debug( "SERVER: %s, _connectionok: %s", server, server._connectionok )
+        if server._connectionok is None:
+            logger.debug("Server._connectionok is None, perhaps the server has not had a chance to connect yet... ")
+            server.autologin()
         if server:
             self.serverstatus_btn.configure(background="green", text="Online")
             logger.debug( "Server reported to be online :-)" )

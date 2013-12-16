@@ -129,7 +129,7 @@ class AbstractServer(object):
             logger.debug("AutologinEnabled found in serverparams.")
             return serverparams['autologin_enabled']
         elif self._autologin is not None:
-            logger.debug("AutologinEnabled as self._autologin: %s", self._autologin)
+            logger.debug("AutologinEnabled defined by self._autologin: %s", self._autologin)
             return self._autologin
         else:
             logger.debug("AutologinEnabled defaulting to True")
@@ -219,6 +219,7 @@ class AbstractServer(object):
         if not self._connectionok:
             self._connectionok = True
             if self.Confighandler:
+                logger.debug("Invoking confighandler entry change callbacks for 'wiki_server_status'")
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
         logger.debug( "Server: _connectionok is now: %s", self._connectionok)
     def notok(self):
@@ -253,6 +254,8 @@ class AbstractServer(object):
             if self.AutologinEnabled:
                 logger.debug("%s, attempting autologin()...", self.__class__.__name__)
                 token = self.autologin() # autologin will setok/notok
+            else:
+                logger.debug("AotologinEnabled is False.")
             if not token:
                 logger.warning("%s, token could not be obtained (is '%s'), aborting.", self.__class__.__name__, token)
                 return None
@@ -320,7 +323,12 @@ class AbstractServer(object):
 
     def autologin(self, prompt=None):
         """
-        Is overridden in subclasses...
+        The autologin method can always be called, and will attempt to
+        It is thus safer to call than login(), since it will not do
+        anything if either:
+        a) autologin is disabled (e.g. by request)
+        b) the server is already connected.
+        This method should be defined/overridden by subclasses...
         """
         logger.warning("autologin called, but not implemented for class %s", self.__class__.__name__)
 
@@ -577,7 +585,7 @@ to prevent the login token from expiring.
             serverinfo = self._testConnection(logintoken) # _testConnection() and _login() does NOT use the execute method.
             logger.debug("Successfully obtained serverinfo from server (version %s.%s.%s, build %s) via _testConnection using token of type %s",
                          serverinfo['majorVersion'], serverinfo['minorVersion'], serverinfo['patchLevel'], serverinfo['buildId'],
-                         logintoken)
+                         type(logintoken))
             if doset:
                 self.Logintoken = logintoken
                 self.setok()

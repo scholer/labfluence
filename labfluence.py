@@ -142,7 +142,7 @@ if __name__ == '__main__':
         else:
             fh = logging.FileHandler('logs/labfluence_debug.log')
         fh.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s')
         fh.setFormatter(formatter)
         #  logging.root == logging.getLogger('')
         logging.getLogger('').addHandler(fh)
@@ -177,27 +177,26 @@ if __name__ == '__main__':
 
 
     else:
-        logger.debug("Initiating real confighandler and server...")
+        logger.debug("\n\n >>>>>> Initiating real confighandler and server... >>>>>>\n")
         pathscheme = argsns.pathscheme or 'default1'
         confighandler = ExpConfigHandler(pathscheme='default1')
         try:
-            logger.debug("Confighandler instantiated, Initiating server...")
-            server = ConfluenceXmlRpcServer(autologin=True, confighandler=confighandler)
+            logger.debug("Confighandler instantiated, Initiating server... >>>>>>\n")
+            # setting autologin=False during init should defer login attempt...
+            server = ConfluenceXmlRpcServer(autologin=False, confighandler=confighandler)
+            server._autologin = True
         except socket.error:
             print "This should not happen; autologin is shielded by try-clause."
             server = None
     confighandler.Singletons['server'] = server
-    logger.debug("Server instantiated, initiating ExperimentManager...")
+    logger.debug("\n\n >>>>>> Server instantiated, initiating ExperimentManager... >>>>>>\n")
     manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ))
     confighandler.Singletons['experimentmanager'] = manager
-    logger.debug("ExperimentManager instantiated, starting LabfluenceApp...")
+    logger.debug("\n\n >>>>>> ExperimentManager instantiated, starting LabfluenceApp... >>>>>>\n")
 
     app = LabfluenceApp(confighandler=confighandler)
-    logger.debug("LabfluenceApp instantiated.")
-
-    if argsns.testing:
-        #server.promptForUserPass()
-        server.promptForUserPass(username='prompt-test-user', msg="Test message")
+    logger.debug("\n\n >>>>>> LabfluenceApp instantiated, connecting with server >>>>>>\n")
+    server.autologin()
 
 
     # How to maximize / set window size:

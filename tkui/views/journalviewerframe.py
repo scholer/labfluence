@@ -123,7 +123,10 @@ class JournalViewer(ExpFrame):
         # Ensure the input is ok:
         if xhtml is None:
             xhtml = self.Experiment.getWikiXhtml()
-        xhtml = xhtml.replace('&nbsp;', ' ')
+        if xhtml is None:
+            xhtml = ""
+        else:
+            xhtml = xhtml.replace('&nbsp;', ' ')
 
         # prepare the text widget:
         self.text.config(state="normal")
