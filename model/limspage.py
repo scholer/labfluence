@@ -46,6 +46,15 @@ class WikiLimsPage(WikiPage):
 
     #def __init__(self, pageId, server, confighandler=None, pagestruct=None):
 
+    @property
+    def LimstableRegexProg(self):
+        if not self._limstableregexprog:
+            regex = self.Confighandler.get('lims_table_regex')
+            if not regex:
+                regex = r"<table>\s*?<tbody>\s*?(P<headerrow><tr>.*?</tr>)(P<tablerows>.*)\s*?</tbody>\s*?</table>"
+            self._limstableregexprog = re.compile(regex)
+        return self._limstableregexprog
+
     def addEntry(self, entry):
         """
         Entry is dict with fields corresponding to the lims table.
