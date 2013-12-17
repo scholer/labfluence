@@ -105,7 +105,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         # in undefined bahaviour, e.g. overwriting a page with another page's content.
         self.PageId = pageId
         self._server = server
-        self.Confighandler = confighandler
+        self._confighandler = confighandler
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
         self._struct = pagestruct # Cached struct.
@@ -156,9 +156,27 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         if self._server is not None:
             return self._server
-        else:
-            return self.Confighandler.Singletons.get('server')
+        logger.debug("Attempting to obtain server from confighandler.")
+        try:
+            return self._confighandler.Singletons.get('server')
+        except AttributeError:
+            logger.debug("Attribute Error while querying Confighandler for server singleton.")
+            return None
 
+    @property
+    def Confighandler(self):
+        """
+        Returns confighandler object.
+        # Edit: I cannot use return _server or confighandler.Single...
+        # Server evaluates to False if it is not connected, so check specifically against None.
+        """
+        if self._confighandler is not None:
+            return self._confighandler
+        try:
+            return self._server.Confighandler
+        except AttributeError:
+            logger.debug("Attribute Error while obtaining Confighandler via server, returning empty dict().")
+            return dict()
 
     def reloadFromServer(self):
         """

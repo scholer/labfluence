@@ -114,7 +114,8 @@ def fakeserver(fakeconfighandler):
 
 @pytest.fixture
 def limspage_withserver(monkeypatch, fakeserver):
-    pass
+    limspage = WikiLimsPage('40633496', server=fakeserver)#, confighandler=fakeserver.Confighandler)
+    return limspage
 
 
 @pytest.fixture
@@ -132,9 +133,9 @@ def limspage_nodeps(monkeypatch, xhtml_teststring):
 
     monkeypatch.setattr(WikiLimsPage, 'reloadFromServer', mock_reloadfromserver)
     #monkeypatch.setattr(WikiLimsPage, 'Content', mock_content) # now Content is function handle.
-    monkeypatch.setattr(WikiLimsPage, 'Content', mock_content()) # 
+    monkeypatch.setattr(WikiLimsPage, 'Content', mock_content()) #
     limspage = WikiLimsPage('111')
-    monkeypatch.setattr(limspage, 'Confighandler', dict() )
+    monkeypatch.setattr(limspage, '_confighandler', dict() )
     #monkeypatch.setattr(limspage, 'Content', mock_content) # does not work.
     #monkeypatch.setattr(limspage, 'Content', 'test') # does not work.
     #monkeypatch.setattr('limspage.Content', mock_content) # does not work here...
@@ -157,6 +158,23 @@ def test_getTableHeaders(limspage_nodeps, table_teststring):
     headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
     assert headers == page.getTableHeaders(xhtml=table_teststring)
     #page.getTableHeaders()
+
+
+def test_getTableHeaders_withserver(limspage_withserver, table_teststring):
+    page = limspage_withserver
+    headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
+    assert headers == page.getTableHeaders(xhtml=table_teststring)
+
+def test_addEntry_withserver(limspage_withserver, xhtml_teststring):
+    page = limspage_withserver
+    headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
+    values  = ['20131224', 'Christmas present', '1 pcs', '1000', 'Mommy', 'Santa', 'Red is preferred']
+    entry_dict = dict( zip(headers, values) )
+    new_xhtml = page.addEntry(entry_dict)
+    assert new_xhtml in page.Content
+    for item in headers+values:
+        assert item in new_xhtml
+
 
 
 

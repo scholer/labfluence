@@ -182,6 +182,7 @@ if __name__ == '__main__':
         except socket.error:
             print "This should not happen; autologin is shielded by try-clause. Perhaps network issues?"
             exit(1)
+
     confighandler.Singletons['server'] = server
 
 

@@ -109,7 +109,15 @@ class WikiLimsPage(WikiPage):
             logger.warning("No match for re prog with pattern '%s' versus xhtml: %s", self.LimstableRegexProg.pattern, xhtml)
             return
         headers = self.getTableHeaders(match)
-        entry_vals = [entry[field] for field in headers]
+        try:
+            entry_vals = [entry[field] for field in headers]
+        except KeyError as e:
+            logger.info("KeyError while sorting entry_vals list, headers = %s, entry = %s", headers, entry)
+            entry_vals = [entry.get(field, "") for field in headers]
+            logger.info("Defaulting to using '' for non-found keys, entry_vals = %s", entry_vals)
+            if all(item=="" for item in entry_vals):
+                logger.info("All entries are empty strings, so aborting...!")
+                return
         entry_xhtml = "<tr>{}</tr>".format(
             "".join("<td><p>{}</p></td>".format(val) for val in entry_vals ) )
         insert_index = match.start('tablerows')
