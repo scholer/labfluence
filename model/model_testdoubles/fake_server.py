@@ -227,6 +227,7 @@ class FakeConfluenceServer(object):
                 if page['space'] == spaceKey and page['title'] == pageTitle:
                     return page
         else:
+            logger.error("getPage called with: pageId=%s, spaceKey=%s, pageTitle=%s", pageId, spaceKey, pageTitle)
             raise Fault(0, "Must specify either pageId or spaceKey/pageTitle.")
 
     def removePage(self, pageId):

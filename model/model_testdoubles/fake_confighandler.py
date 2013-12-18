@@ -84,8 +84,10 @@ crypt_iv: Ko8E4tmJP7SCgLla
 wiki_serverparams:
   baseurl: http://10.14.40.245:8090
 wiki_username: scholer
+lims_pageid: '917542'
 """
-
+        # Consider switching to using the 'test1' config, even for this...
+        # Well, on the other hand... The fake objects are not supposed to touch anything, used for testing.
         configyamls = dict(user=userconfigyaml, exp=expconfigyaml)
         for cfg, yml in configyamls.items():
             newconfig = yaml.load(yml)
@@ -94,7 +96,7 @@ wiki_username: scholer
             #    self.Configs[cfg].update(newconfig)
             #else:
             #    self.Configs[cfg] = newconfig
-            logger.debug("Config '%s' loaded.", cfg)
+            logger.debug("Config '%s' loaded (using hard-coded test configuration...).", cfg)
         self.__expconfigs = dict()
 
 

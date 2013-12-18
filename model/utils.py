@@ -19,6 +19,7 @@ from __future__ import print_function
 import os
 import sys
 import random
+import xmlrpclib
 import string
 import logging
 
@@ -241,6 +242,22 @@ def findFieldByHint(candidates, hints):
     return None
 
 
+def attachmentTupFromFilepath(filepath):
+    """
+    Creates attachment struct and binary data object
+    for use with addAttachment method via the confluence2 xmlrpc API.
+    Used in e.g. server, experiment, page and limspage.
+    """
+    filename = os.path.basename(filepath)
+    mimetype = getmimetype(filepath)
+    # Note: comment not required, I believe.
+    attInfo = dict(fileName=filename, contentType=mimetype)
+    with open(filepath, 'rb') as fd:
+        #attData = base64.b64encode(fd.read('rb'))
+        # xmlrpclib.Binary also does base64.encode, but adds xml tag before and after.
+        attData = xmlrpclib.Binary(fd.read())
+    logging.debug("Read data for attachment '%s' with byte-length %s.", attInfo, len(str(attData)))
+    return attInfo, attData
 
 
 if __name__ == '__main__':

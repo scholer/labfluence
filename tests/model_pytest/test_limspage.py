@@ -111,6 +111,12 @@ def fakeconfighandler():
 def fakeserver(fakeconfighandler):
     return FakeConfluenceServer(fakeconfighandler)
 
+@pytest.fixture
+def confighandler_with_server(fakeserver):
+    ch = fakeserver.Confighandler
+    ch.Singletons['server'] = fakeserver
+    return ch
+
 
 @pytest.fixture
 def limspage_withserver(monkeypatch, fakeserver):

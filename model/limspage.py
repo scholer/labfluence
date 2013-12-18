@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 # Models:
 from page import WikiPage
+from utils import attachmentTupFromFilepath
+
 
 class WikiLimsPage(WikiPage):
     """
@@ -153,6 +155,9 @@ class WikiLimsPage(WikiPage):
         if match is None:
             if xhtml is None:
                 xhtml = self.Content
+            if not xhtml:
+                logger.error("No xhtml (is: %s) aborting...", xhtml)
+                return
             match = self.LimstableRegexProg.match(xhtml)
         if not match:
             logger.warning("No match for re prog with pattern '%s' versus xhtml: %s", self.LimstableRegexProg.pattern, xhtml)

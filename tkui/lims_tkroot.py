@@ -30,15 +30,16 @@ import Tkinter as tk
 import ttk
 
 from collections import OrderedDict
-import os
-from datetime import datetime
+#import os
+#from datetime import datetime
 
 import logging
 logging.addLevelName(4, 'SPAM') # Can be invoked as much as you'd like.
 logger = logging.getLogger(__name__)
 
-from views.dialogs import Dialog
+#from views.dialogs import Dialog
 from views.loginprompt import LoginPrompt
+#from model.utils import findFieldByHint
 
 
 class LimsTkRoot(tk.Tk):
@@ -46,33 +47,54 @@ class LimsTkRoot(tk.Tk):
     LIMS app tk root.
     """
 
-    def __init__(self, confighandler, fields, resultslist, filepath=None):
+    def __init__(self, app, confighandler, fields=None):
+        """
+        Uh, boot strapping issue:
+        - I need the initialized UI in order to have a login prompt available.
+        - I need the server to obtain LIMS table info to initialize fields.
+        - I need a login prompt to connect to server. :-\
+        """
         tk.Tk.__init__(self)
-        self.Message = None
+        self.App = app
+        self.Message = tk.StringVar(value='') # use None to not create a message label.
         self.Confighandler = confighandler
         self.Confighandler.Singletons.setdefault('ui', self)
         self.EntryWidgets = dict() # key = widget dict.
         # fields: key=header
         self.Fields = fields
-        self.Resultslist = resultslist
+        self.init_ui()
 
-        self.init_fieldvars()
-        if filepath:
-            if 'filepath' not in self.Fieldvars:
-                self.Fieldvars['filepath'] = [tk.StringVar(), 'Filepath', dict(), None]
-            if 'filename' not in self.Fieldvars:
-                self.Fieldvars['filename'] = [tk.StringVar(), 'Filename', dict(), None]
-            self.Fieldvars['filepath'][0].set(filepath)
-            self.Fieldvars['filename'][0].set(os.path.basename(filepath))
-        #self.iconify() # makes the window an icon. http://effbot.org/tkinterbook/wm.htm
-        #self.withdraw() # removes window from screen.
-        # Note that these are for the whole app, not just a single toplevel window
-        self.init_widgets()
+
+    def init_ui(self, ):
+        """
+        Initialize the UI widgets. Refactored to separate method,
+        since the tkroot UI might be required before
+        information on the widgets are available.
+        """
+        if self.Fields:
+            logger.debug("init_ui -> calling init_fieldvars...")
+            raw_input("en prompt for at stoppe...(A)")
+            self.init_fieldvars()
+            #self.iconify() # makes the window an icon. http://effbot.org/tkinterbook/wm.htm
+            #self.withdraw() # removes window from screen.
+            # Note that these are for the whole app, not just a single toplevel window
+            logger.debug("init_ui -> calling init_widgets...")
+            raw_input("en prompt for at stoppe...(B)")
+            self.init_widgets() # This is the call that makes the form collapse.
         #self.init_layout()
         #self.init_bindings()
+        else:
+            logger.debug("init_ui -> no self.Fields, so just calling grid and update...")
+            #self.grid()
+            #self.update()
+        logger.debug("init_ui complete, asking for user input.\n")
+        #input("her er lige en prompt for at stoppe...")
+        raw_input("en prompt for at stoppe...")
+        # the first time this is called, self.Fields is false, and the tk form appears blank at this point.
+        # the next time this method is called, the form has collapsed.
 
 
-    def init_fieldvars(self, ):
+    def init_fieldvars(self, fields=None):
         """
         Fieldvars, similar to those used by dialog.Dialog class.
         is a key = speclist ordered dict, where speclist is:
@@ -83,50 +105,62 @@ class LimsTkRoot(tk.Tk):
 
         Note: The fieldvars should probably be provided by the confighandler.
         """
-        f = self.Fieldvars = OrderedDict(
+        if fields is None:
+            fields = self.Fields
+
+        self.Fieldvars = OrderedDict(
             ( key, [tk.StringVar(value=value), key, dict(), None] )
-                for key, value in self.Fields.items()
+                for key, value in fields.items()
             )
-        #f['date'][0].set(datetime.now().strftime("%Y%m%d"))
 
 
-    def lims_dialog_single(self, ):
-        """
-        opens a dialog to the user to obtain lims information on a single entry.
-        """
-        dia = Dialog(self, fieldvars=self.Fieldvars)
-        try:
-            logger.info("dia.results: %s", dia.result)
-        except AttributeError:
-            logger.info("dialog returned without result.")
+    #def lims_dialog_single(self, ):
+    #    """
+    #    opens a dialog to the user to obtain lims information on a single entry.
+    #    """
+    #    dia = Dialog(self, fieldvars=self.Fieldvars)
+    #    try:
+    #        logger.info("dia.results: %s", dia.result)
+    #    except AttributeError:
+    #        logger.info("dialog returned without result.")
 
 
     def init_widgets(self, ):
         """ Initialize widgets """
+        # Make top message.
+        if self.Message is not None:
+            logger.debug("Creating message...")
+            # Argh, this was the cullpit: adding something without having a frame.
+            #l = tk.Label(self, textvariable=self.Message)
+            #l.grid(row=0, column=0, sticky="news")
+
+        raw_input("en prompt for at stoppe...(9)") # allerede her er den kollapset.
         body = tk.Frame(self)
+        raw_input("en prompt for at stoppe...(10)")
         self.initial_focus = self.body(body) # body returns the entry widget that should have initial focus.
+        raw_input("en prompt for at stoppe...(C)") # her er den kollapset.
         #body.pack(padx=5, pady=5)
         body.grid(row=1, column=0, sticky="news")
+        raw_input("en prompt for at stoppe...(D)")
         self.buttonbox()
         self.grab_set()
         if not self.initial_focus:
             self.initial_focus = self
         self.protocol("WM_DELETE_WINDOW", self.cancel)
         self.initial_focus.focus_set()
+        raw_input("en prompt for at stoppe...(E)")
 
 
     def body(self, master):
         """
-        create dialog body.  return widget that should have
-        initial focus.
+        create dialog body using master (frame).
+        return widget that should have initial focus.
         This method can/should be overridden by children deriving from this class.
         Uses self.Fieldvars attribute, a <key> = <speclist> ordered dict,
         where <speclist> = [tk-variable, label-text, widget-kwargs, widget]
         Note: speclist is mutable and therefore not a tuple.
         """
-        if self.Message is not None:
-            l = tk.Label(master, textvariable=self.Message)
-            l.grid(row=0, column=0, sticky="news")
+
         if not self.Fieldvars:
             logging.info("No self.Fieldvars, aborting")
             return
@@ -149,7 +183,7 @@ class LimsTkRoot(tk.Tk):
                               speclist[0].get(), e.get())
                 e.grid(row=r, column=c+1, sticky="nesw")
                 r += 1
-            if focusentry is None:
+            if focusentry is None and not speclist[0].get():
                 focusentry = e
         return focusentry
 
@@ -179,13 +213,15 @@ class LimsTkRoot(tk.Tk):
         self.withdraw()
         self.update_idletasks()
         self.apply()
-        self.cancel()
+        self.App.add_entry()
+        #self.cancel()
 
     def cancel(self, event=None):
         """invoked when the users presses the 'cancel' button."""
         # put focus back to the parent window
         #self.parent.focus_set()
-        self.destroy()
+        #self.destroy()
+        self.App.next_entry()
 
     #
     # command hooks
@@ -201,8 +237,16 @@ class LimsTkRoot(tk.Tk):
         Stores the values of all tk Vars in self.Fieldvars in self.result.
         Can be overridden by subclasses.
         """
-        self.result = dict( (key, speclist[0].get()) for key, speclist in self.Fieldvars.items() )
-        self.Resultslist.append(self.result)
+        self.result = self.get_result()
+        #self.Resultslist.append(self.result)
+
+
+    def get_result(self, ):
+        """
+        Returns the current fieldvars values.
+        """
+        return dict( (key, speclist[0].get()) for key, speclist in self.Fieldvars.items() )
+
 
 
     def login_prompt(self, username=None, msg=None, options=None):
@@ -217,4 +261,4 @@ class LimsTkRoot(tk.Tk):
             return dia.result['username'], dia.result['password']
         else:
             logger.info("dia.result is: %s", dia.result)
-            return '', ''
+            return None, None

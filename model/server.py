@@ -39,6 +39,7 @@ from utils import login_prompt, display_message
 # Decorators:
 #from decorators.cache_decorator import cached_property
 
+defaultsockettimeout = 3.0
 
 
 
@@ -472,7 +473,8 @@ TODO: If a UI framework is available, it might be convenient to add a timer-base
 to prevent the login token from expiring.
 
     """
-    def __init__(self, **kwargs):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, url=None,
+                 confighandler=None, autologin=True):
                  #serverparams=None, username=None, password=None, logintoken=None,
                  #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
@@ -480,7 +482,10 @@ to prevent the login token from expiring.
         self.CONFIG_FORMAT = 'wiki_{}'
         #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
-        super(ConfluenceXmlRpcServer, self).__init__(**kwargs) # Remember, super takes current class as first argument.
+        # Remember, super takes current class as first argument (python2)
+        super(ConfluenceXmlRpcServer, self).__init__(serverparams=serverparams, username=username,
+                                                     password=password, logintoken=logintoken, url=url,
+                                                     confighandler=confighandler, autologin=autologin)
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
         #self.UI = ui # Is now a property that goes through confighandler.
         appurl = self.AppUrl
@@ -645,6 +650,9 @@ to prevent the login token from expiring.
         if not (username and password):
             logger.info( "%s :: Username or password is boolean False; retrying...", self.__class__.__name__ )
             newmsg = "Empty username or password; please try again. Use Ctrl+C (or cancel) to cancel."
+            if password is None:
+                logger.info("Password is %s, indicating an aborted prompt, will abort without further retries...", type(password))
+                return
             token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=newmsg)
             return token
         try:
@@ -1021,12 +1029,14 @@ current       Boolean whether the page is current and not deleted
         return self.execute(self.RpcServer.confluence2.getAttachments, pageId)
 
     def getAttachment(self, pageId, fileName, versionNumber=0):
-        # Returns get information about an attachment.
-        # versionNumber=0 is the current version.
+        """
+        Returns get information about an attachment.
+        versionNumber=0 is the current version.
+        """
         return self.execute(self.RpcServer.confluence2.getAttachment, pageId, fileName, versionNumber)
 
     def getAttachmentData(self, pageId, fileName, versionNumber=0):
-        # Returns the contents of an attachment. (bytes)
+        """ Returns the contents of an attachment. (bytes) """
         return self.execute(self.RpcServer.confluence2.getAttachmentData, pageId, fileName, versionNumber)
 
     def addAttachment(self, contentId, attachment_struct, attachmentData):
@@ -1036,17 +1046,15 @@ current       Boolean whether the page is current and not deleted
         The 'long contentId' is actually a String pageId for XML-RPC.
 
         Note: The Experiment class' uploadAttachment() method can take a filpath.
+        Use utils.attachmentTupFromFilepath(filepath) to create usable
+            attachment_struct, attachmentData
+        variables.
         """
-        # Uh, how to determine if attachmentData is actually a filename?
-        # If attachmentData is read from a text file, it will still be a basestring...
-        # Perhaps real attachmentData must be base64 encoded or something?
-        #if isinstance(attachmentData, basestring):
-        #    try:
-        #        data = open(attachmentData, 'rb').read()
-        #        attachmentData = data
-        #    except IOError:
-        #        pass
-        return self.execute(self.RpcServer.confluence2.getAttachmentData, contentId, attachment_struct, attachmentData)
+        to = socket.getdefaulttimeout() or defaultsockettimeout
+        socket.setdefaulttimeout(10) # Increase timeout to allow large downloads to complete.
+        ret = self.execute(self.RpcServer.confluence2.addAttachment, contentId, attachment_struct, attachmentData)
+        socket.setdefaulttimeout(to)
+        return ret
 
     def removeAttachment(self, contentId, fileName):
         """remove an attachment from a content entity object.
@@ -1173,7 +1181,7 @@ contributor:
             newContent = self.convertWikiToStorageFormat(newContent)
         page_struct['content'] = newContent
         page = self.execute(self.RpcServer.confluence2.storePage, page_struct)
-        return True
+        return page
 
 
 # init: (host=None, url=None, port=None, username=None, password=None, logintoken=None, autologin=True, protocol=None, urlpostfix=None)
@@ -1188,6 +1196,11 @@ if __name__ == "__main__":
 
 
 """
+
+Other Confluence xmlrpc API projects:
+* https://github.com/al3xandr3/ruby/blob/master/confluence.rb
+* https://confluence.atlassian.com/x/cITjCg
+
 
 NOTES ON ENCRYPTION:
 - Currently using pycrypto with CFB mode AES.
@@ -1221,4 +1234,5 @@ CRYPTOGRAPHY REFS:
 
 OTHER CONFLUENCE RPC API refs:
 * https://bobswift.atlassian.net/wiki/display/CSOAP
+
 """

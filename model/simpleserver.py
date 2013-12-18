@@ -50,13 +50,13 @@ class SimpleConfluenceXmlRpcServer(object):
         self.RpcServer = xmlrpclib.Server(appurl)
         socket.setdefaulttimeout(1.0) # without this there is no timeout, and this may block the requests
         if autologin and not logintoken and (username and password) or prompt:
-        try:
-            if self.Username and self.Password and self.login():
-                print 'Connected to server using provided username and password...'
-            elif prompt is True or prompt in ('auto'):
-                self.login(prompt=True)
-        except socket.error as e:
-            print "Server > Unable to login, probably timeout: {}".format(e)
+            try:
+                if self.Username and self.Password and self.login():
+                    print 'Connected to server at {} using provided username and password...'.format(self.AppUrl)
+                elif prompt is True or prompt in ('auto'):
+                    self.login(prompt=True)
+            except socket.error as e:
+                print "Server > Unable to login, probably timeout: {}".format(e)
 
 
 
@@ -99,8 +99,7 @@ class SimpleConfluenceXmlRpcServer(object):
             return token
         try:
             logger.debug("Attempting server login with username: {}".format(username))
-            token = self._login(username,password)
-            self.Logintoken = token
+            self.Logintoken = token = self._login(username,password)
             logger.info("Logged in as '{}', received token of length {}".format(username, len(token)))
             return token
         except xmlrpclib.Fault as err:
@@ -348,7 +347,7 @@ class SimpleConfluenceXmlRpcServer(object):
         #        attachmentData = data
         #    except IOError:
         #        pass
-        return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, contentId, attachment_struct, attachmentData)
+        return self.RpcServer.confluence2.addAttachment(self.Logintoken, contentId, attachment_struct, attachmentData)
 
     def removeAttachment(self, contentId, fileName):
         """remove an attachment from a content entity object.

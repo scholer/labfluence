@@ -89,7 +89,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
 
     """
 
-    def __init__(self, pageId, server=None, confighandler=None, pagestruct=None):
+    def __init__(self, pageId, server=None, confighandler=None, pagestruct=None, lazyreload=True):
         """
         Experiment and localdir currently not implemented.
         These are mostly intended to provide local-dir-aware config items, e.g. string formats and regexs.
@@ -110,8 +110,11 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
         self._struct = pagestruct # Cached struct.
         if pagestruct is None:
-            self.reloadFromServer()
-            logger.debug("WikiPage retrieved from server: %s", self.Struct)
+            if lazyreload:
+                logger.debug("Delaying server reload, should happen lazily when needed...")
+            else:
+                self.reloadFromServer()
+                logger.debug("WikiPage retrieved from server: %s", self.Struct)
         else:
             logger.debug("WikiPage initialized with pagestruct %s", pagestruct)
 
@@ -183,9 +186,11 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         Reloads page struct from server.
         Returns True if successful, None if no server available and False if server call failed.
         """
-        if not self.Server:
-            logger.info("Page.reloadFromServer() :: No server available, aborting...!")
+        if self.Server is None:
+            logger.info("Page.reloadFromServer() :: self.Server is %s, aborting...!", self.Server)
             return
+        if not self.Server:
+            logger.info("Page.reloadFromServer() :: self.Server is not marked as connected (is: %s), but trying anyways...!", self.Server)
         struct = self.Server.getPage(pageId=self.PageId)
         if not struct:
             logger.warning("Page.reloadFromServer() :: Something went wrong retrieving Page struct from server...!")

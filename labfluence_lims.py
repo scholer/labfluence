@@ -52,11 +52,13 @@ if __name__ == '__main__':
     parser.add_argument('--logtofile', action='store_true', help="Log logging outputs to files.")
     parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
                         help="Specify modules where you want to display logging.DEBUG messages.")
-    parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.")
-    argsns = parser.parse_args() # produces a namespace, not a dict.
+    parser.add_argument('--pathscheme', default='default1', help="Specify a particular pathscheme to use for the confighandler.")
     parser.add_argument('files', nargs='*', help="Order file(s) to add. \
                         Use --singlebatch if all files are for a single LIMS entry. \
                         (default: one new entry per file.)")
+
+
+    argsns = parser.parse_args() # produces a namespace, not a dict.
 
 
     # Examples of different log formats:
@@ -102,7 +104,7 @@ if __name__ == '__main__':
         logging.getLogger("model.model_testdoubles.fake_server").setLevel(logging.DEBUG)
         logging.getLogger("tkui.lims_app").setLevel(logging.DEBUG)
         logging.getLogger("tkui.lims_tkroot").setLevel(logging.DEBUG)
-        logging.getLogger("tkui.views.lims_frame").setLevel(logging.DEBUG)
+        #logging.getLogger("tkui.views.lims_frame").setLevel(logging.DEBUG)
         logging.getLogger(__name__).setLevel(logging.DEBUG)
         logger.debug("Loggers setting to debug level...")
         pathscheme = argsns.pathscheme or 'test1'
@@ -114,15 +116,18 @@ if __name__ == '__main__':
     else:
         logger.debug("\n\n >>>>>> Initiating real confighandler and server... >>>>>>\n")
         pathscheme = argsns.pathscheme or 'default1'
-        confighandler = ExpConfigHandler(pathscheme='default1')
+        confighandler = ExpConfigHandler(pathscheme=argsns.pathscheme)
         logger.debug("Confighandler instantiated, Initiating server... >>>>>>\n")
         # setting autologin=False during init should defer login attempt...
         server = ConfluenceXmlRpcServer(autologin=False, confighandler=confighandler)
         server._autologin = True
     confighandler.Singletons['server'] = server
-    logger.debug("\n\n >>>>>> ExperimentManager instantiated, starting lims app... >>>>>>\n")
+    logger.debug("\n\n >>>>>> Server instantiated, starting LimsApp... >>>>>>\n")
     limsapp = LimsApp(confighandler)
-    limsapp.addEntriesForFiles(argsns.files)
+    logger.debug("\n\n >>>>>> LimsApp instantiated, adding files... >>>>>>\n")
+    limsapp.FilesToAdd = argsns.files
+    #limsapp.addEntriesForFiles(argsns.files)
+    logger.debug("Starting LIMS app loop...")
+    #limsapp.start()
+    limsapp.main()
     logger.debug("lims complete.")
-
-

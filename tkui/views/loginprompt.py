@@ -60,12 +60,13 @@ class LoginPrompt(Dialog):
                 username = [tk.StringVar(self.parent, value=self.Initial_username), 'Username', dict()],
                 password = [tk.StringVar(self.parent), 'Password', dict(show="*")]
                 )
+        # Call to super:
         Dialog.body(self, master)
         logger.debug("login prompt created, self.Fieldvars is: %s, with values: %s",
                      self.Fieldvars,
-                     "; ".join("{}: {}".format(k, v[0].get()) for k, v in self.Fieldvars.items()))
+                     "; ".join("{}: {}".format(k, bool(v[0].get())) for k, v in self.Fieldvars.items()))
         logger.debug("self.EntryWidgets have values: %s",
-                     "; ".join("{}: {}".format(k, v.get()) for k, v in self.EntryWidgets.items()))
+                     "; ".join("{}: {}".format(k, bool(v.get())) for k, v in self.EntryWidgets.items()))
 
     def validate(self):
         """

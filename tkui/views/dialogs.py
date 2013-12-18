@@ -103,12 +103,15 @@ class Dialog(tk.Toplevel):
         Note: speclist is mutable and therefore not a tuple.
         """
         if self.Message is not None:
+            msg = self.Message.get()
+            msgwidth = 40
+            self.Message.set( "\n".join( msg[i:i+msgwidth] for i in xrange(0, len(msg), msgwidth) ) )
             l = tk.Label(master, textvariable=self.Message)
-            l.grid(row=0, column=0, sticky="news")
+            l.grid(row=0, column=0, sticky="news", columnspan=2)
         if not self.Fieldvars:
             logging.info("No self.Fieldvars, aborting")
             return
-        focusentry = None
+        focusentry, backupfocusentry = None, None
         r, c = 1, 0
         # speclist: var, desc, kwargs
         for key, speclist in self.Fieldvars.items():
@@ -123,13 +126,16 @@ class Dialog(tk.Toplevel):
                 l = tk.Label(master, text=speclist[1])
                 l.grid(row=r, column=c, sticky="w")
                 e = self.EntryWidgets[key] = ttk.Entry(master, textvariable=speclist[0], **speclist[2])
-                logging.debug("Created ttk.Entry widget with textvariable.get()='%s' and entry.get()='%s'",
-                              speclist[0].get(), e.get())
+                # casting to bool to avoid issues displaying passwords etc in plain text...
+                logging.debug("Created ttk.Entry widget with textvariable.get(): %s and entry.get(): %s",
+                              bool(speclist[0].get()), bool(e.get()))
                 e.grid(row=r, column=c+1, sticky="nesw")
                 r += 1
-            if focusentry is None:
+            if backupfocusentry is None:
+                backupfocusentry = e
+            if focusentry is None and not speclist[0].get():
                 focusentry = e
-        return focusentry
+        return focusentry or backupfocusentry
 
     def buttonbox(self):
         """

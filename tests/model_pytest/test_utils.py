@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 ##################
 ### SUT ##########
 ##################
-from model.utils import increment_idx, idx_generator, random_string, getmimetype, getnearestfile, magic_available
+from model.utils import increment_idx, idx_generator, random_string, \
+    getmimetype, getnearestfile, magic_available, attachmentTupFromFilepath
 
 
 
@@ -66,3 +67,11 @@ def test_getmimetype():
     t = getmimetype(f)
     print "filepath: {} -- MIMETYPE: {}".format(f, t)
     assert t == 'text/plain'
+
+
+def test_attachmentTupFromFilepath():
+    f = 'FUNCTIONALITY.txt'
+    info, data = attachmentTupFromFilepath(f)
+    assert info['fileName'] == f
+    assert hasattr(data, 'encode')
+
