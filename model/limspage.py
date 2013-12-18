@@ -99,10 +99,16 @@ class WikiLimsPage(WikiPage):
         2) Generate html row (string) looking up fields in entry.
         3) Insert new xhtml row string between match headerrow and tablerows.
         4) Persist page if persistToServer is requested.
+
+        Note: Will raise KeyError if the entry does not have a key for
+        every header in the table.
         """
         # self.Content is a property: probes self.Struct property,
         # which invokes self.reloadFromServer() is self._struct is not boolean True.
         xhtml = self.Content
+        if not xhtml:
+            logger.error("xhtml is '%s', aborting...", xhtml)
+            return
         logger.debug("Adding entry to xhtml: %s", xhtml)
         match = self.LimstableRegexProg.match(xhtml)
         if not match:
@@ -117,7 +123,8 @@ class WikiLimsPage(WikiPage):
             logger.info("Defaulting to using '' for non-found keys, entry_vals = %s", entry_vals)
             if all(item=="" for item in entry_vals):
                 logger.info("All entries are empty strings, so aborting...!")
-                return
+                #return
+            raise e
         entry_xhtml = "<tr>{}</tr>".format(
             "".join("<td><p>{}</p></td>".format(val) for val in entry_vals ) )
         insert_index = match.start('tablerows')

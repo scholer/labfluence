@@ -14,24 +14,9 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-
-
-# This script must be run as a module, invoked from the labfluence application's
-# base folder, which contains the folders: "./model/" and "./test/".
-
-from model.server import ConfluenceXmlRpcServer
-from model.confighandler import ExpConfigHandler
-
-import yaml
-import os
-import logging
-import xmlrpclib
-from datetime import datetime
-logger = logging.getLogger(__name__)
-
-
-
 """
+Will contact the test server and retrieve and store the data for offline
+usage by FakeConfluenceServer instances.
 
 PageSummary datastructs are dicts, with:
 
@@ -43,30 +28,59 @@ parentId    long   the id of the parent page
 title       String the title of the page
 url         String the url to view this page online
 permissions int    the number of permissions on this page (deprecated: may be removed in a future version)
+
 """
+
+# This script must be run as a module, invoked from the labfluence application's
+# base folder, which contains the folders: "./model/" and "./test/".
+
+
+from __future__ import print_function
+import logging
+logger = logging.getLogger(__name__)
+
+import sys
+import os
+import yaml
+import xmlrpclib
+
+
+sys.path.insert(0, os.getcwd())
+try:
+    from model.server import ConfluenceXmlRpcServer
+    from model.confighandler import ExpConfigHandler
+except ImportError as e:
+    print("\n\n\n\n\n>>>>> This module must be invoked from the labfluence root directory! <<<<<\n\n\n\n\n\n")
+    print("os.getcwd(): %s", os.getcwd())
+    print("sys.path: %s", sys.path)
+    raise e
+#from datetime import datetime
 
 
 if __name__ == '__main__':
+
+    outputfn = os.path.join(os.path.dirname(__file__), "fakeserver_testdata_large.yml")
+
     logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
     logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s(): %(message)s\n"
     logging.basicConfig(level=logging.INFO, format=logfmt)
     logging.getLogger("__main__").setLevel(logging.DEBUG)
 
-    ch = ExpConfigHandler(pathscheme='default1')
+    ch = ExpConfigHandler(pathscheme='test1')
     server = ConfluenceXmlRpcServer(confighandler=ch)
 
     ### IMPORT PAGES and attachment (info) ###
     pagesummaries = server.getPages('~scholer')
     pages, comments, attachments = dict(), dict(), dict()
 
-    for i,summary in enumerate(pagesummaries):
-        print "Retrieving page {} of {}".format(i, len(pagesummaries))
+    for i, summary in enumerate(pagesummaries):
+        print("Retrieving page {} of {}".format(i, len(pagesummaries)))
         pid = summary['id']
         if pid in pages:
             logger.warning("Duplicate pageId! - This is already in the pages dict: '%s'", pid)
         p = server.getPage(pid)
         if p:
-            for k,v in p.items():
+            for k, v in p.items():
                 if isinstance(v, xmlrpclib.DateTime):
                     logger.debug("Converting page[%s] xmlrpclib.DateTime object '%s' to string.", k, v)
                     p[k] = repr(v.value)
@@ -75,8 +89,8 @@ if __name__ == '__main__':
             ## PAGE ATTACHMENTS:
             pageattachments = server.getAttachments(pid)
             if pageattachments:
-                for i,info in enumerate(pageattachments):
-                    for k,v in info.items():
+                for i, info in enumerate(pageattachments):
+                    for k, v in info.items():
                         if isinstance(v, xmlrpclib.DateTime):
                             logger.debug("pageattachment %s, Converting attinfo['%s'] xmlrpclib.DateTime object '%s' to string.", info['id'], k, v)
                             info[k] = repr(v.value)
@@ -84,8 +98,8 @@ if __name__ == '__main__':
             ## PAGE COMMENTS:
             pagecomments = server.getComments(pid)
             if pagecomments:
-                for i,info in enumerate(pagecomments):
-                    for k,v in info.items():
+                for i, info in enumerate(pagecomments):
+                    for k, v in info.items():
                         if isinstance(v, xmlrpclib.DateTime):
                             logger.debug("pagecomment %s, Converting attinfo['%s'] xmlrpclib.DateTime object '%s' to string.", info['id'], k, v)
                             info[k] = repr(v.value)
@@ -94,11 +108,11 @@ if __name__ == '__main__':
             logger.warning("could not retrieve page with pageId '%s'. More info:\n-- %s", pid, summary)
     persistdata = dict(pages=pages, attachments=attachments, comments=comments)
     #print persistdata['pages']
-    print type(persistdata['pages'])
+    print(type(persistdata['pages']))
 
-    print "\n".join( u"\nPage '{}' >> ".format(page['id'])+
+    print("\n".join( u"\nPage '{}' >> ".format(page['id'])+
                      u"; ".join(u"{}: {}".format(k,v) for k,v in page.items() if k != 'content')
-                        for pid,page in persistdata['pages'].items() )
+                        for pid,page in persistdata['pages'].items() ))
 
 
 
@@ -108,4 +122,4 @@ if __name__ == '__main__':
     ### spaces ###
     persistdata['spaces'] = spaces = server.getSpaces()
 
-    yaml.dump(persistdata, open(os.path.join(os.path.dirname(__file__), "fakeserver_testdata_large.yml"), 'wb'))
+    yaml.dump(persistdata, open(outputfn), 'wb')

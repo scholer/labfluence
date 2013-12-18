@@ -114,7 +114,7 @@ def fakeserver(fakeconfighandler):
 
 @pytest.fixture
 def limspage_withserver(monkeypatch, fakeserver):
-    limspage = WikiLimsPage('40633496', server=fakeserver)#, confighandler=fakeserver.Confighandler)
+    limspage = WikiLimsPage('917542', server=fakeserver)#, confighandler=fakeserver.Confighandler)
     return limspage
 
 
@@ -166,7 +166,7 @@ def test_getTableHeaders_withserver(limspage_withserver, table_teststring):
     assert headers == page.getTableHeaders(xhtml=table_teststring)
 
 
-@pytest.mark.skipif(True, reason="Temporary disabled.")
+#@pytest.mark.skipif(True, reason="Temporary disabled.")
 def test_addEntry_withserver(limspage_withserver, xhtml_teststring):
     page = limspage_withserver
     headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
@@ -179,7 +179,7 @@ def test_addEntry_withserver(limspage_withserver, xhtml_teststring):
 
 
 
-@pytest.mark.skipif(True, reason="Temporary disabled.")
+#@pytest.mark.skipif(True, reason="Temporary disabled.")
 def test_addEntry(limspage_nodeps, xhtml_teststring):
     page = limspage_nodeps
     expected_xhtml = """
