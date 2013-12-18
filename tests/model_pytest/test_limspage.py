@@ -165,6 +165,8 @@ def test_getTableHeaders_withserver(limspage_withserver, table_teststring):
     headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
     assert headers == page.getTableHeaders(xhtml=table_teststring)
 
+
+@pytest.mark.skipif(True, reason="Temporary disabled.")
 def test_addEntry_withserver(limspage_withserver, xhtml_teststring):
     page = limspage_withserver
     headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
@@ -177,7 +179,7 @@ def test_addEntry_withserver(limspage_withserver, xhtml_teststring):
 
 
 
-
+@pytest.mark.skipif(True, reason="Temporary disabled.")
 def test_addEntry(limspage_nodeps, xhtml_teststring):
     page = limspage_nodeps
     expected_xhtml = """

@@ -1,0 +1,432 @@
+attachments:
+  '917518':
+  - {contentType: image/jpeg, created: '''20131119T20:12:15''', creator: scholer,
+    fileName: 2013-11-15 12.00.32_2.jpg, fileSize: '53152', id: '1081345', pageId: '917518',
+    title: 2013-11-15 12.00.32_2.jpg, url: 'http://10.14.40.245:8090/download/attachments/917518/2013-11-15%2012.00.32_2.jpg?version=2&modificationDate=1384891935040&api=v2'}
+comments:
+  '917518':
+  - {content: '<p>This is a test comment...&nbsp;<ac:emoticon ac:name="smile" /></p>',
+    created: '''20131118T14:40:27''', creator: scholer, id: '917540', modified: '''20131118T14:40:27''',
+    modifier: scholer, pageId: '917518', parentId: '0', title: 'Re: RS135 Peg5k Peg10k
+      staples for TR.ZZ-all origami', url: 'http://10.14.40.245:8090/display/~scholer/RS135+Peg5k+Peg10k+staples+for+TR.ZZ-all+origami?focusedCommentId=917540#comment-917540'}
+pages:
+  '524293': {content: '
+
+      <ac:layout><ac:layout-section ac:type="single"><ac:layout-cell>
+
+      <h4>About Me (Rasmus Sch&oslash;ler S&oslash;rensen)</h4><p>You may edit this
+      page to include additional information about yourself.</p><p>E-mail: scholer@inano.au.dk</p></ac:layout-cell></ac:layout-section><ac:layout-section
+      ac:type="two_right_sidebar"><ac:layout-cell>
+
+      <p><ac:macro ac:name="recently-updated" /></p></ac:layout-cell><ac:layout-cell>
+
+      <h2>Navigate space</h2><p><ac:macro ac:name="pagetreesearch" /></p><p><ac:macro
+      ac:name="pagetree" /></p></ac:layout-cell></ac:layout-section><ac:layout-section
+      ac:type="single"><ac:layout-cell>
+
+      <p>&nbsp;</p></ac:layout-cell></ac:layout-section></ac:layout>', contentStatus: current,
+    created: '''20130828T16:44:11''', creator: scholer, current: 'true', homePage: 'true',
+    id: '524293', modified: '''20130828T16:44:11''', modifier: scholer, parentId: '0',
+    permissions: '0', space: ~scholer, title: "Rasmus Sch\xF8ler S\xF8rensen\u2019\
+      s Home", url: 'http://10.14.40.245:8090/pages/viewpage.action?pageId=524293',
+    version: '1'}
+  '524296': {content: '', contentStatus: current, created: '''20130828T16:54:44''',
+    creator: scholer, current: 'true', homePage: 'false', id: '524296', modified: '''20130828T16:54:44''',
+    modifier: scholer, parentId: '524293', permissions: '0', space: ~scholer, title: RS
+      Experiments, url: 'http://10.14.40.245:8090/display/~scholer/RS+Experiments',
+    version: '1'}
+  '524303': {content: '<p>&nbsp;</p><p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p><h3>About</h3><p><strong>Purpose:</strong></p><p><strong>Summary:</strong></p><p><strong>Lessons:</strong></p><p><strong>Project(s):</strong></p><p><strong>Previous
+      experiments and related pages:</strong></p><p><strong>Overview/outline:&nbsp;</strong></p><p><strong>Samples:</strong></p><h6>Gallery:</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p><h2>Experimental
+      section</h2><p>MPJud29yeOCnTW0x</p><h2>Results and discussion</h2><h6>Gallery</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">date</ac:parameter></ac:macro></p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons
+      learned</h6><h6>Outlook</h6><h2>Attachments</h2><p><ac:macro ac:name="attachments"><ac:parameter
+      ac:name="old">true</ac:parameter><ac:parameter ac:name="upload">true</ac:parameter></ac:macro></p><ac:macro
+      ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter><ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body></ac:macro>', contentStatus: current, created: '''20130918T17:18:18''',
+    creator: scholer, current: 'true', homePage: 'false', id: '524303', modified: '''20130918T17:30:30''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: _exp_multi_template,
+    url: 'http://10.14.40.245:8090/display/~scholer/_exp_multi_template', version: '2'}
+  '524306': {content: '<h4>%(expid)s%(subentry_idx)s %(subentry_titledesc)s (%(date)s)</h4><h6>Plan,
+      setup, mixing schemes, etc</h6><p>Just tested updating the subentry template
+      to see whether the lastest page will then get a new pageId. The current pageId
+      is&nbsp;524306.</p><p>Edit: And after editing, the pageId is still&nbsp;524306.
+      That means that only historical versions get a new pageId, the pageId of the
+      latest version will always be the same.</p><h6>Journal, %(date)s</h6>', contentStatus: current,
+    created: '''20130918T17:33:46''', creator: scholer, current: 'true', homePage: 'false',
+    id: '524306', modified: '''20131103T20:08:49''', modifier: scholer, parentId: '524303',
+    permissions: '0', space: ~scholer, title: _exp_subentry_template, url: 'http://10.14.40.245:8090/display/~scholer/_exp_subentry_template',
+    version: '7'}
+  '524308': {content: '<p><ac:macro ac:name="children" /></p>', contentStatus: current,
+    created: '''20130924T08:45:28''', creator: admin, current: 'true', homePage: 'false',
+    id: '524308', modified: '''20130924T08:45:28''', modifier: admin, parentId: '524296',
+    permissions: '0', space: ~scholer, title: 2013_Aarhus, url: 'http://10.14.40.245:8090/display/~scholer/2013_Aarhus',
+    version: '1'}
+  '524310': {content: '<p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p>
+
+      <h3>About</h3>
+
+      <p><strong>Purpose:</strong></p>
+
+      <p><strong>Summary:</strong></p>
+
+      <p><strong>Lessons:</strong></p>
+
+      <p><strong>Project(s):</strong></p>
+
+      <p><strong>Previous experiments and related pages:</strong></p>
+
+      <p><strong>Overview/outline:&nbsp;</strong></p>
+
+      <p><strong>Samples:</strong></p>
+
+      <h6>Gallery:</h6>
+
+      <p><ac:macro ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p>
+
+      <h2>Experimental section</h2>
+
+      <p>MPJud29yeOCnTW0x</p>
+
+      <h2>Results and discussion</h2>
+
+      <h6>Gallery</h6>
+
+      <p><ac:macro ac:name="gallery"><ac:parameter ac:name="sort">date</ac:parameter></ac:macro></p>
+
+      <h6>Observations</h6>
+
+      <h6>Discussion</h6>
+
+      <h6>Conclusion</h6>
+
+      <h6>Lessons learned</h6>
+
+      <h6>Outlook</h6>
+
+      <h2>Attachments</h2>
+
+      <p><ac:macro ac:name="attachments"><ac:parameter ac:name="old">true</ac:parameter><ac:parameter
+      ac:name="upload">true</ac:parameter></ac:macro></p>
+
+      <ac:macro ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter> <ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body> </ac:macro>', contentStatus: current, created: '''20130924T13:11:05''',
+    creator: scholer, current: 'true', homePage: 'false', id: '524310', modified: '''20130924T13:11:05''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: RS001
+      First test page CzkTW, url: 'http://10.14.40.245:8090/display/~scholer/RS001+First+test+page+CzkTW',
+    version: '1'}
+  '524313': {content: '<p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p><h3>About</h3><p><strong>Purpose:$purpose
+      </strong></p><p><strong>Summary:</strong></p><p><strong>Lessons:</strong></p><p><strong>Project(s):</strong></p><p><strong>Previous
+      experiments and related pages:</strong></p><p><strong>Overview/outline:&nbsp;</strong></p><p><strong>Samples:</strong></p><h6>Gallery:</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p><h2>Experimental
+      section</h2><p>MPJud29yeOCnTW0x</p><h4>RS102a Strep NHS-N3 activation (20130929)</h4><h6>Plan,
+      setup, mixing schemes, etc</h6><p>$subentry_plan</p><h6>Journal, 20130929</h6><p>&nbsp;</p><p>[20130929
+      18:26:12] test entry for addEntry testqmTlxLZtwJ<br />[20130929 18:26:52] test
+      entry for addEntry testDeplVthJfs<br />[20130103 00:00:00] test entry for addEntry
+      testdZCYiDFW6N<br />[20130103 00:00:00] test entry for addEntry testCcp5Dbz3sV<br
+      />[20130103 00:00:00] test entry for addEntry testOSLUXIyZ18<br />[20130929
+      23:22:21] test entry for addEntry testFyj78vZdAL<br />[20130929 23:22:49] test
+      entry for addEntry testj3uk8vbXaq<br />[20130929 23:22:49] test entry for flush
+      testyfHduCqiIA<br />[20131009 07:38:18] more<br />[20131009 07:38:20] and more<br
+      />[20131009 07:38:27] and yet some more<br />[20131009 07:38:30] test<br />[20131009
+      07:38:34] test test<br />[20131009 07:38:43] test tes test et test<br />[20131009
+      07:38:48] ... now<br />[20131009 07:39:12] we have a problem, too much in the
+      cache for the label-based cache-view<br />[20131009 08:39:35] Scrollbars added...
+      just need to make them adjust.<br />[20131011 08:22:25] and another test...</p><p>[20130929
+      18:26:12] test entry for addEntry testqmTlxLZtwJ<br />[20130929 18:26:52] test
+      entry for addEntry testDeplVthJfs<br />[20130103 00:00:00] test entry for addEntry
+      testdZCYiDFW6N<br />[20130103 00:00:00] test entry for addEntry testCcp5Dbz3sV<br
+      />[20130103 00:00:00] test entry for addEntry testOSLUXIyZ18<br />[20130929
+      23:22:21] test entry for addEntry testFyj78vZdAL<br />[20130929 23:22:49] test
+      entry for addEntry testj3uk8vbXaq<br />[20130929 23:22:49] test entry for flush
+      testyfHduCqiIA</p><p>[20130929 18:26:12] test entry for addEntry testqmTlxLZtwJ<br
+      />[20130929 18:26:52] test entry for addEntry testDeplVthJfs<br />[20130103
+      00:00:00] test entry for addEntry testdZCYiDFW6N<br />[20130103 00:00:00] test
+      entry for addEntry testCcp5Dbz3sV<br />[20130103 00:00:00] test entry for addEntry
+      testOSLUXIyZ18<br />[20130929 23:22:21] test entry for addEntry testFyj78vZdAL<br
+      />[20130929 23:22:49] test entry for addEntry testj3uk8vbXaq<br />[20130929
+      23:22:49] test entry for flush testyfHduCqiIA<br />[20131009 07:38:18] more<br
+      />[20131009 07:38:20] and more<br />[20131009 07:38:27] and yet some more<br
+      />[20131009 07:38:30] test<br />[20131009 07:38:34] test test<br />[20131009
+      07:38:43] test tes test et test<br />[20131009 07:38:48] ... now<br />[20131009
+      07:39:12] we have a problem, too much in the cache for the label-based cache-view<br
+      />[20131009 08:39:35] Scrollbars added... just need to make them adjust.<br
+      />[20131011 08:22:25] and another test...<br />[20131031 09:03:04] test</p><h4>RS102b
+      Strep-N3 DBCO-dUTP conj (20130103)</h4><h6>Plan, setup, mixing schemes, etc</h6><h6>Journal,
+      20130103</h6><p>[20131011 08:24:24] testing rs102b, wonder if writing this here
+      will mess anything up...<br />[20131011 08:24:44] also testing autoflush. setting
+      to 3 min.</p><p>[20131030 19:50:46] Testing another entry in RS102b...</p><p>[20131030
+      20:01:15] Well, making another addition to RS102b, again.<br />[20131030 20:02:19]
+      And yet another</p><h4>RS102c Amicon pur and UV quant of Strep-ddUTP (20130104)</h4><h6>Plan,
+      setup, mixing schemes, etc</h6><h6>Journal, 20130104</h6><p>[20130930 20:11:36]
+      test entry for flush testlQqX6uKkDA</p><p>[20130930 20:21:58] Buffer: 10/100
+      mM HEPES/KCl pH with 0.5 mM biotin.UOAkY<br />[20130930 20:21:58] Adding 100
+      ul buffer to RS102b and running through amicon 3k filter. I dont dilute to 400
+      ul because I want to be able to trace unreacted DBCO-ddUTP.<br />Washing retentate
+      4 more times with 400 ul buffer, collecting filt2-3 and filt4-6.<br />[20130930
+      20:21:58] Doing UVvis quant on nanodrop (if it is still running during the chemists
+      move).<br />- EDIT: Nanodrop is down due to move, so no quant. I will assume
+      we have 75% yield and recovery during synthesis, so 1.5 nmol in 30 ul giving
+      a concentration of 1500pmol/30ul = 50 uM. (?)<br />[20130930 20:21:58] test
+      entry for flush testufR2CH3xKv<br />[20130930 20:11:36] test entry for flush
+      testlQqX6uKkDA<br />[20130930 20:16:05] test entry for flush testqm1tjEW8L7</p><p>ok
+      nu gjorde jeg det...</p>
+
+
+
+      <h4>RS102e PAGE of STV-col11 TR staps (20131101)</h4><h6>Plan, setup, mixing
+      schemes, etc</h6><h6>Journal, 20131101</h6>
+
+
+      <h4>RS102g AFM of RS102e TR (20130929)</h4><h6>Plan, setup, mixing schemes,
+      etc</h6><h6>Journal, 20130929</h6>
+
+
+      <p>[20131030 20:24:39] The first entry for subentry ''g'' -- xhtml entry not
+      available yet...</p>
+
+      <h4>RS102h AFM of RS102e TR (20130929)</h4><h6>Plan, setup, mixing schemes,
+      etc</h6><h6>Journal, 20130929</h6>
+
+
+
+      <p>[20131101 22:13:01] This RS102h journal entry was inserted using the &quot;Add
+      section for selected&quot; in the journal assistant. Nice.</p>
+
+      <h4>RS102i First new test subentry (20131101)</h4><h6>Plan, setup, mixing schemes,
+      etc</h6><h6>Journal, 20131101</h6>
+
+
+
+      <p>[20131101 21:31:39] Adding new subentry item. It looks like the previous
+      were not saved :(</p>
+
+
+
+      <p>[20131101 21:52:34] Ok, adding yet another entry.<br />[20131101 21:52:40]
+      Hope this one gets it.</p>
+
+
+
+      <p>[20131101 22:07:15] Ok, I think it should work now. Fixed a bug that caused
+      the updated struct returned from the server to not be saved, making all future
+      updates rejected by the server.</p>
+
+
+
+      <p>[20131101 22:07:27] Let us hope it works better now :)</p>
+
+
+
+      <p>[20131101 22:08:35] Yes indeed, that did the trick :)<br />[20131101 22:08:37]
+      Nice.</p>
+
+
+
+      <p>[20131101 22:37:49] Ok, kan den forst&aring; danske bogstaver nu?<br />[20131101
+      22:53:43] Det kan den vist godt? Dansk &aelig;, &oslash; og &aring;?</p>
+
+      <h2>Results and discussion</h2><h6>Gallery</h6><p><ac:macro ac:name="gallery"><ac:parameter
+      ac:name="sort">date</ac:parameter></ac:macro></p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons
+      learned</h6><h6>Outlook</h6><h2>Attachments</h2><p><ac:macro ac:name="attachments"><ac:parameter
+      ac:name="old">true</ac:parameter><ac:parameter ac:name="upload">true</ac:parameter></ac:macro></p><ac:macro
+      ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter><ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body></ac:macro>', contentStatus: current, created: '''20130927T18:02:22''',
+    creator: scholer, current: 'true', homePage: 'false', id: '524313', modified: '''20131101T21:37:34''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: RS102
+      Strep-col11 TR annealed with biotin, url: 'http://10.14.40.245:8090/display/~scholer/RS102+Strep-col11+TR+annealed+with+biotin',
+    version: '28'}
+  '524314': {content: '<p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p>
+
+      <h3>About</h3>
+
+      <p><strong>Purpose:$purpose </strong></p>
+
+      <p><strong>Summary:</strong></p>
+
+      <p><strong>Lessons:</strong></p>
+
+      <p><strong>Project(s):</strong></p>
+
+      <p><strong>Previous experiments and related pages:</strong></p>
+
+      <p><strong>Overview/outline:&nbsp;</strong></p>
+
+      <p><strong>Samples:</strong></p>
+
+      <h6>Gallery:</h6>
+
+      <p><ac:macro ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p>
+
+      <h2>Experimental section</h2>
+
+      <p>MPJud29yeOCnTW0x</p>
+
+      <h2>Results and discussion</h2>
+
+      <h6>Gallery</h6>
+
+      <p><ac:macro ac:name="gallery"><ac:parameter ac:name="sort">date</ac:parameter></ac:macro></p>
+
+      <h6>Observations</h6>
+
+      <h6>Discussion</h6>
+
+      <h6>Conclusion</h6>
+
+      <h6>Lessons learned</h6>
+
+      <h6>Outlook</h6>
+
+      <h2>Attachments</h2>
+
+      <p><ac:macro ac:name="attachments"><ac:parameter ac:name="old">true</ac:parameter><ac:parameter
+      ac:name="upload">true</ac:parameter></ac:macro></p>
+
+      <ac:macro ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter> <ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body> </ac:macro>', contentStatus: current, created: '''20130927T18:45:21''',
+    creator: scholer, current: 'true', homePage: 'false', id: '524314', modified: '''20130927T18:45:21''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: RS105
+      TR STV-col11 Origami v3, url: 'http://10.14.40.245:8090/display/~scholer/RS105+TR+STV-col11+Origami+v3',
+    version: '1'}
+  '917509': {content: <p>I wonder how well confluence treats special chars in title...</p>,
+    contentStatus: current, created: '''20131018T02:06:26''', creator: scholer, current: 'true',
+    homePage: 'false', id: '917509', modified: '''20131018T02:06:26''', modifier: scholer,
+    parentId: '524293', permissions: '0', space: ~scholer, title: Page with +/- special
+      chars in title, url: 'http://10.14.40.245:8090/pages/viewpage.action?pageId=917509',
+    version: '1'}
+  '917510': {content: '<p>&nbsp;</p><p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p><h3>About</h3><p><strong>Purpose:</strong></p><p><strong>Summary:</strong></p><p><strong>Lessons:</strong></p><p><strong>Project(s):</strong></p><p><strong>Previous
+      experiments and related pages:</strong></p><p><strong>Overview/outline:&nbsp;</strong></p><p><strong>Samples:</strong></p><h6>Gallery:</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p><h2>Experimental
+      section</h2><p>MPJud29yeOCnTW0x</p><h2>Results and discussion</h2><h6>Gallery</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">date</ac:parameter></ac:macro></p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons
+      learned</h6><h6>Outlook</h6><h2>Attachments</h2><p><ac:macro ac:name="attachments"><ac:parameter
+      ac:name="old">true</ac:parameter><ac:parameter ac:name="upload">true</ac:parameter></ac:macro></p><ac:macro
+      ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter><ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body></ac:macro>', contentStatus: current, created: '''20131019T15:17:41''',
+    creator: scholer, current: 'true', homePage: 'false', id: '917510', modified: '''20131019T15:17:41''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: RS103
+      Strep-col11 TR anneal and AFM v2 plus Peg-TR, url: 'http://10.14.40.245:8090/display/~scholer/RS103+Strep-col11+TR+anneal+and+AFM+v2+plus+Peg-TR',
+    version: '1'}
+  '917511': {content: '<p>&nbsp;</p><p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p><h3>About</h3><p><strong>Purpose:</strong></p><p><strong>Summary:</strong></p><p><strong>Lessons:</strong></p><p><strong>Project(s):</strong></p><p><strong>Previous
+      experiments and related pages:</strong></p><p><strong>Overview/outline:&nbsp;</strong></p><p><strong>Samples:</strong></p><h6>Gallery:</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p><h2>Experimental
+      section</h2><p>MPJud29yeOCnTW0x</p>
+
+      <h4>RS134c RS102c Amicon pur and UV quant of Strep-ddUTP (20130104)</h4><h6>Plan,
+      setup, mixing schemes, etc</h6><h6>Journal, 20130104</h6>
+
+      <h2>Results and discussion</h2><h6>Gallery</h6><p><ac:macro ac:name="gallery"><ac:parameter
+      ac:name="sort">date</ac:parameter></ac:macro></p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons
+      learned</h6><h6>Outlook</h6><h2>Attachments</h2><p><ac:macro ac:name="attachments"><ac:parameter
+      ac:name="old">true</ac:parameter><ac:parameter ac:name="upload">true</ac:parameter></ac:macro></p><ac:macro
+      ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter><ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body></ac:macro>', contentStatus: current, created: '''20131030T15:48:29''',
+    creator: scholer, current: 'true', homePage: 'false', id: '917511', modified: '''20131101T21:41:00''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: RS134
+      Pipetting origami staples, url: 'http://10.14.40.245:8090/display/~scholer/RS134+Pipetting+origami+staples',
+    version: '2'}
+  '917514': {content: '<p>&nbsp;</p><p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p><h3>About</h3><p><strong>Purpose:</strong></p><p><strong>Summary:</strong></p><p><strong>Lessons:</strong></p><p><strong>Project(s):</strong></p><p><strong>Previous
+      experiments and related pages:</strong></p><p><strong>Overview/outline:&nbsp;</strong></p><p><strong>Samples:</strong></p><h6>Gallery:</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p><h2>Experimental
+      section</h2><p>MPJud29yeOCnTW0x</p><h2>Results and discussion</h2><h6>Gallery</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">date</ac:parameter></ac:macro></p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons
+      learned</h6><h6>Outlook</h6><h2>Attachments</h2><p><ac:macro ac:name="attachments"><ac:parameter
+      ac:name="old">true</ac:parameter><ac:parameter ac:name="upload">true</ac:parameter></ac:macro></p><ac:macro
+      ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter><ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body></ac:macro>', contentStatus: current, created: '''20131030T21:32:51''',
+    creator: scholer, current: 'true', homePage: 'false', id: '917514', modified: '''20131030T21:32:51''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: RS145
+      TRs with sisiRNA for Cell Knockdown v3, url: 'http://10.14.40.245:8090/display/~scholer/RS145+TRs+with+sisiRNA+for+Cell+Knockdown+v3',
+    version: '1'}
+  '917518': {content: '<p>&nbsp;</p><p><ac:macro ac:name="toc"><ac:parameter ac:name="maxLevel">4</ac:parameter><ac:parameter
+      ac:name="indent">5px</ac:parameter><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter
+      ac:name="exclude">About|Attachments</ac:parameter><ac:parameter ac:name="outline">true</ac:parameter></ac:macro></p><h3>About</h3><p><strong>Purpose:</strong></p><p><strong>Summary:</strong></p><p><strong>Lessons:</strong></p><p><strong>Project(s):</strong></p><p><strong>Previous
+      experiments and related pages:</strong></p><p><strong>Overview/outline:&nbsp;</strong></p><p><strong>Samples:</strong></p><h6>Gallery:</h6><p><ac:macro
+      ac:name="gallery"><ac:parameter ac:name="sort">name</ac:parameter></ac:macro></p><h2>Experimental
+      section</h2><p>MPJud29yeOCnTW0x</p>
+
+      <h4>RS135b BuOH upconcentration (20130526)</h4><h6>Plan, setup, mixing schemes,
+      etc</h6><h6>Journal, 20130526</h6>
+
+
+
+      <h4>RS135c EtOH precip (20130526)</h4><h6>Plan, setup, mixing schemes, etc</h6><h6>Journal,
+      20130526</h6>
+
+      <h4>RS135g PAGE of a-f (20131101)</h4><h6>Plan, setup, mixing schemes, etc</h6><h6>Journal,
+      20131101</h6>
+
+
+      <p>[20131101 23:09:40] Aha, it works!</p>
+
+      <h2>Results and discussion</h2><h6>Gallery</h6><p><ac:macro ac:name="gallery"><ac:parameter
+      ac:name="sort">date</ac:parameter></ac:macro></p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons
+      learned</h6><h6>Outlook</h6><h2>Attachments</h2><p><ac:macro ac:name="attachments"><ac:parameter
+      ac:name="old">true</ac:parameter><ac:parameter ac:name="upload">true</ac:parameter></ac:macro></p><ac:macro
+      ac:name="tip"><ac:parameter ac:name="title">Hint:</ac:parameter><ac:rich-text-body><p>Add
+      your username as a label together with &quot;current experiment&quot; to make
+      this page appear on your dashboard under &quot;current projects&quot;. Change
+      &quot;current&quot; to &quot;planned&quot; or &quot;finished&quot; when appropriate.
+      (Note that it takes about 15 minutes before the server registers the changes.)
+      You can also label particularly interesting attachments for easy inclusion in
+      other pages.</p></ac:rich-text-body></ac:macro>', contentStatus: current, created: '''20131101T18:47:39''',
+    creator: scholer, current: 'true', homePage: 'false', id: '917518', modified: '''20131101T21:55:29''',
+    modifier: scholer, parentId: '524296', permissions: '0', space: ~scholer, title: RS135
+      Peg5k Peg10k staples for TR.ZZ-all origami, url: 'http://10.14.40.245:8090/display/~scholer/RS135+Peg5k+Peg10k+staples+for+TR.ZZ-all+origami',
+    version: '5'}
+serverinfo: {baseUrl: 'http://10.14.40.245:8090', buildId: '4394', developmentBuild: 'false',
+  majorVersion: '5', minorVersion: '2', patchLevel: '3'}
+spaces:
+- {key: ds, name: Demonstration Space, type: global, url: 'http://10.14.40.245:8090/display/ds'}
+- {key: ~scholer, name: "Rasmus Sch\xF8ler S\xF8rensen", type: personal, url: 'http://10.14.40.245:8090/display/~scholer'}
+- {key: TSP, name: Test space public, type: global, url: 'http://10.14.40.245:8090/display/TSP'}
