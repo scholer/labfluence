@@ -100,6 +100,8 @@ if __name__ == '__main__':
     if argsns.testing:
         # Other modules should be enabled with --debug <modules>.
         logging.getLogger("model.server").setLevel(logging.DEBUG)
+        logging.getLogger("model.limspage").setLevel(logging.DEBUG)
+        logging.getLogger("model.page").setLevel(logging.DEBUG)
         logging.getLogger("model.model_testdoubles.fake_confighandler").setLevel(logging.DEBUG)
         logging.getLogger("model.model_testdoubles.fake_server").setLevel(logging.DEBUG)
         logging.getLogger("tkui.lims_app").setLevel(logging.DEBUG)

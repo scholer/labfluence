@@ -111,7 +111,7 @@ class WikiLimsPage(WikiPage):
         if not xhtml:
             logger.error("xhtml is '%s', aborting...", xhtml)
             return
-        logger.debug("Adding entry to xhtml: %s", xhtml)
+        logger.debug("Adding entry %s to xhtml of length %s", entry, len(xhtml))
         match = self.LimstableRegexProg.match(xhtml)
         if not match:
             logger.warning("No match for re prog with pattern '%s' versus xhtml: %s", self.LimstableRegexProg.pattern, xhtml)
@@ -137,6 +137,7 @@ class WikiLimsPage(WikiPage):
                 versionComment = "Entry added by Labfluence LimsPage: {}".format(
                     entry.get('Product', "") )
             self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
+        logger.debug("Entry added, xhtml length %s", len(xhtml))
         return new_xhtml
 
 

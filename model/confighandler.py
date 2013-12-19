@@ -34,7 +34,7 @@ import collections
 from collections import OrderedDict
 import logging
 logger = logging.getLogger(__name__)
-
+from Tkinter import TclError
 
 # from http://stackoverflow.com/questions/4579908/cross-platform-splitting-of-path-in-python
 def os_path_split_asunder(path, debug=False):
@@ -238,6 +238,11 @@ class ConfigHandler(object):
         if autosave:
             self.saveConfig(self.DefaultConfig)
         return val
+
+    def set(self, key, value):
+        """ Alias for setkey (I can never remember that one...)
+        """
+        self.setkey(key, value)
 
     def setkey(self, key, value, cfgtype=None, check_for_existing_entry=True, autosave=None):
         """
@@ -558,18 +563,32 @@ class ConfigHandler(object):
         When a configentry has had its callbacks invoked, it will be unregistrered from
         self.ChangedEntriesForCallbacks.
 
-        ## TODO: implement try clause in confighandler.invokeEntryChangeCallback and
+        ## Done: implement try clause in confighandler.invokeEntryChangeCallback and
         ## automatically unregister failing calls.
-        ## TODO: Implement ability to route the newvalue parameter to the callbacks.
+        ## Done: Implement ability to route the newvalue parameter to the callbacks.
         ##       As it is now, each of the callbacks have to invoke self.Confighandler.get(configkey)
+        ## -fix: The new value is passed to callback as keyword argument 'pass_newvalue_as'.
+        ##       The new value can also be injected by setting new_configentry_value
+        ##       as kwargument when invoking this method (invokeEntryChangeCallback)
+        ##
         """
         if configentry:
             if configentry in self.EntryChangeCallbacks:
+                failedfunctions = list()
                 for function, args, kwargs, pass_newvalue_as in self.EntryChangeCallbacks[configentry]:
                     if pass_newvalue_as:
                         kwargs[pass_newvalue_as] = new_configentry_value
                     logger.debug("invoking callback for configentry '%s': %s(*%s, **%s)", configentry, function, args, kwargs)
-                    function(*args, **kwargs)
+                    try:
+                        function(*args, **kwargs)
+                    except TclError as e:
+                        logger.error("Error while invoking callback for configentry '%s': %s(*%s, **%s): %s",
+                                     configentry, function, args, kwargs, e)
+                        logger.info("Marking callback as failed: '%s': %s(*%s, **%s)", configentry, function, args, kwargs)
+                        failedfunctions.append(function)
+                for function in failedfunctions:
+                    logger.info("Unregistrering callbacks for function: %s(...)", function)
+                    self.unregisterEntryChangeCallback(function=function)
                 # Erase this entry if registrered here. (discard does not do anything if the item is not a member of the set)
                 self.ChangedEntriesForCallbacks.discard(configentry)
             else:
@@ -578,7 +597,7 @@ class ConfigHandler(object):
             # The ChangedEntriesForCallbacks will change during iteration, so using a while rather than for loop:
             while True:
                 try:
-                    entry = self.ChangedEntriesForCallbacks.pop()
+                    entry = self.ChangedEntriesForCallbacks.pop() # Raises KeyError when dict is empty.
                     logger.debug("Popped configentry '%s' from ChangedEntriesForCallbacks...", configentry)
                     self.invokeEntryChangeCallback(entry)
                 except KeyError: # raised when pop on empty set.
@@ -1052,8 +1071,13 @@ class PathFinder(object):
         self.Npathsdefault = npathsdefault
         # defautl1 scheme: sysconfig in 'config' folder in current dir;
         self._schemeSearch = dict()
-        self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml',  ('.', 'config', 'setup/configs/default/', '..', '../config') ),
-                                              user= ('labfluence_user.yml', (os.path.expanduser(os.path.join('~', '.Labfluence')), ) )
+        # notation is:
+        # configtype : (<filename to look for>, (list of directories to look in))
+        self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml',  ('.', 'config', 'setup/configs/default/') ),
+                                              user= ('labfluence_user.yml',
+                                                     (os.path.expanduser(os.path.join('~', dir)) for dir in
+                                                      ('.Labfluence', '.labfluence', os.path.join('.config', '.labfluence') ) )
+                                                    )
                                               )
         self._schemeSearch['test1'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/test_configs/local_test_setup_1',) ),
                                               user= ('labfluence_user.yml', ('setup/configs/test_configs/local_test_setup_1', ) )
@@ -1133,6 +1157,9 @@ class PathFinder(object):
                     for k, v in schemedict.items() ) ) \
                     for scheme, schemedict in self.Schemedicts.items() )
         return ret
+
+
+
 
 
 if __name__ == '__main__':

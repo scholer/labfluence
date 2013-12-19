@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=R0924
+# pylint: disable-msg=R0924,C0321
 """
 Created by Rasmus S. Sorensen <rasmusscholer@gmail.com>
 
@@ -47,7 +47,7 @@ class LimsTkRoot(tk.Tk):
     LIMS app tk root.
     """
 
-    def __init__(self, app, confighandler, fields=None):
+    def __init__(self, app, confighandler, fields=None, title=None):
         """
         Uh, boot strapping issue:
         - I need the initialized UI in order to have a login prompt available.
@@ -62,7 +62,16 @@ class LimsTkRoot(tk.Tk):
         self.EntryWidgets = dict() # key = widget dict.
         # fields: key=header
         self.Fields = fields
+        persisted_windowgeometry = self.Confighandler.get('limsapp_tk_window_geometry', None)
+        if persisted_windowgeometry:
+            logger.debug("Setting window geomerty: %s", persisted_windowgeometry)
+            try:
+                self.geometry(persisted_windowgeometry)
+            except tk.TclError as e:
+                logger.info("Error setting window geomerty: %s", e)
         self.init_ui()
+        if title:
+            self.title(title)
 
 
     def init_ui(self, ):
@@ -73,25 +82,12 @@ class LimsTkRoot(tk.Tk):
         """
         if self.Fields:
             logger.debug("init_ui -> calling init_fieldvars...")
-            raw_input("en prompt for at stoppe...(A)")
             self.init_fieldvars()
-            #self.iconify() # makes the window an icon. http://effbot.org/tkinterbook/wm.htm
-            #self.withdraw() # removes window from screen.
-            # Note that these are for the whole app, not just a single toplevel window
             logger.debug("init_ui -> calling init_widgets...")
-            raw_input("en prompt for at stoppe...(B)")
-            self.init_widgets() # This is the call that makes the form collapse.
-        #self.init_layout()
-        #self.init_bindings()
+            self.init_widgets()
+            logger.debug("init_ui complete, asking for user input.\n")
         else:
-            logger.debug("init_ui -> no self.Fields, so just calling grid and update...")
-            #self.grid()
-            #self.update()
-        logger.debug("init_ui complete, asking for user input.\n")
-        #input("her er lige en prompt for at stoppe...")
-        raw_input("en prompt for at stoppe...")
-        # the first time this is called, self.Fields is false, and the tk form appears blank at this point.
-        # the next time this method is called, the form has collapsed.
+            logger.debug("init_ui -> no self.Fields, you have to call init_ui again when these are available...")
 
 
     def init_fieldvars(self, fields=None):
@@ -127,28 +123,25 @@ class LimsTkRoot(tk.Tk):
 
     def init_widgets(self, ):
         """ Initialize widgets """
-        # Make top message.
-        if self.Message is not None:
-            logger.debug("Creating message...")
-            # Argh, this was the cullpit: adding something without having a frame.
-            #l = tk.Label(self, textvariable=self.Message)
-            #l.grid(row=0, column=0, sticky="news")
 
-        raw_input("en prompt for at stoppe...(9)") # allerede her er den kollapset.
         body = tk.Frame(self)
-        raw_input("en prompt for at stoppe...(10)")
         self.initial_focus = self.body(body) # body returns the entry widget that should have initial focus.
-        raw_input("en prompt for at stoppe...(C)") # her er den kollapset.
-        #body.pack(padx=5, pady=5)
         body.grid(row=1, column=0, sticky="news")
-        raw_input("en prompt for at stoppe...(D)")
         self.buttonbox()
         self.grab_set()
         if not self.initial_focus:
             self.initial_focus = self
         self.protocol("WM_DELETE_WINDOW", self.cancel)
         self.initial_focus.focus_set()
-        raw_input("en prompt for at stoppe...(E)")
+        if self.Message is not None:
+            logger.debug("Creating message...")
+            # Adding the label directly to root without having a frame caused
+            # "collapse" issue, so using a frame from now on.
+            f = tk.Frame(self)
+            self.message_label = l = tk.Label(f, textvariable=self.Message)
+            l.grid(row=0, column=0, sticky="news")
+            f.grid(row=4, column=0, sticky="news")
+        self.columnconfigure(1, weight=1)
 
 
     def body(self, master):
@@ -185,6 +178,7 @@ class LimsTkRoot(tk.Tk):
                 r += 1
             if focusentry is None and not speclist[0].get():
                 focusentry = e
+        # Make top message.
         return focusentry
 
 
@@ -194,11 +188,14 @@ class LimsTkRoot(tk.Tk):
         Override if you don't want the standard buttons
         """
         box = tk.Frame(self)
-        w = tk.Button(box, text="OK", width=10, command=self.ok, default=tk.ACTIVE)
-        w.pack(side=tk.LEFT, padx=5, pady=5)
-        w = tk.Button(box, text="Cancel", width=10, command=self.cancel)
-        w.pack(side=tk.LEFT, padx=5, pady=5)
-        box.grid(row=2, column=0, sticky="news")
+        self.ok_button = w = tk.Button(box, text="OK", width=10, command=self.ok, default=tk.ACTIVE)
+        #w.pack(side=tk.LEFT, padx=5, pady=5)
+        w.grid(row=1, column=1, sticky="news")
+        self.cancel_button = w = tk.Button(box, text="Cancel", width=10, command=self.cancel)
+        #w.pack(side=tk.LEFT, padx=5, pady=5)
+        w.grid(row=1, column=2, sticky="news")
+        box.columnconfigure((1, 2), weight=1) # make column expand.
+        box.grid(row=2, column=0, sticky="news", padx=5, pady=15)
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
 
@@ -210,7 +207,7 @@ class LimsTkRoot(tk.Tk):
         if not self.validate(): # validate is in charge of displaying message to the user
             self.initial_focus.focus_set() # put focus back
             return
-        self.withdraw()
+        #self.withdraw() # ahh...
         self.update_idletasks()
         self.apply()
         self.App.add_entry()
@@ -252,6 +249,8 @@ class LimsTkRoot(tk.Tk):
     def login_prompt(self, username=None, msg=None, options=None):
         """
         Creates a login prompt asking for username and password, which are returned.
+        Options dict can be used to modify login prompt settings, e.g.
+        whether to store the password in memory.
         """
         dia = LoginPrompt(self, "Please enter credentials",
                           username=username, msg=msg)

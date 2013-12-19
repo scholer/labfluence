@@ -41,7 +41,7 @@ Implementation alternatives:
 # python 3.x:
 #from tkinter import ttk
 # python 2.7:
-#import Tkinter as tk
+import Tkinter as tk
 
 # Other standard lib modules:
 #import socket
@@ -109,6 +109,7 @@ class LimsApp(object):
         logger.debug("Making WikiLimsPage...")
         self.WikiLimsPage = WikiLimsPage(limspageid, server)
         logger.debug("WikiLimsPage created.")
+        title = "Labfluence LIMS (pageId: {})".format(limspageid)
         self.FilesToAdd = list()
         self.FilesAdded = list()
         self._filegenerator = None # Created when needed. self.nextFileGenerator()
@@ -123,7 +124,7 @@ class LimsApp(object):
         # after each add_entry invokation.
         # Default (False) is to only persist limspage after all entries are added.
         logger.debug("Making LimsTkRoot...")
-        self.Tkroot = LimsTkRoot(self, self.Confighandler)
+        self.Tkroot = LimsTkRoot(self, self.Confighandler, title=title)
         self.Confighandler.Singletons['ui'] = self.Tkroot
         logger.debug("LimsTkRoot created and registrered in the singletons, creating fields...")
         # ugh... calling e.g. the prompt before the main loop has started causes some weird issues.
@@ -154,7 +155,7 @@ class LimsApp(object):
     @property
     def LimsPageId(self, ):
         """ Returns the LIMS page id from the confighandler. """
-        return self.Confighandler.get('lims_pageid', None)
+        return self.Confighandler.get('wiki_lims_pageid', None)
 
 
     def getLimsFields(self):
@@ -194,6 +195,7 @@ class LimsApp(object):
         self.ResetEntryFields['productname'] = findFieldByHint(headers, ('product name', 'product', 'name'))
         self.ResetEntryFields['comment'] = findFieldByHint(headers, ('comment'))
         self.ResetEntryFields['amount'] = findFieldByHint(headers, ('amount'))
+        self.ResetEntryFields['price'] = findFieldByHint(headers, ('amount'))
         logger.debug("fields dict is: %s", fields)
         return fields
 
@@ -263,6 +265,15 @@ class LimsApp(object):
 
 
 
+    def set_entry_added_message(self, entry_info, att_info):
+        """
+        Call this to display a message to the user that the entry was added.
+        """
+        self.Tkroot.Message.set('Entry {} added; add new...'.format(
+                                entry_info.get(self.ResetEntryFields['productname'])))
+        logger.debug("set_entry_added_message complete .")
+
+
 
     def add_entry(self, addNewEntryWithSameFile=False):
         """
@@ -275,6 +286,7 @@ class LimsApp(object):
         logger.debug("entry_info : %s", entry_info)
         if not entry_info:
             #return False
+            logger.debug("No entry_info from self.Tkroot.get_result, calling next_entry and returning...")
             self.next_entry()
             return
         fp = entry_info.pop(self.FilepathField, None)
@@ -304,25 +316,17 @@ class LimsApp(object):
         logger.debug("Added entries: %s", ", ".join(str(item) for item in self.AddedEntries))
 
         # Inform the user:
+        # form disappear already here.
         self.set_entry_added_message(entry_info, att_info)
 
         # If addNewEntryWithSameFile:
         if addNewEntryWithSameFile:
-            self.Tkroot.deiconify()
+            #self.Tkroot.deiconify()
             logger.debug("add_entry complete (addNewEntryWithSameFile=%s", addNewEntryWithSameFile)
             return #?
 
         self.next_entry()
         logger.debug("add_entry complete")
-
-
-    def set_entry_added_message(self, entry_info, att_info):
-        """
-        Call this to display a message to the user that the entry was added.
-        """
-        self.Tkroot.Message.set('Entry {} added; add new...'.format(
-                                entry_info.get(self.ResetEntryFields['productname'])))
-        logger.debug("set_entry_added_message complete .")
 
 
     def next_entry(self):
@@ -335,11 +339,12 @@ class LimsApp(object):
 
         If there are no more files: persist the LimsPage, close tk root and exits.
         """
-
+        # Notice: The tkroot mainloop might not have been started yet!
         nextfp = self.nextfile()
         if nextfp:
+            # pressing 'ok' makes the form disappear, already at this point...
             self.repopulatePrompt(nextfp)
-            self.Tkroot.deiconify()
+            #self.Tkroot.deiconify()
             logger.debug("Next entry, filepath is '%s', returning to tk root (form/prompt).", nextfp)
             return
         else:
@@ -348,24 +353,39 @@ class LimsApp(object):
                 versionComment = "Added entries: " + ", ".join(str(item) for item in self.AddedEntries)
                 minorEdit = False
                 logger.debug("Persisting LIMS page, versionComment is: %s", versionComment)
-                #self.WikiLimsPage.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
+                self.WikiLimsPage.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
             # close tk root:
-            logger.debug("Destroying tk root")
-            self.Tkroot.destroy()
+            self.destroy_tkroot()
             # exit:
             logger.debug("Exiting application loop.")
             return
+
+    def destroy_tkroot(self):
+        """
+        Destroy the tk root (closes the ui).
+        Note: tkroot.destroy = close the tk root.
+              tkroot.quit = quit the tcl interpreter.
+        """
+        geometry = self.Tkroot.geometry()
+        if geometry:
+            logger.debug("Persisting tk window geometry: %s", geometry)
+            self.Confighandler.setkey('limsapp_tk_window_geometry', geometry, autosave=True)
+        logger.debug("Destroying tk root")
+        try:
+            self.Tkroot.destroy()
+        except tk.TclError as e:
+            logger.debug("Error while destroying self.Tkroot: %s", e)
 
 
     def repopulatePrompt(self, filepath=None):
         """
         Re-populates the tk form.
         """
-        logger.debug("Re-populating form")
+        logger.debug("Re-populating form, filepath is: %s", filepath)
         fieldvars = self.Tkroot.Fieldvars
         if filepath:
-            fieldvars[self.FilepathField][0].set(filepath)
-            fieldvars[self.AttachmentNameField][0].set(os.path.basename(filepath))
+            fieldvars[self.FilepathField][0].set(filepath or "")
+            fieldvars[self.AttachmentNameField][0].set(os.path.basename(filepath or ""))
         for header in self.ResetEntryFields.values():
             fieldvars[header][0].set('')
         logger.debug("repopulatePrompt complete.")

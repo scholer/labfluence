@@ -521,6 +521,7 @@ below        source and target become/remain sibling pages and the source is mov
         attachmentInfo dict must include fields 'comment', 'contentType', 'fileName'
         Returns None if server is None or not connected.
         """
+        logger.debug("Adding attachment (%s bytes) with info: %s", len(str(attachmentData)), attachmentInfo)
         if not self.Server:
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
