@@ -63,7 +63,7 @@ class LimsTkRoot(tk.Tk):
         # fields: key=header
         self.Fields = fields
         persisted_windowgeometry = self.Confighandler.get('limsapp_tk_window_geometry', None)
-        if persisted_windowgeometry:
+        if persisted_windowgeometry and False:
             logger.debug("Setting window geomerty: %s", persisted_windowgeometry)
             try:
                 self.geometry(persisted_windowgeometry)
@@ -138,10 +138,11 @@ class LimsTkRoot(tk.Tk):
             # Adding the label directly to root without having a frame caused
             # "collapse" issue, so using a frame from now on.
             f = tk.Frame(self)
-            self.message_label = l = tk.Label(f, textvariable=self.Message)
-            l.grid(row=0, column=0, sticky="news")
+            # rows: 1=body, 2=buttonbox,
             f.grid(row=4, column=0, sticky="news")
-        self.columnconfigure(1, weight=1)
+            self.message_label = l = tk.Label(f, textvariable=self.Message)
+            l.grid(sticky="news")
+        self.columnconfigure(0, weight=1)
 
 
     def body(self, master):
@@ -179,6 +180,8 @@ class LimsTkRoot(tk.Tk):
             if focusentry is None and not speclist[0].get():
                 focusentry = e
         # Make top message.
+        master.columnconfigure(0, weight=1)
+        master.columnconfigure(1, weight=5, minsize=170)
         return focusentry
 
 
@@ -188,22 +191,39 @@ class LimsTkRoot(tk.Tk):
         Override if you don't want the standard buttons
         """
         box = tk.Frame(self)
-        self.ok_button = w = tk.Button(box, text="OK", width=10, command=self.ok, default=tk.ACTIVE)
-        #w.pack(side=tk.LEFT, padx=5, pady=5)
+        self.ok_keep_button = w = tk.Button(box, text="OK (keep)", width=10, command=self.ok_keep, default=tk.ACTIVE)
+        w.grid(row=1, column=0, sticky="news")
+        self.ok_clear_button = w = tk.Button(box, text="OK (clear)", width=10, command=self.ok, default=tk.ACTIVE)
         w.grid(row=1, column=1, sticky="news")
         self.cancel_button = w = tk.Button(box, text="Cancel", width=10, command=self.cancel)
-        #w.pack(side=tk.LEFT, padx=5, pady=5)
         w.grid(row=1, column=2, sticky="news")
-        box.columnconfigure((1, 2), weight=1) # make column expand.
+        box.columnconfigure((0, 1, 2), weight=1) # make column expand.
         box.grid(row=2, column=0, sticky="news", padx=5, pady=15)
-        self.bind("<Return>", self.ok)
+        self.bind("<Shift-Return>", self.ok_keep)
+        self.bind("<Return>", self.ok_clear) # ok_clear
         self.bind("<Escape>", self.cancel)
 
 
-    #
     # standard button semantics
-    def ok(self, event=None):
+    def ok_keep(self, event=None):
         """invoked when the users presses the 'ok' button."""
+        logger.debug("ok_keep invoked...")
+        if not self.validate(): # validate is in charge of displaying message to the user
+            self.initial_focus.focus_set() # put focus back
+            return
+        #self.withdraw() # ahh...
+        self.update_idletasks()
+        self.apply()
+        self.App.add_entry(addNewEntryWithSameFile=True)
+        #self.cancel()
+
+    def ok(self, event=None):
+        self.ok_clear()
+
+    # standard button semantics
+    def ok_clear(self, event=None):
+        """invoked when the users presses the 'ok' button."""
+        logger.debug("ok_clear invoked...")
         if not self.validate(): # validate is in charge of displaying message to the user
             self.initial_focus.focus_set() # put focus back
             return

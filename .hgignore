@@ -1,5 +1,6 @@
 syntax: glob
 *.pyc
+*.pyo
 *~
 *.bak
 baks/*
@@ -7,5 +8,4 @@ code-examples-from-others/*
 third-party/*
 projectfiles/*
 */test_data/test_filestructure*
-*.yml
 *.log

@@ -1084,7 +1084,7 @@ class PathFinder(object):
         self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml',  ('.', 'config', 'setup/configs/default/') ),
                                               user= ('labfluence_user.yml',
                                                      (os.path.expanduser(os.path.join('~', dir)) for dir in
-                                                      ('.Labfluence', '.labfluence', os.path.join('.config', '.labfluence') ) )
+                                                      ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence') ) )
                                                     )
                                               )
         self._schemeSearch['test1'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/test_configs/local_test_setup_1',) ),

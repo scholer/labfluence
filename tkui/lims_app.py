@@ -106,7 +106,11 @@ class LimsApp(object):
         self._pageid = pageId
         server, limspageid = self.Server, self.LimsPageId
         if server is None or not limspageid:
-            logger.error("Server is: %s; limspageid is: %s", server, limspageid)
+            logger.error("Server is: %s; limspageid is: %s. If limspage is None, \
+you should probably set the wiki_lims_pageid config entry, in one of the config files:\n\
+   %s", server, limspageid,
+                         "\n   ".join("{}: {}".format(t, p) for t, p in self.Confighandler.ConfigPaths.items())
+                        )
             raise ValueError("Server is: {}; limspageid is: {}".format( server, limspageid ) )
         logger.debug("Making WikiLimsPage...")
         self.WikiLimsPage = WikiLimsPage(limspageid, server)
