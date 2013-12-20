@@ -74,7 +74,7 @@ class LimsApp(object):
     """
 
 
-    def __init__(self, confighandler):
+    def __init__(self, confighandler, pageId=None):
         self.Confighandler = confighandler
 
         #self.Fields = OrderedDict( (key, key.capitalize())
@@ -102,6 +102,7 @@ class LimsApp(object):
 
         #self.PromptResults = list()
         # pageId, server, confighandler=None, pagestruct=None
+        self._pageid = pageId
         server, limspageid = self.Server, self.LimsPageId
         if server is None or not limspageid:
             logger.error("Server is: %s; limspageid is: %s", server, limspageid)
@@ -155,7 +156,7 @@ class LimsApp(object):
     @property
     def LimsPageId(self, ):
         """ Returns the LIMS page id from the confighandler. """
-        return self.Confighandler.get('wiki_lims_pageid', None)
+        return self._pageid or self.Confighandler.get('wiki_lims_pageid', None)
 
 
     def getLimsFields(self):

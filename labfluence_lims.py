@@ -52,7 +52,9 @@ if __name__ == '__main__':
     parser.add_argument('--logtofile', action='store_true', help="Log logging outputs to files.")
     parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
                         help="Specify modules where you want to display logging.DEBUG messages.")
-    parser.add_argument('--pathscheme', default='default1', help="Specify a particular pathscheme to use for the confighandler.")
+    parser.add_argument('--pathscheme', default='default1', help="Specify a particular pathscheme to use for the confighandler, e.g. 'default1', 'test1', etc....")
+    parser.add_argument('--pageid', help="Specify a costum pageId for the Wiki LIMS page. \
+                        If not specified, will use wiki_lims_pageid from config.")
     parser.add_argument('files', nargs='*', help="Order file(s) to add. \
                         Use --singlebatch if all files are for a single LIMS entry. \
                         (default: one new entry per file.)")

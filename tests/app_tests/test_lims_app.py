@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=W0621,C0111
+# pylint: disable-msg=W0621,C0111,W0212
 """
 Tests for the labfluence_cmd.py command line interface module.
 
@@ -32,7 +32,7 @@ from datetime import datetime
 ## Test doubles:
 from model.model_testdoubles.fake_confighandler import FakeConfighandler
 from model.model_testdoubles.fake_server import FakeConfluenceServer
-from tkui.tkui_testdoubles.fake_tkroot import FakeVar, FakeTkroot
+from tkui.tkui_testdoubles.fake_tkroot import FakeLimsTkroot
 
 
 #########################
@@ -72,11 +72,12 @@ def confighandler_with_server(fakeserver):
 @pytest.fixture
 def limsapp_nodeps():
     app = lims_app.LimsApp()
+    return app
 
 
 @pytest.fixture
 def limsapp_deps(monkeypatch, confighandler_with_server):
-    monkeypatch.setattr(lims_app, 'LimsTkRoot', FakeTkroot)
+    monkeypatch.setattr(lims_app, 'LimsTkRoot', FakeLimsTkroot)
     app = lims_app.LimsApp(confighandler_with_server)
     app.FilesToAdd = (os.path.join(os.getcwd(), 'tests', 'test_data', 'attachments', fn) for fn in ('visualization.pdf', ))
     return app
@@ -92,7 +93,7 @@ def test_nextfile(limsapp_deps):
     nf = app.nextfile()
     assert nf is None
 
-def test_getLimsFields(monkeypatch, limsapp_deps):
+def test_getLimsFields(limsapp_deps):
     app = limsapp_deps
     def mock_getheaderfields():
         return ['date', 'product name', 'comment', 'Order file(s)']
@@ -175,3 +176,11 @@ def test_next_entry(limsapp_deps):
     assert app.Tkroot._destroyed == True
     # I am currently scoping fixtures on module level, so 'x-mas present' will be present...
     assert 'new-year present' not in app.WikiLimsPage.Content
+
+def test_pageid_argument(monkeypatch, confighandler_with_server):
+    monkeypatch.setattr(lims_app, 'LimsTkRoot', FakeLimsTkroot)
+    app = lims_app.LimsApp(confighandler_with_server, pageId='123456')
+    app.FilesToAdd = (os.path.join(os.getcwd(), 'tests', 'test_data', 'attachments', fn) for fn in ('visualization.pdf', ))
+    assert app.LimsPageId == '123456' # app uses 'LimsPageId', the page object attribute is just PageId.
+
+
