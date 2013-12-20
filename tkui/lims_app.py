@@ -14,6 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=W0212
 """
 
 Implementation alternatives:
@@ -370,7 +371,10 @@ class LimsApp(object):
         geometry = self.Tkroot.geometry()
         if geometry:
             logger.debug("Persisting tk window geometry: %s", geometry)
+            # perhaps save winfo_x, winfo_y instead?
             self.Confighandler.setkey('limsapp_tk_window_geometry', geometry, autosave=True)
+        else:
+            logger.debug("No tk geometry??? - Is: %s", geometry)
         logger.debug("Destroying tk root")
         try:
             self.Tkroot.destroy()
@@ -411,6 +415,7 @@ class LimsApp(object):
 
 
     def start(self):
+        """ Bootstraps application and initiates UI mainloop. """
         logger.info("\n\nApp start() invoked...\n\n\n")
         if not self.WikiLimsPage.PageId:
             logger.error("WikiLimsPage does not have a pageId")

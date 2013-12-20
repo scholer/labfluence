@@ -258,13 +258,18 @@ class ConfigHandler(object):
         if autosave is None:
             autosave = self.Autosave
         if check_for_existing_entry:
-            for cfgtyp, config in self.Configs.items():
-                if key in config:
-                    config[key] = value
-                    return cfgtyp
-        if cfgtype is None:
-            cfgtype = self.DefaultConfig
-        # If key is not already set, set in default config type:
+            #for cfgtyp, config in self.Configs.items():
+            #    if key in config:
+            #        config[key] = value
+            #        return cfgtyp
+            cfgtype = next( (cfgtype for cfgtype, config in self.Configs.items()
+                                if key in config),
+                            self.DefaultConfig)
+        else:
+            # If key is not found in any of the existing configs, set in default config type:
+            if cfgtype is None:
+                cfgtype = self.DefaultConfig
+        # Set config key to value:
         try:
             self.Configs.get(cfgtype)[key] = value
         except TypeError:
@@ -272,7 +277,9 @@ class ConfigHandler(object):
                            key, cfgtype, cfgtype, self.Configs.get(cfgtype), self.Configs.keys())
             return False
         self.ChangedEntriesForCallbacks.add(key)
+        logger.debug("cfgtype:key=value | %s:%s=%s", cfgtype, key, value)
         if autosave:
+            logger.debug("Autosaving config: %s", cfgtype)
             self.saveConfig(cfgtype)
         return cfgtype
 
@@ -405,6 +412,7 @@ class ConfigHandler(object):
             return False
         config = self.Configs[cfgtype]
         outputfn = self.ConfigPaths[cfgtype]
+        logger.debug("Saving config %s using outputfn %s", cfgtype, outputfn)
         self._saveConfig(outputfn, config)
         return True
 

@@ -86,7 +86,7 @@ class WikiLimsPage(WikiPage):
         if not getattr(self, '_tablerowdataregexprog', None):
             regex = self.Confighandler.get('xhtml_tablerowdata_regex')
             if not regex:
-                regex = r"\s*<t[dh]>\s*(?:<p>\s*)?(.*?)\s*(?:</p>\s*)?</t[dh]>"
+                regex = r"\s*<t[dh](?:\s+[^>]*)?>\s*(?:<p>\s*)?(.*?)\s*(?:</p>\s*)?</t[dh]>"
             self._tablerowdataregexprog = re.compile(regex, flags=re.DOTALL+re.MULTILINE)
         return self._tablerowdataregexprog
 

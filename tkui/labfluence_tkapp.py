@@ -38,33 +38,34 @@ tkui/labfluence_app     - Could provide a base class that could be derived in
 # python 3.x:
 #from tkinter import ttk
 # python 2.7:
-import Tkinter as tk
-import ttk
-import tkFont
+#import Tkinter as tk
+#import ttk
+#import tkFont
+from Tkinter import TclError
 
 # Other standard lib modules:
-import socket
-from datetime import datetime
-from collections import OrderedDict
+#import socket
+#from datetime import datetime
+#from collections import OrderedDict
 import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
 
-#from model.confighandler import ExpConfigHandler
-#from model.experimentmanager import ExperimentManager
+from model.confighandler import ExpConfigHandler
+from model.experimentmanager import ExperimentManager
 #from model.experiment import Experiment
 #from model.server import ConfluenceXmlRpcServer
 
 from labfluence_tkroot import LabfluenceTkRoot
 
-from views.expnotebook import ExpNotebook, BackgroundFrame
-from views.experimentselectorframe import ExperimentSelectorWindow
-from views.dialogs import Dialog
+#from views.expnotebook import BackgroundFrame
+#from views.experimentselectorframe import ExperimentSelectorWindow
+#from views.dialogs import Dialog
 
-from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
-from controllers.filemanagercontroller import ExpFilemanagerController
+#from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
+#from controllers.filemanagercontroller import ExpFilemanagerController
 from fontmanager import FontManager
 
 
@@ -116,25 +117,32 @@ class LabfluenceApp(object):
         Edit: Not 'if possible'. Having a well-behaved confighandler is now a requirement as this significantly simplifies a lot of code.
         """
         return self.Confighandler.Singletons.get('server', None)
-    # Tkinter does not use new-style classes under python2.
-    def getActiveExperimentIds(self):
-        return self.Confighandler.setdefault('app_active_experiments', list())
-    def setActiveExperimentIds(self, value):
-        print "Setting (overwriting) the active experiments list is not allowed...  You can empty/clear it using del my_list[:] or mylist[:] = [] "
-    def delActiveExperimentIds(self):
-        print "Deleting the active experiments list is not allowed...  You can empty/clear it using del my_list[:] or mylist[:] = [] "
-    ActiveExperimentIds = property(getActiveExperimentIds, setActiveExperimentIds, delActiveExperimentIds, "List of currently active experiments, obtained from confighandler.")
+
+    # Property definition for old-style classes:
+    # (Tkinter does not use new-style classes under python2.)
+    #def getActiveExperimentIds(self):
+    #    """ Returns ActiveExperimentIds from confighandler """
+    #    return self.Confighandler.setdefault('app_active_experiments', list())
+    #def setActiveExperimentIds(self, value):
+    #    print "Setting (overwriting) the active experiments list is not allowed...  You can empty/clear it using del my_list[:] or mylist[:] = [] "
+    #def delActiveExperimentIds(self):
+    #    print "Deleting the active experiments list is not allowed...  You can empty/clear it using del my_list[:] or mylist[:] = [] "
+    #ActiveExperimentIds = property(getActiveExperimentIds, setActiveExperimentIds, delActiveExperimentIds, "List of currently active experiments, obtained from confighandler.")
     # Alternative, using decorators:
+    @property
+    def ActiveExperimentIds(self):
+        "List of recently opened experiments, obtained from confighandler."
+        return self.Confighandler.setdefault('app_recent_experiments', list())
     @property
     def RecentExperimentIds(self):
         "List of recently opened experiments, obtained from confighandler."
         return self.Confighandler.setdefault('app_recent_experiments', list())
-    @RecentExperimentIds.setter
-    def RecentExperimentIds(self, value):
-        print "Setting (overwriting) the recent experiments list is not allowed... You can empty/clear it using del my_list[:] or mylist[:] = [] "
-    @RecentExperimentIds.deleter
-    def RecentExperimentIds(self):
-        print "Deleting the recent experiments list is not allowed... You can empty/clear it using del my_list[:] or mylist[:] = [] "
+    #@RecentExperimentIds.setter
+    #def RecentExperimentIds(self, value):
+    #    print "Setting (overwriting) the recent experiments list is not allowed... You can empty/clear it using del my_list[:] or mylist[:] = [] "
+    #@RecentExperimentIds.deleter
+    #def RecentExperimentIds(self):
+    #    print "Deleting the recent experiments list is not allowed... You can empty/clear it using del my_list[:] or mylist[:] = [] "
 
     @property
     def ExperimentManager(self):
@@ -158,9 +166,11 @@ class LabfluenceApp(object):
         return self.ExperimentManager.RecentExperiments
     @property
     def WindowState(self):
+        """ Returns the saved app window state from confighandler """
         return self.Confighandler.get('app_window_state', None)
     @WindowState.setter
     def WindowState(self, value):
+        """ Sets tkroot window state and saves app window state to confighandler """
         try:
             self.tkroot.state(value)
             self.Confighandler.setkey('app_window_state', value, 'user')
@@ -168,9 +178,11 @@ class LabfluenceApp(object):
             print e
     @property
     def WindowGeometry(self):
+        """ Returns the saved app window state from confighandler """
         return self.Confighandler.get('app_window_geometry', None)
-    @WindowState.setter
+    @WindowGeometry.setter
     def WindowGeometry(self, value):
+        """ Sets tkroot window state and saves app window state to confighandler """
         try:
             self.tkroot.geometry(value)
             self.Confighandler.setkey('app_window_geometry', value, 'user')
@@ -186,6 +198,7 @@ class LabfluenceApp(object):
     #    self.Confighandler.setkey('app_window_state', self.tkroot.state(), 'user')
 
     def init_bindings(self):
+        """ Initiates application bindings. Not currently used. """
         logger.debug("LabfluenceApp init_bindings currently does nothing.")
         # Use the following to intercept a window exit request:
         #self.tkroot.protocol("WM_DELETE_WINDOW", self.exitApp)
@@ -203,6 +216,7 @@ class LabfluenceApp(object):
         self.CustomFonts = self.Fontmanager.CustomFonts
 
     def connect_controllers(self):
+        """ Initiates application controllers. Not currently used. """
         pass
 
 
@@ -212,18 +226,22 @@ class LabfluenceApp(object):
     ## STARTUP METHODS ##
     #####################
     def start(self):
+        """ Starts the application's UI loop. """
         logger.info("starting tk.mainloop()...")
         self.tkroot.mainloop()
         logger.info("tk.mainloop() finished.")
 
 
     def add_notebook(self, experiment):
+        """ Adds a notebook to the main UI. """
         return self.tkroot.add_notebook(experiment)
 
     def show_notebook(self, experiment):
+        """ Shows a notebook to the main UI. """
         return self.tkroot.show_notebook(experiment)
 
     def load_experiment(self, experiment, show=True):
+        """ Loads an experiment and shows it in the main UI. """
         if show:
             self.show_notebook(experiment)
         else:

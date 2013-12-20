@@ -14,6 +14,11 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=W0612
+"""
+Module with various utility functions.
+"""
+
 
 from __future__ import print_function
 import os
@@ -95,7 +100,7 @@ def idx_generator(start, idx=None, maxruns=100):
         else:
             logger.error("idx_generator() :: Fatal error, could not determine start; aborting...")
             raise StopIteration
-    for run in xrange(maxruns):
+    for _ in xrange(maxruns):
         yield i
         if i == idx:
             break
@@ -226,7 +231,7 @@ def findFieldByHint(candidates, hints):
     for hint in hints:
         scores = [ calculate_score(candidate.lower(), hint.lower()) for candidate in candidates ]
         #print "="
-        scores_list = [cand+"({}) ({:.3f})".format(type(cand), score) for cand, score in zip(candidates, scores)]
+        scores_list = ["{} ({:.3f})".format(cand, score) for cand, score in zip(candidates, scores)]
         #print scores_list
         scores_str = ", ".join( scores_list )
         #print scores_str
