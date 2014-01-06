@@ -1,0 +1,7 @@
+app_active_experiments:
+- 
+exp_config_path: ~/Experiments
+wiki_serverparams:
+  baseurl: https://<your server url>
+wiki_username: <not set>
+wiki_lims_pageid: '40633496'
