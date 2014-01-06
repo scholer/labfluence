@@ -191,14 +191,18 @@ class LimsTkRoot(tk.Tk):
         Override if you don't want the standard buttons
         """
         box = tk.Frame(self)
-        self.ok_keep_button = w = tk.Button(box, text="OK (keep)", width=10, command=self.ok_keep, default=tk.ACTIVE)
+        self.ok_keep_button = w = tk.Button(box, text="OK (keep)", width=10, command=self.ok_keep)
         w.grid(row=1, column=0, sticky="news")
         self.ok_clear_button = w = tk.Button(box, text="OK (clear)", width=10, command=self.ok, default=tk.ACTIVE)
         w.grid(row=1, column=1, sticky="news")
         self.cancel_button = w = tk.Button(box, text="Cancel", width=10, command=self.cancel)
         w.grid(row=1, column=2, sticky="news")
+        l = tk.Label(box, text="Enter=OK, Shift-enter=OK (keep), Escape=Abort")
+        l.grid(row=2, column=0, columnspan=3)
         box.columnconfigure((0, 1, 2), weight=1) # make column expand.
-        box.grid(row=2, column=0, sticky="news", padx=5, pady=15)
+        box.rowconfigure(1, weight=1)
+        box.rowconfigure(2, weight=0)
+        box.grid(row=2, column=0, sticky="news", padx=5, pady=10)
         self.bind("<Shift-Return>", self.ok_keep)
         self.bind("<Return>", self.ok_clear) # ok_clear
         self.bind("<Escape>", self.cancel)
