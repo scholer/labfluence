@@ -48,7 +48,7 @@ import re
 #import inspect
 import logging
 logger = logging.getLogger(__name__)
-
+from utils import isvalidfilename
 #from confighandler import ExpConfigHandler
 #from server import ConfluenceXmlRpcServer
 
@@ -103,7 +103,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         # The current approach is that this should be immutable; changing the pageId could result
         # in undefined bahaviour, e.g. overwriting a page with another page's content.
-        self.PageId = pageId
+        self.PageId = str(int(pageId)) # Making sure pageId is an integer typed as a string...
         self._server = server
         self._confighandler = confighandler
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
@@ -180,6 +180,53 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         except AttributeError:
             logger.debug("Attribute Error while obtaining Confighandler via server, returning empty dict().")
             return dict()
+
+
+    def getViewPageUrl(self):
+        """
+        Returns a url to view the page in a browser.
+        Note: This should also be obtainable from self.Struct['url'].
+        However, generating the urls manually eliminates the need to query the server for page struct.
+        """
+        urlfmt = "{}/pages/viewpage.action?pageId={}"
+        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+
+    def getEditPageUrl(self):
+        """ Returns a url to edit the page in a browser. """
+        urlfmt = "{}/pages/editpage.action?pageId={}"
+        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+
+    def getViewAttachmentsUrl(self):
+        """
+        Returns a url to view the page in a browser.
+        """
+        urlfmt = "{}/pages/viewpageattachments.action?pageId={}"
+        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+
+    def getViewPageInfoUrl(self):
+        """
+        Returns a url to view the page in a browser.
+        """
+        urlfmt = "{}/pages/viewinfo.action?pageId={}"
+        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+
+    def getViewPageHistoryUrl(self):
+        """
+        Returns a url to view the page in a browser.
+        """
+        urlfmt = "{}/pages/viewpreviousversions.action?pageId={}"
+        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+
+    def getAttachmentLinkXhtml(self, fileName):
+        """
+        Returns valid xhtml for an attachment with filename <fileName>
+        """
+        # fileName = getvalidfilename(fileName)
+        if not isvalidfilename(fileName):
+            raise ValueError("Filename {} is not a valid filename for xhtml, aborting...", fileName)
+        xhtmlfmt = '<ac:link><ri:attachment ri:filename="{fn}" /></ac:link>'
+        return xhtmlfmt.format(fn=fileName)
+
 
     def reloadFromServer(self):
         """

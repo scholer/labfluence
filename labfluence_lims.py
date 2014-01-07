@@ -14,6 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+#pylint: disable-msg=W0212
 """
 
 Labfluence module for adding and managing of an inventory page,
@@ -126,9 +127,9 @@ if __name__ == '__main__':
         server = ConfluenceXmlRpcServer(autologin=False, confighandler=confighandler)
         server._autologin = True
     confighandler.Singletons['server'] = server
-    logger.debug("\n\n >>>>>> Server instantiated, starting LimsApp... >>>>>>\n")
+    logger.debug("\n >>>>>> Server instantiated, starting LimsApp... >>>>>>\n")
     limsapp = LimsApp(confighandler)
-    logger.debug("\n\n >>>>>> LimsApp instantiated, adding files... >>>>>>\n")
+    logger.debug("\n >>>>>> LimsApp instantiated, adding files: %s... >>>>>>\n", argsns.files)
     limsapp.FilesToAdd = argsns.files
     #limsapp.addEntriesForFiles(argsns.files)
     logger.debug("Starting LIMS app loop...")

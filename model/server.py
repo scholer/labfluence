@@ -24,7 +24,7 @@ import socket
 #import os.path
 import itertools
 import string
-import sys
+#import sys
 from Crypto.Cipher import AES
 #import Crypto.Random
 from Crypto.Random import random as crypt_random
@@ -125,6 +125,7 @@ class AbstractServer(object):
                 self.Confighandler.get('app_loginpromptoptions', self._defaultpromptoptions)
     @property
     def AutologinEnabled(self, ):
+        """ Boolean property returning whether autologin should be used. """
         serverparams = self.Serverparams
         if 'autologin_enabled' in serverparams:
             logger.debug("AutologinEnabled found in serverparams.")
@@ -138,12 +139,14 @@ class AbstractServer(object):
 
     @property
     def UI(self, ):
+        """ Property; Returns the registrered UI to use from the confighandler. """
         if self.Confighandler:
             return self.Confighandler.getSingleton("ui")
 
 
     @property
     def Serverparams(self):
+        """ Property; Returns the server parameters with which the server was initialized. """
         params = self._defaultparams or dict()
         if self.Confighandler:
             config_params = self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
@@ -596,7 +599,8 @@ to prevent the login token from expiring.
                 self.setok()
             return True
         except xmlrpclib.Fault as err:
-            logger.debug("ConfluenceXmlRpcServer.test_token() : tested token '%s' did not work; %s: %s", logintoken, err.faultCode, err.faultString)
+            logger.debug("ConfluenceXmlRpcServer.test_token() : tested token of length %s did not work; %s: %s",
+                         len(logintoken), err.faultCode, err.faultString)
             return False
 
     def promptForUserPass(self, username=None, msg=None):

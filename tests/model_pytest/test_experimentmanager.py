@@ -284,7 +284,7 @@ def test_mergeCurrentWikiExperiments(em_with_fake_ch_and_patched_server, monkeyp
     assert em.ExperimentsById == None # or OrderedDict() # Empty dict
     em.mergeCurrentWikiExperiments(autocreatelocaldirs=False)
     assert 'RS001' in em.ExperimentsById
-    assert em.ExperimentsById['RS001'].PageId == '01'
+    assert em.ExperimentsById['RS001'].PageId == '1' # '01' should be converted to '1' after str(int(pageid)) conversions.
 
     ## SECOND, test with autocreatelocaldirs=True
     def test_pagesummaries(self):
@@ -299,7 +299,7 @@ def test_mergeCurrentWikiExperiments(em_with_fake_ch_and_patched_server, monkeyp
     em._localexpdirsparsed = True # Act like the local dirs have been parsed.
     # If this is not set, then (as a precaution) em.mergeCurrentWikiExperiments will reset autocreatelocaldirs to False.
     em.mergeCurrentWikiExperiments(autocreatelocaldirs=True) # Defaults to app_autocreatelocalexpdirsfromwikiexps or False
-    assert em.ExperimentsById['RS004'].PageId == '04'
+    assert em.ExperimentsById['RS004'].PageId == '4'
     print "\n\ntempfiledir: %s" % tempfiledir
     assert os.listdir(tempfiledir) == ['RS004 Testpage04']
 

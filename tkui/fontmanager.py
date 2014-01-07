@@ -16,14 +16,10 @@
 ##
 
 # python 2.7:
-import Tkinter as tk
-import ttk
 import tkFont
 
 class FontManager():
-
-    def __init__(self):
-        """
+    """
 Standard fonts: (just use font='TkDefaultFont' when making e.g. labels...)
 TkDefaultFont	The default for all GUI items not otherwise specified.
 TkTextFont	Used for entry widgets, listboxes, etc.
@@ -37,7 +33,9 @@ TkTooltipFont	A font for tooltips.
 
 You can add new named fonts by providing name='new_font_name' when creating a font.
 In this way, it will be globablly accessible.
-        """
+    """
+    def __init__(self):
+
         fonts = dict()
         defaultfont = tkFont.nametofont('TkDefaultFont')
         defaultfontspecs = defaultfont.actual()
@@ -46,7 +44,7 @@ In this way, it will be globablly accessible.
         fonts['header3'] = dict(size=10, weight='bold')
         fonts['hyperlink_active'] = dict(defaultfontspecs, underline=True) # Yes, this is ok, later keys will override keys in the first dict.
         fonts['hyperlink_inactive'] = dict(defaultfontspecs, underline=False)#, color='blue') # color cannot be used as a init keyword.
+        fonts['emphasis'] = dict(defaultfontspecs, slant='italic')#, color='blue') # color cannot be used as a init keyword.
         self.CustomFonts = dict()
-        for name,specs in fonts.items():
+        for name, specs in fonts.items():
             self.CustomFonts[name] = tkFont.Font(name=name, **specs)
-

@@ -277,7 +277,7 @@ class ConfigHandler(object):
                            key, cfgtype, cfgtype, self.Configs.get(cfgtype), self.Configs.keys())
             return False
         self.ChangedEntriesForCallbacks.add(key)
-        logger.debug("cfgtype:key=value | %s:%s=%s", cfgtype, key, value)
+        logger.debug("cfgtype:key=type(value) | %s:%s=%s", cfgtype, key, type(value))
         if autosave:
             logger.debug("Autosaving config: %s", cfgtype)
             self.saveConfig(cfgtype)
@@ -1091,11 +1091,13 @@ class PathFinder(object):
                                               user= ('labfluence_user.yml', ('setup/configs/test_configs/local_test_setup_1', ) )
                                               )
 
-        self._schemeSearch['install'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/default/',) ),
-                                                user= ('labfluence_user.yml', ('setup/configs/default/', ) )
+        self._schemeSearch['install'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/new_install/',) ),
+                                                user= ('labfluence_user.yml', ('setup/configs/new_install/', ) ),
+                                                exp = ('labfluence_exp.yml', ('setup/configs/new_install/', ) )
                                               )
 
         #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
+        logger.debug("%s initialized, self.Defaultscheme='%s'", self.__class__.__name__, self.Defaultscheme )
         if VERBOSE > 2:
             logger.debug("PathFinder: Schemedicts --> \n{}".format( self.printSchemes() ) )
 
@@ -1143,10 +1145,10 @@ class PathFinder(object):
         firstdir = next(dirswithfilename, None)
         if firstdir:
             winnerpath = os.path.join(firstdir, filename)
-            logger.debug("%s, config file found: {}".format(self.__class__.__name__, winnerpath))
+            logger.debug("%s, config file found: %s", self.__class__.__name__, winnerpath)
             return winnerpath
         else:
-            logger.debug("Warning, no config found for config filename: '{}'\ntested:{}".format(filename, dircands) )
+            logger.debug("Warning, no config found for config filename: '%s'; tested: %s", filename, dircands)
 
         #for dircand in normdirs:
         #    if filename in os.listdir(dircand):

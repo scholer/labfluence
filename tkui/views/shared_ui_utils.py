@@ -110,36 +110,42 @@ class HyperLink(ttk.Label):
         if self.getUrl():
             self.configure(foreground="blue")
         self.bind('<Enter>', self.on_enter)
-        self.bind('<Leave>', self.on_leave)
-        self.bind('<Button-1>', self.open_uri)
+        self.bind('<Leave>', self.on_leave) # Enter=Mouse cursor hovering over widget; Return=Return key is pressed.
+        self.bind('<Button-1>', self.open_uri) # Pressing left mouse btn. (bindings only apply when the widget is active).
 
     def on_enter(self, event):
-        # NOTICE: This requires that 'hyperlink_active' has been stored as a named font,
-        # e.g. initialized by a FontManager object.
-        # self = event.widget
+        """
+        NOTICE: This requires that 'hyperlink_active' has been stored as a named font,
+        e.g. initialized by a FontManager object.
+        """
+        #self = event.widget
         if self.getUrl():
             lbl = event.widget
             lbl.configure(font='hyperlink_active', cursor="hand2")
 
     def on_leave(self, event):
+        """ Bound to <Leave> virtual event """
         event.widget.configure(font='hyperlink_inactive', cursor="")
 
     def getUrl(self):
+        """ Returns a browser-openable URL """
         if self.URI:
             url = self.URI
         elif self.Experiment:
-            url = self.Experiment.Props.get('url', None)
+            url = self.Experiment.getUrl()
         else:
             url = None
         return url
 
     def open_uri(self, event):
-        # http://stackoverflow.com/questions/8742644/python-2-7-tkinter-open-webbrowser-click
-        url = self.getUrl()
+        """
+        Based on http://stackoverflow.com/questions/8742644/python-2-7-tkinter-open-webbrowser-click
+        """
+        # self should equal event.widget
+        url = event.widget.getUrl()
         if not url:
             logger.debug("No url available...\n-url='{}'\nself.Experiment='{}'".format(url, self.Experiment))
             return
         logger.debug("Opening '{}'".format(url))
         # Perhaps check what protocol to use first, and open in webbrowser/filebrowser/ftpclient/?
         webbrowser.open_new(url)
-    pass

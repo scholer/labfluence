@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 ### SUT ##########
 ##################
 from model.utils import increment_idx, idx_generator, random_string, \
-    getmimetype, getnearestfile, magic_available, attachmentTupFromFilepath
+    getmimetype, getnearestfile, magic_available, attachmentTupFromFilepath, \
+    isvalidfilename, getvalidfilename
 
 
 
@@ -75,3 +76,15 @@ def test_attachmentTupFromFilepath():
     assert info['fileName'] == f
     assert hasattr(data, 'encode')
 
+def test_isvalidfilename():
+    fn = 'NU-803-lyo.pdf'
+    assert isvalidfilename(fn)
+    fn = 'NU-803-lyo .pdf'
+    assert isvalidfilename(fn)
+    for c in r"%'\&":
+        assert not isvalidfilename('NU-803-lyo{}.pdf'.format(c) )
+
+
+def test_getvalidfilename():
+    fn = 'NU-803-lyo.pdf'
+    assert getvalidfilename(fn) == fn

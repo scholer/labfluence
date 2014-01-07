@@ -401,6 +401,7 @@ functionality of this object will be greatly reduced and may break at any time."
     def isrecent(self):
         """Returns whether experiment is listed in the recent experiments list."""
         return self.Status == 'recent'
+
     ## Non-property getters:
     def getUrl(self):
         """get wikipage url"""
@@ -408,9 +409,8 @@ functionality of this object will be greatly reduced and may break at any time."
         if not url:
             # Note: self.WikiPage will trigger attachWikipage including possible server search for wiki page.
             # Using self._wikipage will not do this.
-            if self.WikiPage and self.WikiPage.Struct:
-                url = self.WikiPage.Struct.get('url', None)
-        # if no url is found, perhaps use the pageId to generate a url (via the server and the wiki_url or perhaps wiki_url_bypageId_fmt).
+            if self.WikiPage:
+                url = self.WikiPage.getViewPageUrl()
         return url
 
 
@@ -841,7 +841,7 @@ functionality of this object will be greatly reduced and may break at any time."
         or just use:
             self.Subentries.get(subentry_idx, None)
         Actually, I think this is a bad method to have, the only advantage is that if you
-        descide to refactor and e.g. have Subentries as something else, you would just have to
+        decide to refactor and e.g. have Subentries as something else, you would just have to
         change this method. However, since self.Subentries is a property, I can always just change that.
         So, I hereby decide to deprechate this method.
         And actually, the dict does NOT raise a KeyError, ever. But, in that case, just use

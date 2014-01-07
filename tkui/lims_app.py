@@ -49,6 +49,7 @@ import Tkinter as tk
 import os
 from datetime import datetime
 from collections import OrderedDict
+import xmlrpclib
 import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class LimsApp(object):
     """
 
 
-    def __init__(self, confighandler, pageId=None):
+    def __init__(self, confighandler, pageId=None, filestoadd=None):
         self.Confighandler = confighandler
 
         #self.Fields = OrderedDict( (key, key.capitalize())
@@ -116,7 +117,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         self.WikiLimsPage = WikiLimsPage(limspageid, server)
         logger.debug("WikiLimsPage created.")
         title = "Labfluence LIMS (pageId: {})".format(limspageid)
-        self.FilesToAdd = list()
+        self.FilesToAdd = filestoadd or list()
         self.FilesAdded = list()
         self._filegenerator = None # Created when needed. self.nextFileGenerator()
         self.PersistForEveryFile = False
@@ -175,10 +176,11 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
             print "No headers returned by WikiLimsPage.getTableHeaders(), aborting..."
             return
 
-        # Remove the "attachments" header, replace by a field for inputting file path and fileName.
+        # Remove the "attachments" header (parsed from the xhtml),
+        # replace with fields for inputting file path and optionally provide new fileName.
         self.AttachmentField = findFieldByHint(headers, ('attachment', 'order file'))
         if self.AttachmentField:
-            logger.debug("Removing field from header list: %s", self.AttachmentField)
+            logger.debug("Removing attachment field from header list: %s", self.AttachmentField)
             headers.remove(self.AttachmentField)
         headers.append(self.FilepathField)
         headers.append(self.AttachmentNameField)
@@ -192,7 +194,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
             fields[df] = datetime.now().strftime("%Y%m%d")
         personfield = findFieldByHint(headers, ('ordered by', 'person'))
         if personfield:
-            default_person = self.Confighandler.get('lims_default_name', None) or 'Rita'
+            default_person = self.Confighandler.get('lims_default_name', 'Rita')
             fields[personfield] = "For {} by {}".format('', default_person)
 
         # Collect entries to clear on each submission.
@@ -275,8 +277,11 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         """
         Call this to display a message to the user that the entry was added.
         """
-        self.Tkroot.Message.set('Entry {} added; add new...'.format(
-                                entry_info.get(self.ResetEntryFields['productname'])))
+        msg = 'Entry {} added{}; add new...'.format(
+                                entry_info.get(self.ResetEntryFields['productname']),
+                                "with attachment '{}'".format(att_info['fileName']) if att_info else ""
+                                )
+        self.Tkroot.Message.set(msg)
         logger.debug("set_entry_added_message complete .")
 
 
@@ -306,9 +311,16 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
                 attachmentInfo['fileName'] = fn
             # xmlrpc API addAttachment(token, contentId, attachment_struct, attachmentData)
             logger.debug("Adding attachment '%s' with base64 encoded attData of length %s", attachmentInfo, len(str(attachmentData)))
-            att_info = self.WikiLimsPage.addAttachment(attachmentInfo, attachmentData)
+            try:
+                att_info = self.WikiLimsPage.addAttachment(attachmentInfo, attachmentData)
+            except xmlrpclib.Fault as e:
+                logger.error("Error uploading file: %s\nattachmentInfo is: %s\nattachmentData has length: %s\nError is: %s",
+                             fp, attachmentInfo, len(str(attachmentData)), e)
+                raise e
             # update lims_info...
-            entry_info[self.AttachmentField] = "some xhtml code with link functionality..."
+            if self.AttachmentField:
+                entry_info[self.AttachmentField] = self.WikiLimsPage.getAttachmentLinkXhtml(att_info['fileName'])
+                logger.debug("entry_info updated with attachment link xhtml; is now: %s", entry_info)
             self.FilesAdded.append(fp)
         else:
             logger.debug("No filepath provided...")
@@ -317,6 +329,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         # Add entry:
         logger.debug("Adding entry to limspage content, persistToServer=%s...", self.PersistForEveryFile)
         self.WikiLimsPage.addEntry(entry_info, persistToServer=self.PersistForEveryFile)
+        # list of product names... if no product name, use list index...
         self.AddedEntries.append(entry_info[self.ResetEntryFields['productname']] if 'productname' in self.ResetEntryFields
                                     else len(self.AddedEntries)+1)
         logger.debug("Added entries: %s", ", ".join(str(item) for item in self.AddedEntries))
@@ -354,8 +367,8 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
             logger.debug("Next entry, filepath is '%s', returning to tk root (form/prompt).", nextfp)
             return
         else:
-            # Persist limspage
-            if not self.PersistForEveryFile:
+            # Persist limspage if an entry has been added.
+            if not self.PersistForEveryFile and self.AddedEntries:
                 versionComment = "Added entries: " + ", ".join(str(item) for item in self.AddedEntries)
                 minorEdit = False
                 logger.debug("Persisting LIMS page, versionComment is: %s", versionComment)

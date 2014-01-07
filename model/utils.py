@@ -107,6 +107,24 @@ def idx_generator(start, idx=None, maxruns=100):
         i = increment_idx(i)
 
 
+def isvalidfilename(fileName):
+    """
+    Checks whether fileName is valid.
+    Returns True if ok and false otherwise.
+    """
+    validchars = string.letters + string.digits + "_ .-"
+    return all(c in validchars for c in fileName)
+
+def getvalidfilename(fileName):
+    """
+    Checks whether fileName is valid.
+    Returns True if ok and false otherwise.
+    """
+    validchars = string.letters + string.digits + "_ .-"
+    replacement = "_"
+    return "".join(c if c in validchars else replacement for c in fileName)
+
+
 def random_string(length, uppercase=True, lowercase=True, digits=True, punctuation=False, whitespace=False, ascii=True, allprintable=False, custom=None):
     """
     Returns a random string of length <length> consisting of

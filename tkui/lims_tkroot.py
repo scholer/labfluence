@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=R0924,C0321
+# pylint: disable-msg=R0924,C0321,W0613
 """
 Created by Rasmus S. Sorensen <rasmusscholer@gmail.com>
 
@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 #from views.dialogs import Dialog
 from views.loginprompt import LoginPrompt
+from fontmanager import FontManager # Instantiating this will also create a couple of named fonts.
+from views.shared_ui_utils import HyperLink
 #from model.utils import findFieldByHint
 
 
@@ -60,6 +62,7 @@ class LimsTkRoot(tk.Tk):
         self.Confighandler = confighandler
         self.Confighandler.Singletons.setdefault('ui', self)
         self.EntryWidgets = dict() # key = widget dict.
+        self.Fontmanager = FontManager()
         # fields: key=header
         self.Fields = fields
         persisted_windowgeometry = self.Confighandler.get('limsapp_tk_window_geometry', None)
@@ -122,27 +125,56 @@ class LimsTkRoot(tk.Tk):
 
 
     def init_widgets(self, ):
-        """ Initialize widgets """
-
+        """
+        Initialize widgets:
+         ------------------------------------
+        |                                    |
+        |                                    |
+        |                                    |
+        |                                    | << body frame
+        |                                    |
+        |                                    |
+        |                                    |
+        |                                    |
+         ------------------------------------
+        |  _________   __________   ______   |
+        | |OK (Keep)| |OK (Clear)| |Cancel|  | << buttonbox frame
+        |  ¨¨¨¨¨¨¨¨¨   ¨¨¨¨¨¨¨¨¨¨   ¨¨¨¨¨¨   |
+         ------------------------------------
+        |  Enter=OK, Shift-enter=OK (keep),  |
+        |  Added entry: "<product name>"     | << Info frame
+        |  View page in browser              |
+         ------------------------------------
+        """
+        ## BODY FRAME: ##
         body = tk.Frame(self)
         self.initial_focus = self.body(body) # body returns the entry widget that should have initial focus.
-        body.grid(row=1, column=0, sticky="news")
+        body.grid(sticky="news") # row=1, column=0, - now implicit...
+
+        ## BUTTON FRAME: ##
         self.buttonbox()
-        self.grab_set()
         if not self.initial_focus:
+            logger.info("No initial_focus widget; setting initial focus widget to self.")
             self.initial_focus = self
-        self.protocol("WM_DELETE_WINDOW", self.cancel)
-        self.initial_focus.focus_set()
+
+        ## INFO FRAME: ##
+        # Adding the label directly to root without having a frame caused
+        # "collapse" issue, so always using a frame from now on.
+        self.Infoframe = f = tk.Frame(self)
+        f.grid(sticky="news") # row=4, column=0
+        l = tk.Label(f, text="( Shift-enter=OK (keep), Enter=OK (clear), Escape=Abort )")
+        l.grid(sticky="news")
         if self.Message is not None:
             logger.debug("Creating message...")
-            # Adding the label directly to root without having a frame caused
-            # "collapse" issue, so using a frame from now on.
-            f = tk.Frame(self)
             # rows: 1=body, 2=buttonbox,
-            f.grid(row=4, column=0, sticky="news")
-            self.message_label = l = tk.Label(f, textvariable=self.Message)
+            self.message_label = l = tk.Label(f, textvariable=self.Message, font="emphasis")
             l.grid(sticky="news")
-        self.columnconfigure(0, weight=1)
+        viewpageurl = self.App.WikiLimsPage.getViewPageUrl()
+        l = HyperLink(self, uri=viewpageurl, text="View page in browser")
+        l.grid() # row=2, column=0        self.columnconfigure(0, weight=1)
+        self.protocol("WM_DELETE_WINDOW", self.cancel) # If the window manager requests the window to be closed (deleted).
+        self.grab_set() # Makes sure no mouse/keyboard events are sent to the wrong Tk window.
+        self.initial_focus.focus_set()
 
 
     def body(self, master):
@@ -197,8 +229,6 @@ class LimsTkRoot(tk.Tk):
         w.grid(row=1, column=1, sticky="news")
         self.cancel_button = w = tk.Button(box, text="Cancel", width=10, command=self.cancel)
         w.grid(row=1, column=2, sticky="news")
-        l = tk.Label(box, text="Enter=OK, Shift-enter=OK (keep), Escape=Abort")
-        l.grid(row=2, column=0, columnspan=3)
         box.columnconfigure((0, 1, 2), weight=1) # make column expand.
         box.rowconfigure(1, weight=1)
         box.rowconfigure(2, weight=0)
@@ -219,9 +249,10 @@ class LimsTkRoot(tk.Tk):
         self.update_idletasks()
         self.apply()
         self.App.add_entry(addNewEntryWithSameFile=True)
-        #self.cancel()
+        #self.cancel() # add_entry() determines whether to invoke next_entry()
 
     def ok(self, event=None):
+        """ Alias for ok_clear """
         self.ok_clear()
 
     # standard button semantics
@@ -235,7 +266,7 @@ class LimsTkRoot(tk.Tk):
         self.update_idletasks()
         self.apply()
         self.App.add_entry()
-        #self.cancel()
+        #self.cancel() # add_entry() invokes next_entry()
 
     def cancel(self, event=None):
         """invoked when the users presses the 'cancel' button."""
