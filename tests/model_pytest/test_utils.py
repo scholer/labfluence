@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 ### SUT ##########
 ##################
 from model.utils import increment_idx, idx_generator, random_string, \
-    getmimetype, getnearestfile, magic_available, attachmentTupFromFilepath
+    getmimetype, getnearestfile, magic_available, attachmentTupFromFilepath, \
+    getNewFilename
 
 
 
@@ -75,3 +76,30 @@ def test_attachmentTupFromFilepath():
     assert info['fileName'] == f
     assert hasattr(data, 'encode')
 
+def test_getNewFilename():
+    b = 'somefile.txt'
+    used_files = ()
+    assert getNewFilename(b, used_files) == b
+
+    used_files = ('other name.txt', 'some file.txt', 'Somefile.txt')
+    assert getNewFilename(b, used_files) == b
+
+    used_files = ('other name.txt', 'some file.txt', b)
+    assert getNewFilename(b, used_files) == 'somefile01.txt'
+
+    used_files = ('other name.txt', 'some file.txt', b, 'somefile01.txt')
+    assert getNewFilename(b, used_files) == 'somefile02.txt'
+
+    used_files = ('other name.txt', 'some file.txt', b, 'somefile01.txt',
+                  'somefile1.txt', 'somefile2.txt', 'somefile03.txt')
+    assert getNewFilename(b, used_files) == 'somefile02.txt'
+
+    # test caseinsensitive:
+    b = 'Somefile.txt'
+    used_files = {'other name.txt', 'some file.txt', 'SomeFile.txt', 'somefile01.txt',
+                  'somefile1.txt', 'somefile2.txt', 'somefile03.txt'}
+    assert getNewFilename(b, used_files) == b
+    assert getNewFilename(b, used_files, caseinsensitive=True) == 'Somefile02.txt'
+    used_files.add('Somefile.txt')
+    assert getNewFilename(b, used_files) == 'Somefile01.txt'
+    assert getNewFilename(b, used_files, caseinsensitive=True) == 'Somefile02.txt'

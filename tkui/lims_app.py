@@ -61,7 +61,8 @@ logger = logging.getLogger(__name__)
 #from model.server import ConfluenceXmlRpcServer
 from model.utils import findFieldByHint
 from model.limspage import WikiLimsPage
-from model.utils import attachmentTupFromFilepath
+from model.utils import attachmentTupFromFilepath, getNewFilename
+from model.decorators.cache_decorator import cached_property
 
 ### GUI elements ###
 from tkui.lims_tkroot import LimsTkRoot
@@ -114,6 +115,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
             raise ValueError("Server is: {}; limspageid is: {}".format( server, limspageid ) )
         logger.debug("Making WikiLimsPage...")
         self.WikiLimsPage = WikiLimsPage(limspageid, server)
+        self._newAttachments = list()
         logger.debug("WikiLimsPage created.")
         title = "Labfluence LIMS (pageId: {})".format(limspageid)
         self.FilesToAdd = list()
@@ -163,6 +165,17 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         """ Returns the LIMS page id from the confighandler. """
         return self._pageid or self.Confighandler.get('wiki_lims_pageid', None)
 
+    @cached_property(ttl=120)
+    def Attachments(self):
+        """ Returns all attachment structs """
+        self._newAttachments = list()
+        return self.WikiLimsPage.getAttachments() or list()
+
+    @cached_property(ttl=120)
+    def AttachmentNames(self):
+        """ Returns all used attachment names. """
+        attachmentstructs = self.Attachments + self._newAttachments
+        return {attachment['fileName'] for attachment in attachmentstructs}
 
     def getLimsFields(self):
         """
@@ -287,6 +300,12 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         with this.
         If addNewEntryWithSameFile is set to true, instead of proceeding to next file
         on completion, this method will call repeat_entry.
+
+        Note regarding attachments: The attachments API has a lot of flaws:
+        - It is not possible to edit an the info of an existing attachment.
+        - It is not possible to set comment or title for an attachment.
+        Essentially, this makes it impossible to do any advanced stuff (like hash
+        checking -- unless you feel like downloading all attachments every time.)
         """
         entry_info = self.Tkroot.get_result()
         logger.debug("entry_info : %s", entry_info)
@@ -307,6 +326,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
             # xmlrpc API addAttachment(token, contentId, attachment_struct, attachmentData)
             logger.debug("Adding attachment '%s' with base64 encoded attData of length %s", attachmentInfo, len(str(attachmentData)))
             att_info = self.WikiLimsPage.addAttachment(attachmentInfo, attachmentData)
+            self._newAttachments.append(att_info)
             # update lims_info...
             entry_info[self.AttachmentField] = "some xhtml code with link functionality..."
             self.FilesAdded.append(fp)
@@ -394,7 +414,8 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         fieldvars = self.Tkroot.Fieldvars
         if filepath:
             fieldvars[self.FilepathField][0].set(filepath or "")
-            fieldvars[self.AttachmentNameField][0].set(os.path.basename(filepath or ""))
+            fn = getNewFilename(os.path.basename(filepath), self.AttachmentNames)
+            fieldvars[self.AttachmentNameField][0].set(fn)
         for header in self.ResetEntryFields.values():
             fieldvars[header][0].set('')
         logger.debug("repopulatePrompt complete.")

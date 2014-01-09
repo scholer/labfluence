@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 #from confighandler import ExpConfigHandler
 #from server import ConfluenceXmlRpcServer
-
+from decorators.cache_decorator import cached_property
 
 
 
@@ -166,6 +166,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             logger.debug("Attribute Error while querying Confighandler for server singleton.")
             return None
 
+
     @property
     def Confighandler(self):
         """
@@ -189,6 +190,9 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         if self.Server is None:
             logger.info("Page.reloadFromServer() :: self.Server is %s, aborting...!", self.Server)
             return
+        ##if not self.Server and not self.Server.CachedConnectStatus:
+        #    logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
+        #    return
         if not self.Server:
             logger.info("Page.reloadFromServer() :: self.Server is not marked as connected (is: %s), but trying anyways...!", self.Server)
         struct = self.Server.getPage(pageId=self.PageId)
@@ -466,11 +470,11 @@ below        source and target become/remain sibling pages and the source is mov
         Returns wikipage as rendered html, as it would look in a browser.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
+            return
             # Server might be None or a server instance with attribute _connectionok value of either
             # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            logger.info("WikiPage.getRenderedHTML() > Server is None or not connected, aborting...")
-            return
         if content:
             html = self.Server.renderContent(self.PageId, content)
         else:
@@ -492,13 +496,8 @@ below        source and target become/remain sibling pages and the source is mov
         - title (string)
         - url (string)
         """
-        if not self.Server:
-            # Server might be None or a server instance with attribute _connectionok value of either
-            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            logger.info("WikiPage.getAttachmentInfo() > Server is None or not connected, aborting...")
-            return
-        if not self.Server:
-            logger.info("Page {} has no server object attached (or it is not connected); aborting {} operation...".format(self, 'getMethodData'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         info = self.Server.getAttachment(self.PageId, fileName, versionNumber)
         return info
@@ -508,10 +507,8 @@ below        source and target become/remain sibling pages and the source is mov
         Should return attachment bytedata from server for an attachment on this page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            # Server might be None or a server instance with attribute _connectionok value of either
-            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            logger.info("WikiPage.getAttachmentData() > Server is None or not connected, aborting...")
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s > Server is None or not connected, aborting...", self.__class__.__name__)
             return
         data = self.Server.getAttachmentData(self.PageId, fileName, versionNumber)
         return data
@@ -522,10 +519,8 @@ below        source and target become/remain sibling pages and the source is mov
         Returns None if server is None or not connected.
         """
         logger.debug("Adding attachment (%s bytes) with info: %s", len(str(attachmentData)), attachmentInfo)
-        if not self.Server:
-            # Server might be None or a server instance with attribute _connectionok value of either
-            # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
-            logger.info("WikiPage.addAttachment() > Server is None or not connected, aborting...")
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         info = self.Server.addAttachment(self.PageId, attachmentInfo, attachmentData)
         return info
@@ -535,8 +530,8 @@ below        source and target become/remain sibling pages and the source is mov
         Returns all the Attachments for this page (useful to point users to download them with the full file download URL returned).
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getAttachments'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getAttachments(self.PageId)
 
@@ -545,8 +540,8 @@ below        source and target become/remain sibling pages and the source is mov
         Returns all the ancestors of this page (parent, parent's parent etc).
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getAncestors'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getAncestors(self.PageId)
 
@@ -555,8 +550,8 @@ below        source and target become/remain sibling pages and the source is mov
         returns all the direct children of this page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getChildren'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getChildren(self.PageId)
 
@@ -565,8 +560,8 @@ below        source and target become/remain sibling pages and the source is mov
         Returns all the descendants of this page (children, children's children etc).
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getDescendents'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getDescendents(self.PageId)
 
@@ -575,8 +570,8 @@ below        source and target become/remain sibling pages and the source is mov
         returns all the comments for this page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getComments(self.PageId)
 
@@ -585,8 +580,8 @@ below        source and target become/remain sibling pages and the source is mov
         Returns an individual comment.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getComment(commentId)
 
@@ -595,8 +590,8 @@ below        source and target become/remain sibling pages and the source is mov
         adds a comment to the page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'getComments'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getComment(comment_struct)
 
@@ -605,8 +600,8 @@ below        source and target become/remain sibling pages and the source is mov
         Updates an existing comment on the page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'editComment'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.editComment(comment_struct)
 
@@ -615,8 +610,8 @@ below        source and target become/remain sibling pages and the source is mov
         removes a comment from the page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Page {} has no server object attached; aborting {} operation...".format(self, 'removeComment'))
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.removeComment(commentId)
 
@@ -627,8 +622,8 @@ below        source and target become/remain sibling pages and the source is mov
         Turns on watching of page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Server is None or not connected, aborting...")
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.watchPage(self.PageId)
 
@@ -637,8 +632,8 @@ below        source and target become/remain sibling pages and the source is mov
         Turns on watching of page.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Server is None or not connected, aborting...")
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.removePageWatch(self.PageId)
 
@@ -647,8 +642,8 @@ below        source and target become/remain sibling pages and the source is mov
         Returns True if page is on user's watch list.
         Returns None if server is None or not connected.
         """
-        if not self.Server:
-            logger.info("Server is None or not connected, aborting...")
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.isWatchingPage(self.PageId)
 
@@ -656,8 +651,8 @@ below        source and target become/remain sibling pages and the source is mov
         """
         Returns page permissions for the page.
         """
-        if not self.Server:
-            logger.info("Server is None or not connected, aborting...")
+        if not self.Server and not self.Server.CachedConnectStatus:
+            logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
             return
         return self.Server.getPagePermissions(self.PageId)
 

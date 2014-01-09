@@ -26,6 +26,7 @@ import sys
 import random
 import xmlrpclib
 import string
+import hashlib
 import logging
 
 # Uh, this makes "from utils import *" a bit dangerous:
@@ -63,6 +64,18 @@ def getmimetype(filepath):
         # mimetypes.guess_type returns
         mimetype, encoding = mimetypes.guess_type(filepath, strict=False)
     return mimetype
+
+
+def filehexdigest(filepath, digesttype='md5'):
+    with open(filepath, 'rb') as f:
+        m = hashlib.new(digesttype) # generic; can also be e.g. hashlib.md5()
+        # md5 sum default is 128 = 2**7-bytes digest block. However, file read is faster for e.g. 8 kb blocks.
+        # http://stackoverflow.com/questions/1131220/get-md5-hash-of-big-files-in-python
+        for chunk in iter(lambda: f.read(128*m.block_size), b''):
+            m.update(chunk)
+    return m.hexdigest()
+
+
 
 def increment_idx(idx):
     """
@@ -245,6 +258,58 @@ def findFieldByHint(candidates, hints):
         #        return candidate
     # None of the hints were found in either of the options.
     return None
+
+def getNewFilename(basename, used_filenames, caseinsensitive=False,
+                   fnfmt="{fname}{num:0{p}}.{ext}", powerrange=(2,) ):
+    """
+    Returns a new filename based on basename that is not in used_filenames.
+    If caseinsensitive is set to True (e.g. for windows filesystems),
+    filename candidates are matched against used_filenames in a case-insensitive manner.
+    the powerrange specifies the ranges to use for making new file names,
+    will be used in a manner of "for p in powerrange for i in xrange(1,10**p)".
+    Note that specifying more than one value in power-range only makes sense if
+    the fnfmt has a p-dependent number specifier.
+    If several p values are given in powerrange and p is in the fnfmt, you can generate
+    different filename patterns, e.g. for powerrange=(1,2):
+        filename1, filename2, ... filename9, filename01, filename02, .., filename10, filename11, .., filename99
+    The fnfmt argument can be used to change the output filename format:
+    Example: getNewFilename('newfile.txt', fnfmt="{fname}_{num:0{p}}.{ext}"):
+        fname is 'newfile', ext is 'txt', num is the number being tried,
+        the second fnfmt.format candidate is something like: newfile_02.txt
+    If you do not want to use a fix-width number format, just alter fnfmt to something like:
+        fnfmt="{fname}{num}.{ext}"  # Notice how ':0{p}' was removed.
+
+    """
+    if caseinsensitive:
+        used_filenames = {fn.lower() for fn in used_filenames}
+        if basename.lower() not in used_filenames:
+            return basename
+    else:
+        if basename not in used_filenames:
+            return basename
+    #fmt = lambda fn, i: "{1}{0:02}.{2}".format(i, *fn.rsplit('.',1))
+    def fmt(fn, num, p=2):
+        """
+        fn=filename, i=index, p=power 10 (default: 2)
+        """
+        try:
+            fname, ext = fn.rsplit('.',1)
+        except ValueError:
+            fname, ext = fn, ''
+        return fnfmt.format(fname=fname, ext=ext, num=num, p=p)
+
+    # for windows style, do:
+    # use for p in xrange(1,9) for i in range(1,10^p)
+    # and pass p to fmt as the length.
+    # and make sure to cast to lower when checking.
+    for p in powerrange:
+        fngen = (fmt(basename, i) for i in xrange(1,10**p))
+        if caseinsensitive:
+            newfn = next( (fn for fn in fngen if fn.lower() not in used_filenames), None )
+        else:
+            newfn = next( (fn for fn in fngen if fn not in used_filenames), None )
+        if newfn:
+            return newfn
 
 
 def attachmentTupFromFilepath(filepath):
