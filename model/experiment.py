@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # Labfluence modules and classes:
 from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
-from utils import getmimetype, increment_idx, idx_generator
+from utils import getmimetype, increment_idx, idx_generator, filehexdigest
 from decorators.cache_decorator import cached_property
 from decorators.deprecated_decorator import deprecated
 
@@ -1104,17 +1104,9 @@ functionality of this object will be greatly reduced and may break at any time."
         if not os.path.isabs(filepath):
             filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
         relpath = os.path.relpath(filepath, self.Localdirpath)
-        digestentry = dict(datetime=datetime.now())
         fileshistory = self.Fileshistory
-        for digesttype in digesttypes:
-            with open(filepath, 'rb') as f:
-                m = hashlib.new(digesttype) # generic; can also be e.g. hashlib.md5()
-                # md5 sum default is 128 = 2**7-bytes digest block. However, file read is faster for e.g. 8 kb blocks.
-                # http://stackoverflow.com/questions/1131220/get-md5-hash-of-big-files-in-python
-                for chunk in iter(lambda: f.read(128*m.block_size), b''):
-                    m.update(chunk)
-                hexdigest = m.hexdigest()
-                digestentry[digesttype] = hexdigest
+        digestentry = dict( (digesttype, filehexdigest(filepath, digesttype)) for digesttype in digesttypes)
+        digestentry['datetime'] = datetime=datetime.now()
         if relpath in fileshistory:
             # if hexdigest is present, then no need to add it...? Well, now that you have hashed it, just add it anyways.
             #if hexdigest not in [entry[digesttype] for entry in fileshistory[relpath] if digesttype in entry]:
@@ -1532,7 +1524,7 @@ functionality of this object will be greatly reduced and may break at any time."
         return res
 
 
-    def uploadAttachment(self, filepath, attachmentInfo=None, digesttype='md5'):
+    def uploadAttachment(self, filepath, att_info=None, digesttype='md5'):
         """
         Upload attachment to wiki page.
         Returns True if succeeded, False if failed and None if no attemt was made to upload due to a local Error.
@@ -1553,20 +1545,25 @@ functionality of this object will be greatly reduced and may break at any time."
         if not getattr(self, 'WikiPage', None):
             logger.error("Experiment.uploadAttachment() :: ERROR, no wikipage attached to this experiment object\n - {}".format(self))
             return None
-        if attachmentInfo is None:
-            attachmentInfo = dict()
         if not os.path.isabs(filepath):
             filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
         # path relative to this experiment, e.g. 'RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'
+        from model.utils import attachmentTupFromFilepath
+        attachmentInfo, attachmentData = attachmentTupFromFilepath(fp)
+        # NOTE: CONF-31169 and CONF-30024.
+        # - attachment title ignored when adding attachment
+        # - RemoteAttachment.java does not have a comment setter.
         relpath = os.path.relpath(filepath, self.Localdirpath)
         mimetype = getmimetype(filepath)
-        attachmentInfo['contentType'] = mimetype
-        attachmentInfo.setdefault('comment', os.path.basename(filepath) )
-        attachmentInfo.setdefault('fileName', os.path.basename(filepath) )
-        attachmentInfo.setdefault('title', os.path.basename(relpath) )
+        #attachmentInfo['contentType'] = mimetype
+        #attachmentInfo.setdefault('comment', os.path.basename(filepath) )
+        #attachmentInfo.setdefault('fileName', os.path.basename(filepath) )
+        #attachmentInfo.setdefault('title', os.path.basename(relpath) )
+        attachmentInfo.update(att_info)
         if digesttype:
             digestentry = self.hashFile(filepath, (digesttype, ))
-            attachmentInfo.setdefault("{}-hexdigest: {}".format(digesttype, digestentry[digesttype]))
+            attachmentInfo['comment'] = attachmentInfo.get('comment', '') \
+                + "; {}-hexdigest: {}".format(digesttype, digestentry[digesttype])
         with open(filepath, 'rb') as f:
             # Not sure exactly what format the file bytes should have.
 #            attachmentData = f # Is a string/file-like object ok?

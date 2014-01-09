@@ -19,3 +19,15 @@ Installs the labfluence configs in correct dirs:
 system : <install-dir>/configs
 user   : <home-dir>/.Labfluence/
 """
+
+
+from setup.configinstaller import ConfigInstaller
+import logging
+
+
+if __name__ == '__main__':
+    #logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+    logfmt = "%(levelname)s: %(message)s"
+    logging.basicConfig(level=logging.DEBUG, format=logfmt)
+    installer = ConfigInstaller()
+    installer.install_configs()

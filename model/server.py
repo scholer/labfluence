@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 from utils import login_prompt, display_message
 
 # Decorators:
-#from decorators.cache_decorator import cached_property
+from decorators.cache_decorator import cached_property
 
 defaultsockettimeout = 3.0
 
@@ -216,8 +216,20 @@ class AbstractServer(object):
         else:
             return None
 
+    @cached_property(ttl=30)
+    def CachedConnectStatus(self, ):
+        return self.test_connection()
+
+
     def __nonzero__(self):
         return bool(self._connectionok)
+
+    def test_connection(self):
+        """
+        Should be overridden by child classes.
+        Must return True if connection can be established, false otherwise.
+        """
+        return False
 
     def setok(self):
         if not self._connectionok:
@@ -572,6 +584,11 @@ to prevent the login token from expiring.
             logger.info("find_and_test_tokens() :: No valid token found in config...")
         # 2) Check a list of files? No, the token should be saved in the config or nowhere at all.
 
+    def test_connection(self):
+        """
+        Return True if connection can be established, false otherwise.
+        """
+        return bool(self.test_token(doset=False))
 
     def test_token(self, logintoken=None, doset=True):
         """
@@ -1207,7 +1224,7 @@ Other Confluence xmlrpc API projects:
 
 
 NOTES ON ENCRYPTION:
-- Currently using pycrypto with CFB mode AES.
+- Currently using pycrypto with CFB mode AES. Requires combiling platform-dependent binaries.
 --- I previously used CBC mode, but that requires plaintext and cipertext lenghts being an integer of 16. CFB does not require this.
 --- Although according to litterature, OCB mode would be better. But this is patented and not available in pycrypto as far as I can tell.
 - SimpleCrypt module also requires pycrypto.
@@ -1215,10 +1232,24 @@ NOTES ON ENCRYPTION:
 --- Both new and legacy methods uses CBC MODE with AES.
 --- It also currently uses random.randint as entrypy provider which is not as good as the random library provided by pycrypto.
 - alo-aes 0.3: Does not seem mature; very little documentation.
+- M2Crypto
+--- Rather big, contains functionality for ssl certificates, etc.
+- m2secret
+--- Easy-to-use interface to M2Crypto, contained in a single file.
 - pyOCB, https://github.com/kravietz/pyOCB
---- This seems to be a pure-python OCB mode AES cryptography module.
+--- This seems to be a pure-python OCB mode AES cryptography module. Only two files.
 --- When mature, this is probably the best option for small passwords...
+- AESpython (aka pythonAES)
+--- another pure-python implementation. However, does not have an easy-to-use interface.
 - wheezy.security: simple wrapper for pycrypto.
+- https://github.com/alex/cryptography
+--- discussion in https://news.ycombinator.com/item?id=6194102
+
+In conclusion:
+- I currently use PyCrypto which should be good, except that it requires separate installation
+  of platform-dependent binaries.
+- pyOCB is probably the best pure-python replacement: only depends on the build-in math module,
+  is contained in just two files (__init__.py and AES.py).
 
 REGARDING MODE:
 - input length and padding:
