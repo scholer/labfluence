@@ -662,8 +662,8 @@ class ExpConfigHandler(ConfigHandler):
             if rootdir:
                 self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs)
             else:
-                logger.info("rootdir is %s; hierarchy_rootdir_config_key is %s; config is:\n%s",
-                    rootdir, hierarchy_rootdir_config_key, self.printConfigs() )
+                logger.info("rootdir is %s; hierarchy_rootdir_config_key is %s; configs are (configpaths): %s",
+                    rootdir, hierarchy_rootdir_config_key, self.ConfigPaths )
 
         else:
             self.HierarchicalConfigHandler = None
