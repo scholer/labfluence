@@ -1,0 +1,27 @@
+app_active_experiments:
+- RS102
+- RS134
+- RS135
+app_recent_experiments:
+- RS103
+crypt_iv: uxXIs1gEVReCKpdA
+exp_config_path: /home/scholer/Documents/labfluence_data_testsetup/.labfluence.yml
+limsapp_tk_window_geometry: 361x342+866+595
+satellite_locations:
+  /home/scholer/Documents/labfluence_satellite_tests/cdnaafm_cftp:
+    folderscheme: ./subentry/
+    protocol: file
+    rootdir: .
+  /home/scholer/Documents/labfluence_satellite_tests/typhoon_cftp:
+    folderscheme: ./subentry/
+    mountcommand: curlftpfs ftp://user:password@10.17.75.109 /mnt/typhoon_ftp
+    protocol: file
+    rootdir: .
+username: scholer
+wiki_lims_pageid: '917542'
+wiki_lims_pageid_comment: PageIds should generally be strings
+wiki_logintoken_crypt: !!binary |
+  TjVaRoVlC9+Z5g==
+wiki_serverparams:
+  baseurl: http://10.14.40.245:8090
+wiki_username: scholer
