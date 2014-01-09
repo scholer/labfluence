@@ -227,6 +227,13 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         xhtmlfmt = '<ac:link><ri:attachment ri:filename="{fn}" /></ac:link>'
         return xhtmlfmt.format(fn=fileName)
 
+    def getAttachmentFilenames(self):
+        """ Returns a list of the filenames for attachments to the page. """
+        att_structs = self.getAttachments()
+        if not att_structs:
+            return list()
+        return [att['fileName'] for att in att_structs]
+
 
     def reloadFromServer(self):
         """

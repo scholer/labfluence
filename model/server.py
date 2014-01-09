@@ -496,7 +496,7 @@ to prevent the login token from expiring.
         if not appurl:
             logger.warning("WARNING: Server's AppUrl is '%s'", appurl)
             return None
-        self.RpcServer = xmlrpclib.ServerProxy(appurl) # Note: xmlrpclib line 1613: Server = ServerProxy # for compatability.
+        self.RpcServer = xmlrpclib.ServerProxy(appurl, use_datetime=True) # Note: xmlrpclib line 1613: Server = ServerProxy # for compatability.
         if self.AutologinEnabled:
             self.autologin()
         logger.debug("%s initialized.", self.__class__.__name__)

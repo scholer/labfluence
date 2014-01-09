@@ -1191,7 +1191,7 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
 
-    def getLocalFilelist(self, fn_pattern=None, fn_is_regex=False, relative=None, subentries_only=True, subentry_idxs=list()):
+    def getLocalFilelist(self, fn_pattern=None, fn_is_regex=False, relative=None, subentries_only=True, subentry_idxs=None):
         """
         Returns a filtered list of local files in the experiment directory and sub-folders,
         filtering by:
@@ -1207,6 +1207,8 @@ functionality of this object will be greatly reduced and may break at any time."
         ret = list()
         if not self.Localdirpath:
             return ret
+        if subentry_idxs is None:
+            subentry_idxs = list()
         relstart = self.getRelativeStartPath(relative)
         # I am not actually sure what is fastest, repeatedly checking "if include_prog and include_prog.match()
         if relative == 'filename-only':
@@ -1624,10 +1626,14 @@ functionality of this object will be greatly reduced and may break at any time."
     def getAttachmentList(self, fn_pattern=None, fn_is_regex=False, **filterdict):
         """
         The wiki-attachments equivalent to getLocalFileslist(),
-        incorporates a filterdict that can be used to filter the returned list.
-        However, this uses self.
-        - comment (string, required)
-        - contentType (string, required)
+        Returns a tuple list of (<display>, <identifier>, <complete struct>) elements.
+        Like getLocalFileslist, the returned list can be filtered based on
+        filename pattern (glob; or regex if fn_is_regex is True).
+        The filterdict kwargs are currently not used.
+        However, when needed, this could be used to filter the returned list based on
+        attachment metadata, which includes:
+        - comment (string)
+        - contentType (string)
         - created (date)
         - creator (string username)
         - fileName (string, required)
@@ -1635,6 +1641,8 @@ functionality of this object will be greatly reduced and may break at any time."
         - id (string, attachmentId)
         """
         struct_list = self.Attachments
+        if not struct_list:
+            return list()
         # Returned tuple of (<display>, <identifier>, <complete struct>)
         # I think either filename or id would work as identifier.
         if fn_pattern:
@@ -1644,8 +1652,6 @@ functionality of this object will be greatly reduced and may break at any time."
         else:
             regex_prog = None
         # attachment struct_list might be None or False, so must check before trying to iterate:
-        if not struct_list:
-            return list()
         return [ (struct['fileName'], struct['id'], struct) for struct in struct_list \
                     if regex_prog is None or regex_prog.match(struct['fileName']) ]
 

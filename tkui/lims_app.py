@@ -413,6 +413,23 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         logger.debug("repopulatePrompt complete.")
 
 
+    def attachmentNameExists(self, fn=None):
+        """
+        Returns whether an attachment with fileName
+        is already attached to the page.
+        If it is, returns that fileName,
+        and returns False otherwise.
+        If no <fn> argument is provided, obtains fn from the form.
+        """
+        if fn is None:
+            fields = self.Tkroot.get_result()
+            fn = fields[self.AttachmentNameField]
+        if fn and fn in self.WikiLimsPage.getAttachmentFilenames():
+            return fn
+        else:
+            return False
+
+
     def main(self):
         """
         Starts the application UI.

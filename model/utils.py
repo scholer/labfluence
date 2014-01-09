@@ -27,6 +27,8 @@ import random
 import xmlrpclib
 import string
 import logging
+from datetime import datetime
+
 
 # Uh, this makes "from utils import *" a bit dangerous:
 # it will override any 'logger' variables in the calling modules.
@@ -281,6 +283,27 @@ def attachmentTupFromFilepath(filepath):
         attData = xmlrpclib.Binary(fd.read())
     logging.debug("Read data for attachment '%s' with byte-length %s.", attInfo, len(str(attData)))
     return attInfo, attData
+
+def yaml_xmlrpcdate_representer(dumper, data):
+    """
+    Used to represent (/serialize/dump) xmlrpclib.DateTime objects;
+    by storing them as datetime.datetime objects.
+    Based on dice_representer example from http://pyyaml.org/wiki/PyYAMLDocumentation
+    Example dumper object can be generated with: dumper = yaml.Dumper(sys.stdout)
+    Example xmlrpclib.DateTime objects may be generated with:
+        data = xdt = xmlrpclib.DateTime(time.localtime())
+    use as:
+        yaml.add_representer(xmlrpclib.DateTime, yaml_xmlrpcdate_representer)
+    """
+    # convert xmlrpclib.DateTime object to datetime object:
+    dt = datetime(*data.timetuple()[:6])
+    logger.debug("%s (%s object) was converted to %s (%s object)",
+                 repr(data), data.__class__, repr(dt), dt.__class__)
+    # alternatively:
+    # dt = datetime.fromtimestamp(mktime(v.timetuple() ))
+    # return the dumper's standard datetime representation:
+    return dumper.represent_datetime(dt)
+
 
 
 if __name__ == '__main__':

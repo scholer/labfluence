@@ -34,6 +34,9 @@ permissions int    the number of permissions on this page (deprecated: may be re
 # This script must be run as a module, invoked from the labfluence application's
 # base folder, which contains the folders: "./model/" and "./test/".
 
+#################################
+## Standard library imports #####
+#################################
 
 from __future__ import print_function
 import logging
@@ -42,12 +45,24 @@ logger = logging.getLogger(__name__)
 import sys
 import os
 import yaml
-import xmlrpclib
-
+#import xmlrpclib
+#from time import mktime
+#from datetime import datetime
 
 sys.path.insert(0, os.getcwd())
+
+##############################
+###### Model imports #########
+##############################
+
 try:
+    #from model.utils import yaml_xmlrpcdate_representer
+    #import model.server
+    #from model.thirdparty.xmlrpclib import DateTime
     from model.server import ConfluenceXmlRpcServer
+    #model.server.xmlrpclib.DateTime = DateTime
+    # Uhh.... alternatively, instead of worrying about all this,
+    # you can just set xmlrpclib.ServerProxy's use_datetime argument to True !!
     from model.confighandler import ExpConfigHandler
 except ImportError as e:
     print("\n\n\n\n\n>>>>> This module must be invoked from the labfluence root directory! <<<<<\n\n\n\n\n\n")
@@ -57,9 +72,25 @@ except ImportError as e:
 #from datetime import datetime
 
 
+########################
+### Adaptations ########
+########################
+
+# Make sure to represent xmlrpclib.DateTime instances as datetime.datetime objects:
+#yaml.add_representer(xmlrpclib.DateTime, yaml_xmlrpcdate_representer)
+
+
+
 if __name__ == '__main__':
 
-    outputfn = os.path.join(os.path.dirname(__file__), "fakeserver_testdata_large.yml")
+    import argparse
+    parser = argparse.ArgumentParser(description="Script for persisting server data.")
+    parser.add_argument('--outputfn', help="Start labfluence in testing environment.")
+    argsns = parser.parse_args()
+    outputfn = argsns.outputfn or "fakeserver_testdata_large.yml"
+
+
+    outputfn = os.path.join(os.path.dirname(__file__), outputfn)
 
     logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
     logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s(): %(message)s\n"
@@ -80,29 +111,35 @@ if __name__ == '__main__':
             logger.warning("Duplicate pageId! - This is already in the pages dict: '%s'", pid)
         p = server.getPage(pid)
         if p:
-            for k, v in p.items():
-                if isinstance(v, xmlrpclib.DateTime):
-                    logger.debug("Converting page[%s] xmlrpclib.DateTime object '%s' to string.", k, v)
-                    p[k] = repr(v.value)
-                    #p[k] = datetime(v.timetuple()) # Use this to convert to datetime.datetime object instead...
+            # Manual conversion is no longer required, I use custom xmlrpclib.DateTime class
+            # and have registrered this with custom yaml representer:
+            #for k, v in p.items():
+            #    if isinstance(v, xmlrpclib.DateTime):
+            #        logger.debug("Converting page[%s] xmlrpclib.DateTime object '%s' to string.", k, v)
+            #        # dt = datetime.fromtimestamp(mktime(v.timetuple() ))
+            #        # alternatively: datetime.datetime( *structTime[:6] )
+            #        p[k] = datetime(*v.timetuple()[:6]) #repr(v.value)
+            #        #p[k] = datetime(v.timetuple()) # Use this to convert to datetime.datetime object instead...
             pages[pid] = p
             ## PAGE ATTACHMENTS:
             pageattachments = server.getAttachments(pid)
             if pageattachments:
-                for i, info in enumerate(pageattachments):
-                    for k, v in info.items():
-                        if isinstance(v, xmlrpclib.DateTime):
-                            logger.debug("pageattachment %s, Converting attinfo['%s'] xmlrpclib.DateTime object '%s' to string.", info['id'], k, v)
-                            info[k] = repr(v.value)
+                # Manual conversion is no longer required, I use custom xmlrpclib.DateTime class
+                # and have registrered this with custom yaml representer:
+                #for i, info in enumerate(pageattachments):
+                #    for k, v in info.items():
+                #        if isinstance(v, xmlrpclib.DateTime):
+                #            logger.debug("pageattachment %s, Converting attinfo['%s'] xmlrpclib.DateTime object '%s' to string.", info['id'], k, v)
+                #            info[k] = repr(v.value)
                 attachments[pid] = pageattachments
             ## PAGE COMMENTS:
             pagecomments = server.getComments(pid)
             if pagecomments:
-                for i, info in enumerate(pagecomments):
-                    for k, v in info.items():
-                        if isinstance(v, xmlrpclib.DateTime):
-                            logger.debug("pagecomment %s, Converting attinfo['%s'] xmlrpclib.DateTime object '%s' to string.", info['id'], k, v)
-                            info[k] = repr(v.value)
+                #for i, info in enumerate(pagecomments):
+                #    for k, v in info.items():
+                #        if isinstance(v, xmlrpclib.DateTime):
+                #            logger.debug("pagecomment %s, Converting attinfo['%s'] xmlrpclib.DateTime object '%s' to string.", info['id'], k, v)
+                #            info[k] = repr(v.value)
                 comments[pid] = pagecomments
         else:
             logger.warning("could not retrieve page with pageId '%s'. More info:\n-- %s", pid, summary)

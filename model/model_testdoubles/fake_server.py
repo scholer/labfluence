@@ -91,6 +91,7 @@ class FakeConfluenceServer(object):
         except IOError as e:
             logger.warning(e)
             self._workdata = dict()
+        self.BaseUrl = "http://localhost:8090/"
         self._the_right_token = 'the_right_token'
         self._is_logged_in = True
         self.Username = 'fake_testusername'

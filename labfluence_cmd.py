@@ -26,6 +26,27 @@ This module provides a command-line interface to various features, including:
 import os
 import socket
 import argparse
+#import xmlrpclib
+#from xmlrpclib import DateTime
+# Using costum xmlrpclib with DateTime class that doesn't chocke when asked for comparison with e.g. None.
+# Hey, even better: Instead of worrying about this, just
+# set the use_datetime argument to True when instantiating xmlrpclib.ServerProxy
+#from model.thirdparty import xmlrpclib
+# Using this also means that you no longer need the custom yaml representer.
+# (since the xmlrpclib.DateTime class is never used...)
+#from model.utils import yaml_xmlrpcdate_representer
+try:
+    import yaml
+    # add_representer(<class>, <representer function>)
+    #yaml.add_representer(xmlrpclib.DateTime, yaml_xmlrpcdate_representer)
+    #yaml.add_representer(DateTime, yaml_xmlrpcdate_representer)
+    yaml_available = True
+except ImportError:
+    yaml_available = False
+# these are imported as-needed:
+#import pprint
+#import json
+
 import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
@@ -35,6 +56,12 @@ logger = logging.getLogger(__name__)
 from model.confighandler import ExpConfigHandler
 #from model.experimentmanager import ExperimentManager
 #from model.experiment import Experiment
+#import model.server
+### OVERRIDING SERVER's XMLRPCLIB:
+# (actually, I only need to redefine the DateTime class...)
+# in fact, I could probably do away with just re-defining the make_comparable() method...
+#model.server.xmlrpclib.DateTime = xmlrpclib.DateTime
+
 from model.server import ConfluenceXmlRpcServer
 from model.page import WikiPage
 
@@ -80,6 +107,39 @@ def getPageXhtml(pageId):
 
 
 
+def outputres(res, outputfmt):
+    """
+    Outputs the res using the specified output format.
+    Format may be one of (case insensitive):
+    - print
+    - pretty
+    - yaml
+    - json
+    - pickle - hard to read, but can serialize almost anything...
+    """
+    logger.debug("Generating output for result: %s", res)
+    outputfmt = outputfmt.lower()
+    if outputfmt == 'print':
+        print res
+    elif outputfmt == 'pretty':
+        import pprint
+        pprint.pprint(res)
+    elif outputfmt == 'yaml':
+        print yaml.dump(res, default_flow_style=False)
+    elif outputfmt == 'json':
+        import json
+        print json.dumps(res)
+    elif outputfmt == 'pickle':
+        import pickle
+        print pickle.dumps(res)
+    else:
+        logging.error("Outputfmt '%s' not recognized!", outputfmt)
+    logger.debug("Output generation complete.")
+
+
+
+
+
 ##################################################################
 ## Functions that simply use the args namespace from argparse:  ##
 ##################################################################
@@ -92,8 +152,8 @@ def getpagestruct(args):
     ret = list()
     for pageId in args.pageid:
         page = getPage(pageId)
-        print page.Struct
         ret.append(page.Struct)
+    outputres(ret, args.outputformat)
     return ret
 
 def getpagexhtml(args):
@@ -106,20 +166,20 @@ def getpagexhtml(args):
         if page.Struct:
             xhtml = page.Struct.get('content')
             logger.debug("Page with pageId '%s' obtained, returning xhtml of length: %s", pageId, len(xhtml) if xhtml else '<none>')
-            print xhtml
+            outputres( xhtml, args.outputformat )
             ret.append(xhtml)
         else:
             logger.info("getPage(%s) returned page with no struct. Page is: %s", pageId, page)
     return ret
 
 
-def getserverinfo(_=None):
+def getserverinfo(args):
     """
     Queries the server instance for server info and returns as struct.
     """
-    server = confighandler.Singletons['server']
-    info = server.getServerInfo()
-    print info
+    wikiserver = confighandler.Singletons['server']
+    info = wikiserver.getServerInfo()
+    outputres( info, args.outputformat )
     return info
 
 #def addAttachment(pageId, fp):
@@ -136,7 +196,7 @@ def addattachment(args):
     """
     logger.info("Pageid is: %s (type: %s), files are: %s",
                 args.pageid, type(args.pageid), args.files)
-    page = getPage(str(args.pageid))
+    page = getPage(args.pageid)
     # NOTE: If pageid is int, some methods may work, while others will fail...
     attinfos = list()
     for fp in args.files:
@@ -146,6 +206,20 @@ def addattachment(args):
     print "Attachments added:\n- "
     print "\n- ".join(str(info) for info in attinfos)
     return attinfos
+
+
+def getattachments(args):
+    """
+    Adds attachments to a page.
+    args should be a namespace object created by argparse.
+    Should have attributes 'pageid' and 'files'.
+    """
+    logger.info("Pageid is: %s (type: %s)", args.pageid, type(args.pageid))
+    page = getPage(args.pageid)
+    # NOTE: If pageid is int, some methods may work, while others will fail...
+    att_structs = page.getAttachments()
+    outputres( att_structs, args.outputformat )
+    return att_structs
 
 
 
@@ -193,6 +267,14 @@ Use "addattachments --help" to see help information for this command.')
                                       help='Paths for the files to upload.')
     addattachmentsparser.set_defaults(func=addattachment)
 
+    # addattachments command:
+    addattachmentsparser = subparsers.add_parser('getattachments',
+                                                 help='Returns a list of attachments of a page.')
+    addattachmentsparser.add_argument('pageid', type=int,
+                                      help='PageId of the page that you want to obtain the list of attachments from.')
+    addattachmentsparser.set_defaults(func=getattachments)
+
+
 
 
     ##################################
@@ -212,6 +294,9 @@ Use "addattachments --help" to see help information for this command.')
                              Note that modules specified after --debug are not affected by the --loglevel \
                              argument, but always defaults to logging.DEBUG.")
     parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.")
+    parser.add_argument('--outputformat', metavar="<FORMAT>", default="pretty",
+                        help="How to format the output (if applicable). E.g. YAML, JSON, PRETTY, etc. \
+                             Use NONE to supress normal output. Default is to do pretty print.")
 
 
 
@@ -275,17 +360,17 @@ Use "addattachments --help" to see help information for this command.')
         confighandler = FakeConfighandler(pathscheme=pathscheme)
         # set basedir for exp:
         confighandler.ConfigPaths['exp'] = os.path.join('tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '.labfluence.yml')
-        server = FakeConfluenceServer(confighandler=confighandler)
+        confserver = FakeConfluenceServer(confighandler=confighandler)
     else:
         pathscheme = argsns.pathscheme or 'default1'
         confighandler = ExpConfigHandler(pathscheme=pathscheme)
         try:
-            server = ConfluenceXmlRpcServer(autologin=True, confighandler=confighandler)
+            confserver = ConfluenceXmlRpcServer(autologin=True, confighandler=confighandler)
         except socket.error:
             print "This should not happen; autologin is shielded by try-clause. Perhaps network issues?"
             exit(1)
 
-    confighandler.Singletons['server'] = server
+    confighandler.Singletons['server'] = confserver
 
 
     # Test if default func is defined after parsing:

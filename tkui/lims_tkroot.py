@@ -27,6 +27,7 @@ Created by Rasmus S. Sorensen <rasmusscholer@gmail.com>
 #from tkinter import ttk
 # python 2.7:
 import Tkinter as tk
+import tkMessageBox
 import ttk
 
 from collections import OrderedDict
@@ -282,6 +283,15 @@ class LimsTkRoot(tk.Tk):
         Validate the values of the entry widgets.
         Should be overridden by subclasses.
         """
+        existingname = self.App.attachmentNameExists()
+        if existingname:
+            msg = "An attachment with the name {} already exists on the LIMS page. \
+If you press 'ok', the entry will link to the existing attachment on the page. \
+If you want to upload the file as a new attachment, you must provide a name that is not used. \
+If you want to override the old attachment, you should open the page and upload the file manually.".format(existingname)
+            linktoexisting = tkMessageBox.askokcancel("Attachment name exists", msg)
+            if not linktoexisting:
+                return 0
         return 1
 
     def apply(self):
