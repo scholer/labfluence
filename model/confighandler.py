@@ -600,7 +600,7 @@ class ConfigHandler(object):
                 # Erase this entry if registrered here. (discard does not do anything if the item is not a member of the set)
                 self.ChangedEntriesForCallbacks.discard(configentry)
             else:
-                logger.info("invokeEntryChangeCallback called with configentry '%s', but no callbacks are registrered for that entry...", configentry)
+                logger.debug("invokeEntryChangeCallback called with configentry '%s', but no callbacks are registrered for that entry...", configentry)
         elif self.ChangedEntriesForCallbacks:
             # The ChangedEntriesForCallbacks will change during iteration, so using a while rather than for loop:
             while True:

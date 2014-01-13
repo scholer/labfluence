@@ -540,7 +540,7 @@ to prevent the login token from expiring.
             else:
                 if self._logintoken and self.test_token(self._logintoken, doset=True):
                     token = self._logintoken
-                    logger.info('Connected to server using token from self._logintoken, is type: %s', token)
+                    logger.info('Connected to server using token from self._logintoken, type and length: %s %s', type(token), len(token))
                 elif self.Username and self.Password and self.login(doset=True):
                     # Providing a plain-text password should generally not be used;
                     # there is really no need for a password other than for login, only store the token.

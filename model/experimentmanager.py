@@ -177,13 +177,16 @@ class ExperimentManager(object):
     def ActiveExperiments(self):
         "List of active experiments, obtained from confighandler."
         expids = self.ActiveExperimentIds
-        logger.debug("ActiveExperimentIds: %s", expids)
-        return self.getExpsById(expids)
+        expids_init, experiments = self.getExpsById(expids)
+        logger.debug("RecentExperimentIds=%s; of these the following are found/initialized: %s", expids, expids_init)
+        return experiments
     @property
     def RecentExperiments(self):
         "List of recently opened experiments, obtained from confighandler."
         expids = self.RecentExperimentIds
-        return self.getExpsById(expids)
+        expids_init, experiments = self.getExpsById(expids)
+        logger.debug("RecentExperimentIds=%s; of these the following are found/initialized: %s", expids, expids_init)
+        return experiments
 
     def archiveExperiment(self, exp):
         """
@@ -272,11 +275,22 @@ class ExperimentManager(object):
         """
         Given a list of experiment ids, return a list of
         corresponding experiment objects.
+        API change: To avoid alignment errors, this method now returns 
+        a two-tuple list of expids, experiments
+        including only expids actually found in self.ExperimentsById.        
         """
         # Make sure all expids are initialized.
         # This is a lot faster if you have already initialized all experiments in the exp_local_subdir
         self.initExpIds(expids)
-        return [ self.ExperimentsById[expid] for expid in expids if expid in self.ExperimentsById ]
+        expids = [ expid for expid in expids if expid in self.ExperimentsById ]
+        experiments = [ self.ExperimentsById[expid] for expid in expids ]
+        # This is typically (edit: ONLY) called from tkui.expmanagerlistboxes, as:
+        # expids = self.getExpIds(); experiments = self.ExperimentManager.getExpsById(expids)
+        # display = zip(expids, experiments).
+        # This assumes that the expids input list and the returned list of experiment instances align up.
+        # So if an expid is not found in self.ExperimentsById, what best to do?
+        # Fail with a keyerror? Omit the experiment in the list? Use None as a placeholder?
+        return expids, experiments
 
 
 
@@ -684,16 +698,31 @@ class ExperimentManager(object):
 #        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
 
 
+    def getNewExpIndex(self):
+        """
+        Returns a the next/new experiment index.
+        # an expid is expected to be the form "RS123", 
+        # where "RS" is the user initials and "123" is the experiment number/index.
+        """
+        indices = self.getExperimentsIndices()
+        m = max(indices) if indices else 0
+        return m+1
 
     def getNewExpid(self):
         """
         Try to deliver an educated guess for what expid the user wants to use for the next experiment...:
 
-        Todo: also implement checking the wiki first.
+        #Todo: also implement checking the wiki first.
         """
-        indices = self.getExperimentsIndices()
-        m = max(indices)
-        return m+1
+        exp_idx = self.getNewExpIndex()
+        expid_fmt = self.Confighandler.get('expid_fmt')
+        try:
+            expid = expid_fmt.format(exp_series_index=exp_idx)
+        except (TypeError, KeyError, AttributeError) as e:
+            logger.warning("Failed to generate expid using format in config: %s", e)
+            expid = ""
+        return expid
+
 
     def addNewExperiment(self, makelocaldir=True, makewikipage='auto', **props):
         """

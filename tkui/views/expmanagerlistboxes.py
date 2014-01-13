@@ -100,7 +100,10 @@ class ExpManagerListBox(tk.Listbox):
         #expids = [self.TupleList[int(i)][1] for i in self.curselection()]
         #logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
         expids = self.getSelectedIds()
-        logger.debug("%s, currently selected expids: %s", self.__class__.__name__, expids)
+        logger.debug("(%s) - selected expids: %s", self.__class__.__name__, expids)
+        logger.debug("(%s) - self.TupleList is: %s", self.__class__.__name__, self.TupleList)
+        logger.debug("(%s) - self.Reversedsort=%s, self.IsSelectingCurrent=%s",
+                     self.__class__.__name__, self.Reversedsort, self.IsSelectingCurrent)
         if self.IsSelectingCurrent and expids:
             expid = expids[0]
             logger.info("%s: Setting 'app_current_expid' to %s", self, expid)
@@ -140,14 +143,14 @@ class ExpManagerListBox(tk.Listbox):
         # You can override this in subclasses, or choose to just override self.getExpsByIds()
         # where display is the text to show in list and identifier is e.g. an expid.
         # Reference implementation provided here:
-        expids = self.getExpIds() # Which experiments to show?
-        experiments = self.ExperimentManager.getExpsById(expids) # Obtain these experiments from experiment manager
+        # expids =  # Which experiments to show?
+        expids, experiments = self.ExperimentManager.getExpsById(self.getExpIds()) # Obtain these experiments from experiment manager
         display = [repr(exp) for exp in experiments] # Make a 'display' string representation
         if self.Reversedsort:
-            tuplist = reversed(zip(display, expids, experiments))
+            tuplist = list(reversed(zip(display, expids, experiments)))
         else:
             tuplist = zip(display, expids, experiments)
-        logger.debug("returning tuplelist: %s", tuplist)
+        logger.debug("(%s) - returning tuplelist: %s", self.__class__.__name__, tuplist)
         return tuplist
 
     def populatelist(self, experiments):

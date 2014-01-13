@@ -196,11 +196,17 @@ class LabfluenceTkRoot(tk.Tk):
 
 
     def get_expid_and_experiment(self, experiment):
+        """
+        Returns a 2-tuple consisting of expid, experiment object instance.
+        Input experiment can be either a string or an experiment instance.
+        """
         if isinstance(experiment, basestring):
             expid = experiment
             experiment = self.getExperimentManager().ExperimentsById[expid]
         elif isinstance(experiment, Experiment):
             expid = experiment.Props.get('expid')
+        else:
+            raise ValueError("experiment type not recognized: %s, %s" % type(experiment), experiment)
         return expid, experiment
 
 
@@ -293,16 +299,7 @@ class LabfluenceTkRoot(tk.Tk):
         """
 
         em = self.Confighandler.Singletons.get('experimentmanager')
-        logger.info("Not implemented yet: createNewExperiment()")
-
-        exp_idx = em.getNewExpid() if em else ''
-        expid_fmt = self.Confighandler.get('expid_fmt')
-        try:
-            expid = expid_fmt.format(exp_series_index=exp_idx)
-        except (TypeError, KeyError, AttributeError) as e:
-            logger.warning("Failed to generate expid using format in config: %s", e)
-            expid = ""
-
+        expid = em.getNewExpid() if em else ''
         #items are: variable, description, entry widget, kwargs for widget
         # edit:     ( key, description, value, kwargs_for_widget, entry_widget_class )
         entries = ( ('expid', "Experiment ID", expid),
@@ -312,7 +309,8 @@ class LabfluenceTkRoot(tk.Tk):
                     ('makewikipage', "Make wiki page", True),
                     )
         # casting to a mutable type...:
-        fieldvars = OrderedDict( (key, [value, desc, dict()] ) for key,desc,value in entries )
+        fieldvars = OrderedDict( (key, [value, desc, dict()] ) for key, desc, value in entries )
+        logger.debug("Expid is: %s, entries are: %s", expid, entries)
         # dict with key : (value, description, tk-parameters-dict)
         # convert the value to a tk variable (the first item, index=0)
         for items in fieldvars.values(): # i.e. props[key] above
@@ -332,4 +330,6 @@ class LabfluenceTkRoot(tk.Tk):
             #dia.result.pop('expid')
             logger.info("Create Experiment Dialog results: %s", dia.result)
             exp = self.getExperimentManager().addNewExperiment(**dia.result)
-        logger.debug("Experiment created: %s", exp)
+            logger.debug("Experiment created: %s", exp)
+        else:
+            logger.debug("createNewExperiment dialog box cancelled; no new experiment created...")
