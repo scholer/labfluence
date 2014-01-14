@@ -172,7 +172,7 @@ class ExpPropsFrame(ExpFrame):
     #    self.init_layout()
 
     def init_variables(self):
-        self.Variables = dict( ( k, tk.StringVar(value=self.getValue(k)) )  for (k,desc) in self.getEntries() )
+        self.Variables = dict( ( k, tk.StringVar(value=self.getValue(k)) )  for (k, desc) in self.getEntries() )
         logger.debug("{}.Variables: {}\n".format(self.__class__.__name__, self.Variables))
 
     def update_variables(self):
@@ -218,7 +218,7 @@ class ExpAttrFrame(ExpPropsFrame):
         val = getattr(self.Experiment, key, None)
         if val and len(val)>80:
             #val = "(...) "+val[-80:]
-            logger.debug("attr val: {}\n".format(val))
+            logger.debug(u"attr val: {}\n".format(val))
         return val
     def getEntries(self, ):
         return ( ('Localdirpath', ''),
@@ -232,12 +232,12 @@ class ExpSubentriesFrame(ExpPropsFrame):
         expid = self.Experiment.Props.get('expid', "")
         subentries = self.Experiment.Props.get(key, None)
         if subentries:
-            return '\n'.join("- {expid}{subentry_idx} {subentry_titledesc}".format(**dict(dict(expid=expid,
-                subentry_idx='', subentry_titledesc=''), **subentry)) for idx,subentry in subentries.items() )
+            return u'\n'.join("- {expid}{subentry_idx} {subentry_titledesc}".format(**dict(dict(expid=expid,
+                subentry_idx='', subentry_titledesc=''), **subentry)) for idx, subentry in subentries.items() )
         else:
             return None
 
-    def getEntries(self, ):
+    def getEntries(self):
         return ( ('exp_subentries', 'Subentries'),
                 )
 
@@ -249,7 +249,7 @@ class ExpSubentriesFrame(ExpPropsFrame):
         for (key,desc) in entries:
             var = self.Variables[key]
             if desc:
-                self.Labels[key] = label = ttk.Label( self, text=desc+":", justify=tk.LEFT)
+                self.Labels[key] = label = ttk.Label(self, text=desc+":", justify=tk.LEFT)
                 label.grid(column=1, row=r, sticky="nsw")
                 r += 1
             self.Entries[key] = entry = ttk.Label(self, textvariable=var, state='readonly', justify=tk.LEFT, wraplength=500)
@@ -260,20 +260,31 @@ class ExpSubentriesFrame(ExpPropsFrame):
 
 class ExpWikiPageStructFrame(ExpSubentriesFrame):
     def getValue(self, key):
+        """
+        Overriding getValue method to provide custom vars.
+        Note: \xa0 unicode character (non-breaking space) may be encountered
+        when retrieving page structs from the server.
+        And, unlike other operators, format does not simply convert
+        the output to unicode.
+        >>> "hej"+u"\xa0" = u'hej '
+        >>> ".".join(["hej", u"\xa0"]) = u'hej. '
+        >>> "hej{}".format(u"\xa0") ---> UnicodeEncodeError!
+        """
         page = getattr(self.Experiment, key, None)
         if not page:
-            logger.info("ExpOverviewFrame.update_wikipageinfo() > Experiment '{}' has no attribute '{}', aborting.".format(self.Experiment, key))
+            logger.info("ExpOverviewFrame.update_wikipageinfo() > Experiment '%s' has no attribute '%s', aborting.",
+                        self.Experiment, key)
             return None
         struct = page.Struct #.get('exp_subentries', None)
         def makevalstr(val):
-            val = "{}".format(val)
+            val = u"{}".format(val)
             if len(val) > 100:
                 return val[:100]+" (...)"
             return val
         if struct:
-            return '\n'.join("- {}: {}".format(k,makevalstr(v)) for k,v in struct.items() )
+            return '\n'.join(u"- {}: {}".format(k, makevalstr(v)) for k, v in struct.items() )
         else:
-            return "{}".format(struct)
+            return u"{}".format(struct)
 
     def getEntries(self, ):
         return ( ('WikiPage', 'Wiki page struct'),
