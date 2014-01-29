@@ -6,6 +6,7 @@ syntax: glob
 baks/*
 code-examples-from-others/*
 third-party/*
+thirdparty/*
 projectfiles/*
 */test_data/test_filestructure*
 *.log
