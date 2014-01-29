@@ -15,20 +15,20 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-
+from __future__ import print_function
 import xmlrpclib
 import socket
-import os.path
-import itertools
-import string
-from Crypto.Cipher import AES
+#import os.path
+#import itertools
+#import string
+#from Crypto.Cipher import AES
 #import Crypto.Random
-from Crypto.Random import random as crypt_random
+#from Crypto.Random import random as crypt_random
 import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from confighandler import ConfigHandler, ExpConfigHandler
+#from confighandler import ConfigHandler, ExpConfigHandler
 from server import login_prompt
 
 class SimpleConfluenceXmlRpcServer(object):
@@ -46,17 +46,17 @@ class SimpleConfluenceXmlRpcServer(object):
         self.Logintoken = logintoken
         self.Autologin = autologin
         self.Doprompt = prompt
-        logger.debug( "Making server with url: {}".format(self.AppUrl) )
+        logger.debug("Making server with url: %s", self.AppUrl)
         self.RpcServer = xmlrpclib.Server(appurl)
         socket.setdefaulttimeout(1.0) # without this there is no timeout, and this may block the requests
         if autologin and not logintoken and (username and password) or prompt:
             try:
                 if self.Username and self.Password and self.login():
-                    print 'Connected to server at {} using provided username and password...'.format(self.AppUrl)
+                    logger.debug('Connected to server at %s using provided username and password...', self.AppUrl)
                 elif prompt is True or prompt in ('auto'):
                     self.login(prompt=True)
             except socket.error as e:
-                print "Server > Unable to login, probably timeout: {}".format(e)
+                logger.error("Server > Unable to login, probably timeout: %s", e)
 
 
 
@@ -73,7 +73,7 @@ class SimpleConfluenceXmlRpcServer(object):
         if logintoken is None:
             logintoken = getattr(self, 'Logintoken', None)
         if not logintoken:
-            print "ConfluenceXmlRpcServer.test_token() :: No token provided, aborting..."
+            print("ConfluenceXmlRpcServer.test_token() :: No token provided, aborting...")
             return None
         try:
             serverinfo = self.getServerInfo(logintoken)
@@ -81,7 +81,8 @@ class SimpleConfluenceXmlRpcServer(object):
                 self.Logintoken = logintoken
             return True
         except xmlrpclib.Fault as err:
-            print "ConfluenceXmlRpcServer.test_token() : tested token '{}' did not work; {}: {}".format( logintoken, err.faultCode, err.faultString)
+            logger.error("ConfluenceXmlRpcServer.test_token() : tested token '%s' did not work; %s: %s",
+                         logintoken, err.faultCode, err.faultString)
             return False
 
     def login(self, username=None, password=None, prompt=False, retry=3, dopersist=True, msg=None):
@@ -95,18 +96,18 @@ class SimpleConfluenceXmlRpcServer(object):
         if not (username and password):
             logger.info( "ConfluenceXmlRpcServer.login() :: Username or password is boolean False; retrying..." )
             newmsg = "Empty username or password; please try again. Use Ctrl+C (or cancel) to cancel."
-            token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=newmsg)
+            token = self.login(username, prompt=prompt, retry=retry-1, msg=newmsg)
             return token
         try:
-            logger.debug("Attempting server login with username: {}".format(username))
-            self.Logintoken = token = self._login(username,password)
-            logger.info("Logged in as '{}', received token of length {}".format(username, len(token)))
+            logger.debug("Attempting server login with username: %s", username)
+            self.Logintoken = token = self._login(username, password)
+            logger.info("Logged in as '%s', received token of length %s", username, len(token))
             return token
         except xmlrpclib.Fault as err:
-            err_msg = "Login error: {}: {}".format( err.faultCode, err.faultString)
+            err_msg = u"Login error: {}: {}".format( err.faultCode, err.faultString)
             #print "%d: %s" % ( err.faultCode, err.faultString)
             if prompt and retry:
-                token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=err_msg)
+                token = self.login(username, prompt=prompt, retry=retry-1, msg=err_msg)
             else:
                 return None
         return token
@@ -115,12 +116,12 @@ class SimpleConfluenceXmlRpcServer(object):
     #### AUTHENTICATION methods ######
     ##################################
 
-    def _login(self, username,password):
+    def _login(self, username, password):
         """
         Returns a login token.
         Raises xmlrpclib.Fauls on auth error/failure.
         """
-        return self.RpcServer.confluence2.login(username,password)
+        return self.RpcServer.confluence2.login(username, password)
 
     def logout(self, token=None):
         """
@@ -130,7 +131,7 @@ class SimpleConfluenceXmlRpcServer(object):
         if token is None:
             token = self.Logintoken
         if token is None:
-            print "Error, login token is None."
+            print("Error, login token is None.")
             return
         return self.RpcServer.confluence2.logout(token)
 
@@ -146,7 +147,7 @@ class SimpleConfluenceXmlRpcServer(object):
         if token is None:
             token = self.Logintoken
         if token is None:
-            print "Error, login token is None."
+            print("Error, login token is None.")
             return
         return self.RpcServer.confluence2.getServerInfo(token)
 
@@ -157,7 +158,7 @@ class SimpleConfluenceXmlRpcServer(object):
         if token is None:
             token = self.Logintoken
         if token is None:
-            print "Error, login token is None."
+            print("Error, login token is None.")
             return
         return self.RpcServer.confluence2.getSpaces(token)
 
@@ -173,7 +174,7 @@ class SimpleConfluenceXmlRpcServer(object):
         if token is None:
             token = self.Logintoken
         if token is None:
-            print "Error, login token is None."
+            print("Error, login token is None.")
             return
         return self.RpcServer.confluence2.getUser(token, username)
 
@@ -373,9 +374,7 @@ The content is in storage format.
 Note: the return value can be null, if an error that did not throw an exception occurred.
 Operates exactly like updatePage() if the page already exists.
 """
-        if self.VERBOSE:
-            print "server.storePage() :: Storing page:"
-            print page_struct
+        logger.debug("server.storePage() :: Storing page: %s", page_struct)
         return self.RpcServer.confluence2.storePage(self.Logintoken, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
@@ -409,7 +408,7 @@ Note: the return value can be null, if an error that did not throw an exception 
                 return self.RpcServer.confluence2.renderContent(self.Logintoken, pageId=pageId, content=content)
         elif spaceKey and content:
             return self.RpcServer.confluence2.renderContent(self.Logintoken, spaceKey=pageId, content=content)
-        print "server.renderContent() :: Error, must pass either pageId (with optional content) or spaceKey and content."
+        logger.debug( "server.renderContent() :: Error, must pass either pageId (with optional content) or spaceKey and content." )
         return None
 
 
@@ -452,9 +451,6 @@ contributor:
     ####################################
     #### Easier assist methods   #######
     ####################################
-
-    def getPageAttachments(self, pageId):
-        return self.getAttachments(self.Logintoken, pageId)
 
     def storePageContent(self, pageId, spaceKey, newContent, contentformat='xml'):
         """

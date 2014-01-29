@@ -27,6 +27,7 @@ import random
 import xmlrpclib
 import string
 import hashlib
+import re
 import logging
 from datetime import datetime
 
@@ -34,6 +35,7 @@ from datetime import datetime
 # Uh, this makes "from utils import *" a bit dangerous:
 # it will override any 'logger' variables in the calling modules.
 # Thus, never do "from utils import *" !
+logging.addLevelName(4, 'SPAM') # Will convert LEVEL to 'SPAM' when printing logs for lvl 4, logger.log(4, msg, *args)
 logger = logging.getLogger(__name__)
 
 try:
@@ -67,8 +69,15 @@ def getmimetype(filepath):
         mimetype, encoding = mimetypes.guess_type(filepath, strict=False)
     return mimetype
 
+def asciize(s):
+    """ Return string s with all non-ascii chars removed """
+    return "".join( c for c in s if c in string.ascii_letters+string.digits+"().-_")
+
 
 def filehexdigest(filepath, digesttype='md5'):
+    """
+    Reference implementation. Returns hex digest of file in filepath.
+    """
     with open(filepath, 'rb') as f:
         m = hashlib.new(digesttype) # generic; can also be e.g. hashlib.md5()
         # md5 sum default is 128 = 2**7-bytes digest block. However, file read is faster for e.g. 8 kb blocks.
@@ -186,17 +195,18 @@ def getnearestfile(startpath=None):
         if filenames:
             return os.path.join(dirpath, filenames[0])
     def walkup(startpath):
+        """ Recursively walk up the file hierarchy until a file is found. """
         parpath = os.path.dirname(startpath)
-        logger.debug("walkup:\n--startpath: {}\n--parpath:{}".format(startpath, parpath))
+        logger.debug("walkup:\n--startpath: %s\n--parpath: %s", startpath, parpath)
         if parpath == startpath:
-            logger.debug("startpath '{}' == parpath '{}'".format(startpath, parpath))
+            logger.debug("startpath '%s' == parpath '%s'", startpath, parpath)
             return None
         for f in os.listdir(parpath):
             if os.path.isfile(os.path.join(parpath, f)):
-                logger.debug("'{}' is file, returning it...".format(f))
+                logger.debug("'%s' is file, returning it...", f)
                 return f
             else:
-                logger.debug("'{}' is not a file...".format(f))
+                logger.debug("'%s' is not a file...", f)
         return walkup(parpath)
     return walkup(startpath)
 
@@ -211,10 +221,10 @@ def login_prompt(username=None, msg="", options=None ):
         options = dict()
     if username is None:
         username = getpass.getuser() # returns the currently logged-on user on the system. Nice.
-    print("\n{}\nPlease enter credentials:".format(msg), file=sys.stderr)
+    print(u"\n{}\nPlease enter credentials:".format(msg), file=sys.stderr)
     username = raw_input('Username (enter={}):'.format(username)) or username # use 'username' if input is empty.
     password = getpass.getpass()
-    logger.debug("login_prompt returning username '%s' and password of length {}".format(username, "0" if len(password) < 1 else ">0"))
+    logger.debug("login_prompt returning username '%s' and password of %s length.", username, "non-zero" if len(password) > 0 else "zero")
     return username, password
 
 def display_message(message):
@@ -223,7 +233,7 @@ def display_message(message):
 
 
 
-def findFieldByHint(candidates, hints):
+def findFieldByHint(candidates, hints, regex=False):
     """
     Takes a list of candidates, e.g.
         ['Pos', 'Sequence', 'Volume']
@@ -244,6 +254,8 @@ def findFieldByHint(candidates, hints):
     """
     if not isinstance(hints, (list, tuple)):
         hints = (hints,)
+    if regex:
+        regexs = {hint: re.compile(hint, re.IGNORECASE) for hint in hints}
     def calculate_score(candidate, hint):
         """
         Compares a candidate and hint and returns a score.
@@ -252,6 +264,10 @@ def findFieldByHint(candidates, hints):
         is the right choice for the hint.
         """
         score = 0
+        if regex:
+            match = regexs[hint].match(candidate)
+            if match:
+                return len(candidate)
         if candidate in hint:
             # candidate is 'seq' and hint is 'sequence'
             # However, we do not want the hint 'Rack position' to yield
@@ -264,13 +280,13 @@ def findFieldByHint(candidates, hints):
     for hint in hints:
         scores = [ calculate_score(candidate.lower(), hint.lower()) for candidate in candidates ]
         #print "="
-        scores_list = ["{} ({:.3f})".format(cand, score) for cand, score in zip(candidates, scores)]
+        scores_list = [u"{} ({:.3f})".format(cand, score) for cand, score in zip(candidates, scores)]
         #print scores_list
         scores_str = ", ".join( scores_list )
         #print scores_str
         #print "--------"
         # do NOT attempt to use u"string" here, doesn't work?
-        logger.debug("Candidate scores for hint '%s': %s" , hint, scores_str)
+        logger.log(4, "Candidate scores for hint '%s': %s" , hint, scores_str)
         if max(scores) > 0.2:
             return candidates[scores.index(max(scores))]
         #for candidate in candidates:
@@ -280,7 +296,7 @@ def findFieldByHint(candidates, hints):
     return None
 
 def getNewFilename(basename, used_filenames, caseinsensitive=False,
-                   fnfmt="{fname}{num:0{p}}.{ext}", powerrange=(2,) ):
+                   fnfmt=u"{fname}{num:0{p}}{ext}", powerrange=(2,) ):
     """
     Returns a new filename based on basename that is not in used_filenames.
     If caseinsensitive is set to True (e.g. for windows filesystems),
@@ -307,15 +323,12 @@ def getNewFilename(basename, used_filenames, caseinsensitive=False,
     else:
         if basename not in used_filenames:
             return basename
-    #fmt = lambda fn, i: "{1}{0:02}.{2}".format(i, *fn.rsplit('.',1))
     def fmt(fn, num, p=2):
         """
+        For making a new filename based on fnfmt and input vars, where:
         fn=filename, i=index, p=power 10 (default: 2)
         """
-        try:
-            fname, ext = fn.rsplit('.',1)
-        except ValueError:
-            fname, ext = fn, ''
+        fname, ext = os.path.splitext(fn)
         return fnfmt.format(fname=fname, ext=ext, num=num, p=p)
 
     # for windows style, do:
@@ -323,7 +336,7 @@ def getNewFilename(basename, used_filenames, caseinsensitive=False,
     # and pass p to fmt as the length.
     # and make sure to cast to lower when checking.
     for p in powerrange:
-        fngen = (fmt(basename, i) for i in xrange(1,10**p))
+        fngen = (fmt(basename, i) for i in xrange(1, 10**p))
         if caseinsensitive:
             newfn = next( (fn for fn in fngen if fn.lower() not in used_filenames), None )
         else:
@@ -346,7 +359,7 @@ def attachmentTupFromFilepath(filepath):
         #attData = base64.b64encode(fd.read('rb'))
         # xmlrpclib.Binary also does base64.encode, but adds xml tag before and after.
         attData = xmlrpclib.Binary(fd.read())
-    logging.debug("Read data for attachment '%s' with byte-length %s.", attInfo, len(str(attData)))
+    logger.debug("Read data for attachment '%s' with byte-length %s.", attInfo, len(str(attData)))
     return attInfo, attData
 
 def yaml_xmlrpcdate_representer(dumper, data):

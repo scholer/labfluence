@@ -110,7 +110,6 @@ class JournalViewer(ExpFrame):
         """
         xhtml = self.Experiment.getWikiSubentryXhtml()
         #xhtml = "<h1>This is a header 1</h1><h4>RSNNN header</h4><p>Here is a description of RSNNN</p><h6>journal, date</h6><p>More text</p>"
-        #logger.debug(u"xhtml is: \n{}".format(xhtml))
         logger.debug("(%s) setting text area to subentry raw xhtml string of length %s", self.__class__.__name__, len(xhtml) if xhtml else xhtml)
         self.set_and_parse_xhtml(xhtml)
         return xhtml

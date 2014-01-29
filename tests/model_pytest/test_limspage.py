@@ -130,11 +130,11 @@ def limspage_nodeps(monkeypatch, xhtml_teststring):
     # need a server or confighandler.
     # init signature is: def __init__(self, pageId, server=None, confighandler=None, pagestruct=None)
     def mock_updatepage(*args, **kwargs):
-        logging.debug("mock_updatepage called with args and kwargs: %s; %s", args, kwargs)
+        logger.debug("mock_updatepage called with args and kwargs: %s; %s", args, kwargs)
     def mock_reloadfromserver(*args, **kwargs):
-        logging.debug("mock_reloadfromserver called with args and kwargs: %s; %s", args, kwargs)
+        logger.debug("mock_reloadfromserver called with args and kwargs: %s; %s", args, kwargs)
     def mock_content(*args, **kwargs):
-        logging.debug("mock_reloadfromserver called with args and kwargs: %s; %s", args, kwargs)
+        logger.debug("mock_reloadfromserver called with args and kwargs: %s; %s", args, kwargs)
         return xhtml_teststring
 
     monkeypatch.setattr(WikiLimsPage, 'reloadFromServer', mock_reloadfromserver)

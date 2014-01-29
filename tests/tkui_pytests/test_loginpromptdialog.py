@@ -51,7 +51,7 @@ import Tkinter as tk
 @pytest.fixture(scope="module")
 def tkroot():
     try:
-        logging.debug("Instantiating tk root:")
+        logger.debug("Instantiating tk root:")
         root = tk.Tk()
     except tk.TclError as e:
         logger.warning("Tk could not initialize, probably because there is no display available: %s", e)

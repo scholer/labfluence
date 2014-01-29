@@ -191,7 +191,7 @@ class ExpManagerListBox(tk.Listbox):
         #selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
         #logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
         expid = self.TupleList[int(curselection[0])][1]
-        logger.info("curselection={}, expid={}".format(curselection, expid))
+        logger.info("curselection=%s, expid=%s", curselection, expid)
         self.ExperimentManager.addActiveExperiments( (expid, )) # This takes care of invoking callbacks.
 
 

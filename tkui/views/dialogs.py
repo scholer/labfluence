@@ -109,7 +109,7 @@ class Dialog(tk.Toplevel):
             l = tk.Label(master, textvariable=self.Message)
             l.grid(row=0, column=0, sticky="news", columnspan=2)
         if not self.Fieldvars:
-            logging.info("No self.Fieldvars, aborting")
+            logger.info("No self.Fieldvars, aborting")
             return
         focusentry, backupfocusentry = None, None
         r, c = 1, 0
@@ -127,7 +127,7 @@ class Dialog(tk.Toplevel):
                 l.grid(row=r, column=c, sticky="w")
                 e = self.EntryWidgets[key] = ttk.Entry(master, textvariable=speclist[0], **speclist[2])
                 # casting to bool to avoid issues displaying passwords etc in plain text...
-                logging.debug("Created ttk.Entry widget with textvariable.get(): %s and entry.get(): %s",
+                logger.debug("Created ttk.Entry widget with textvariable.get(): %s and entry.get(): %s",
                               bool(speclist[0].get()), bool(e.get()))
                 e.grid(row=r, column=c+1, sticky="nesw")
                 r += 1

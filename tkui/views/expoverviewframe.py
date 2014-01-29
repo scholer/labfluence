@@ -124,14 +124,14 @@ class ExpOverviewFrame(ExpFrame):
 
 
     def create_wikipage(self):
-        logger.info("Creating new wikipage for experiment '{}'".format(self))
+        logger.info("Creating new wikipage for experiment '%s'", self)
         page = self.Experiment.makeWikiPage()
         if page:
-            logger.info("New wikipage created: {}".format(page))
+            logger.info("New wikipage created: %s", page)
             self.update_variables()
             # perhaps do self.Parent.update_frames instead?
         else:
-            logger.error("makeWikiPage returned false: {}".format(page))
+            logger.error("makeWikiPage returned false: %s", page)
 
 
     def saveprops(self):
@@ -151,7 +151,7 @@ class ExpOverviewFrame(ExpFrame):
 
     def activeExpsChange(self, event=None):
         self.closebtn['state'] = 'normal' if self.Experiment.isactive() else 'disabled'
-        logger.debug("closebtn['state'] set to {}".format(str(self.closebtn.cget('state')) ))
+        logger.debug("closebtn['state'] set to %s", self.closebtn.cget('state'))
 
 
 class ExpPropsFrame(ExpFrame):
@@ -173,7 +173,7 @@ class ExpPropsFrame(ExpFrame):
 
     def init_variables(self):
         self.Variables = dict( ( k, tk.StringVar(value=self.getValue(k)) )  for (k, desc) in self.getEntries() )
-        logger.debug("{}.Variables: {}\n".format(self.__class__.__name__, self.Variables))
+        logger.debug("%s.Variables: %s", self.__class__.__name__, self.Variables)
 
     def update_variables(self):
         for key, tkvar in self.Variables.items():
@@ -199,7 +199,7 @@ class ExpPropsFrame(ExpFrame):
         entries = self.getEntries()
         self.columnconfigure(2, weight=2)#, minsize=80)
         startrow = 1
-        for r,(key,desc) in enumerate(entries, startrow):
+        for r, (key, desc) in enumerate(entries, startrow):
             var = self.Variables[key]
             if desc:
                 self.Labels[key] = label = ttk.Label( self, text=desc+":", justify=tk.LEFT)
@@ -218,7 +218,7 @@ class ExpAttrFrame(ExpPropsFrame):
         val = getattr(self.Experiment, key, None)
         if val and len(val)>80:
             #val = "(...) "+val[-80:]
-            logger.debug(u"attr val: {}\n".format(val))
+            logger.debug("attr val: %s", val)
         return val
     def getEntries(self, ):
         return ( ('Localdirpath', ''),
@@ -246,7 +246,7 @@ class ExpSubentriesFrame(ExpPropsFrame):
         entries = self.getEntries()
         #self.columnconfigure(2, weight=2)#, minsize=80)
         r = 1
-        for (key,desc) in entries:
+        for (key, desc) in entries:
             var = self.Variables[key]
             if desc:
                 self.Labels[key] = label = ttk.Label(self, text=desc+":", justify=tk.LEFT)

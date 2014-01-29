@@ -78,14 +78,14 @@ you must figure out ourself how to activate those with labfluence."""
                 logger.error("Error, config in path '%s' is not a file, skipping.", from_path)
                 continue
             if os.path.exists(to_path):
-                overwrite = raw_input("Warning, file in path\n    {}\nalready exists. Overwrite with new config? ".format(from_path))
+                overwrite = raw_input(u"Warning, file in path\n    {}\nalready exists. Overwrite with new config? ".format(from_path))
                 if not overwrite or not overwrite[0].lower() == 'y':
                     continue
             basedir = os.path.dirname(to_path)
             if not os.path.isdir(basedir):
                 try:
                     os.makedirs(basedir)
-                    logging.info("Created directory\n    '%s'", basedir)
+                    logger.info("Created directory\n    '%s'", basedir)
                 except (OSError, IOError) as e:
                     logger.error("Error while making directory\n    '%s'\nfor config '%s': %s",
                                  os.path.basename(to_path), cfgtype, e)
@@ -94,13 +94,13 @@ you must figure out ourself how to activate those with labfluence."""
                 logger.debug("Basedir exists:\n    %s", basedir)
             try:
                 shutil.copy2(from_path, to_path)
-                logging.info("Copied file\n    %s\nto path\n    %s", from_path, to_path)
+                logger.info("Copied file\n    %s\nto path\n    %s", from_path, to_path)
             except (OSError, IOError) as e:
                 logger.error("Error while making directory '%s' for config '%s': %s",
                              os.path.basename(to_path), cfgtype, e)
             locations[cfgtype] = to_path
 
-        print "The following configs were installed: {}".format(locations.keys())
+        print u"The following configs were installed: {}".format(locations.keys())
         print """Notice: Before labfluence can be used for anything, you must edit the config files
 and insert correct configuration values for e.g. the wiki server, etc."""
         return locations
@@ -112,7 +112,7 @@ and insert correct configuration values for e.g. the wiki server, etc."""
         defaulting to path <to_path> (to_path must be the final filepath).
         Returns the directory to put it in.
         """
-        new_dir = raw_input("Where do you want to install the '{}' config (default: [{}]) : \n  ".format(
+        new_dir = raw_input(u"Where do you want to install the '{}' config (default: [{}]) : \n  ".format(
                         cfgtype, os.path.dirname(to_path)))
         if new_dir and not os.path.isabs(os.path.expanduser(new_dir)):
             print "Specified directory must be absolute, '%s' is not." % new_dir

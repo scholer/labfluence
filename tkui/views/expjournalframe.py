@@ -242,17 +242,17 @@ class ExpJournalFrame(ExpFrame):
         v = self.Variables['wiki_titledesc']
         ja = self.Experiment.JournalAssistant
         titledesc = self.Experiment.getSubentryRepr(subentry_idx=ja.Current_subentry_idx, default="exp")
-        logger.debug(u"Title desc: '{}'".format(titledesc))
+        logger.debug("Title desc: '%s'", titledesc)
         v.set(titledesc)
 
 
     def on_subentry_select(self, event):
         selectedsubentries = self.subentries_listbox.getSelectedSubentryIdxs()
         if not selectedsubentries:
-            logger.debug("No subentries selected: {}".format(selectedsubentries))
+            logger.debug("No subentries selected: %s", selectedsubentries)
             return
         subentry = selectedsubentries[0]
-        logger.debug("Switching to subentry '{}'".format(subentry))
+        logger.debug("Switching to subentry '%s'", subentry)
         ja = self.Experiment.JournalAssistant
         ja.Current_subentry_idx = subentry
         self.update_cacheview()
@@ -268,7 +268,7 @@ class ExpJournalFrame(ExpFrame):
         new_entry = self.journalentry_input.get()
         ja = self.Experiment.JournalAssistant
         res = ja.addEntry(new_entry)
-        logger.debug(u"ExpJournalFrame.add_entry() :: res = '{}'".format(res))
+        logger.debug("ExpJournalFrame.add_entry() :: res = '%s'", res)
         if res:
             self.journalentry_input.delete(0, tk.END)
         self.update_cacheview()
@@ -280,7 +280,7 @@ class ExpJournalFrame(ExpFrame):
         """
         logger.debug("ExpJournalFrame.flushcache() invoked.")
         res = self.Experiment.JournalAssistant.flush()
-        logger.debug(u"ExpJournalFrame.flushcache() :: res = '{}'".format(res))
+        logger.debug("ExpJournalFrame.flushcache() :: res = '%s'", res)
         self.update_cacheview()
         self.update_wikiview()
 
@@ -327,7 +327,7 @@ class ExpJournalFrame(ExpFrame):
         """
         for identifier in self.AutoflushAfterIdentifiers:
             self.after_cancel(identifier)
-            logger.debug("afterTimer with id '{}' cancelled...".format(identifier))
+            logger.debug("afterTimer with id '%s' cancelled...", identifier)
         del self.AutoflushAfterIdentifiers[:]
         if not self.Boolvars['autoflush'].get():
             logger.debug("Autoflush not active (due to checkbox...)")
@@ -335,7 +335,7 @@ class ExpJournalFrame(ExpFrame):
         mins = int(self.Variables['autoflush_interval'].get())
         after_identifier = self.after(mins*60*1000, self.flushallcaches)
         self.AutoflushAfterIdentifiers.append(after_identifier)
-        logger.debug("New afterTimer with id {} added for self.flushallcaches in {} ms".format(after_identifier, mins*60*1000))
+        logger.debug("New afterTimer with id %s added for self.flushallcaches in %s ms", after_identifier, mins*60*1000)
         return after_identifier
 
 
@@ -420,7 +420,7 @@ class ExpJournalFrame(ExpFrame):
                 items[0] = tk.StringVar(value=items[0])
         fieldvars['expid'][2]['state'] = 'disabled'  # This is the third element, the dict.
         dia = Dialog(self, "Create new subentry", fieldvars)
-        logger.debug(u"Dialog result: {}".format(dia.result))
+        logger.debug("Dialog result: %s", dia.result)
         #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
         #self.Experiment.addNewSubentry()
         if dia.result:
@@ -452,6 +452,3 @@ class ExpJournalFrame(ExpFrame):
                 self.Parent.update_info()
         else:
             logger.info("self.Experiment.JournalAssistant.newExpSubentry(current_subentry_idx) returned '%s", res)
-
-
-

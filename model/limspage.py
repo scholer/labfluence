@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Models:
 from page import WikiPage
-from utils import attachmentTupFromFilepath
+#from utils import attachmentTupFromFilepath
 
 
 class WikiLimsPage(WikiPage):
@@ -117,24 +117,25 @@ class WikiLimsPage(WikiPage):
             logger.warning("No match for re prog with pattern '%s' versus xhtml: %s", self.LimstableRegexProg.pattern, xhtml)
             return
         headers = self.getTableHeaders(match)
+        # Create a list of values with order corresponding to the order of the table headers:
         try:
             entry_vals = [entry[field] for field in headers]
         except KeyError as e:
-            logger.info("KeyError while sorting entry_vals list, headers = %s, entry = %s", headers, entry)
+            logger.info("KeyError '%s' while producing the entry_vals list, headers = %s, entry = %s", e, headers, entry)
             entry_vals = [entry.get(field, "") for field in headers]
-            logger.info("Defaulting to using '' for non-found keys, entry_vals = %s", entry_vals)
-            if all(item=="" for item in entry_vals):
-                logger.info("All entries are empty strings, so aborting...!")
-                #return
-            raise e
-        entry_xhtml = "<tr>{}</tr>".format(
-            "".join("<td><p>{}</p></td>".format(val) for val in entry_vals ) )
+            lostkeys = set(headers) - set(entry.keys())
+            logger.info("Defaulting to using empty string ('') for lost keys %s; entry_vals is now: %s", lostkeys, entry_vals)
+        if all(item=="" for item in entry_vals):
+            logger.info("All entries are empty strings, so aborting...! -- entry_vals list is: %s", entry_vals)
+            return
+        entry_xhtml = u"<tr>{}</tr>".format(
+            "".join(u"<td><p>{}</p></td>".format(val) for val in entry_vals ) )
         insert_index = match.start('tablerows')
         new_xhtml = xhtml[:insert_index] + entry_xhtml + xhtml[insert_index:]
         self.Content = new_xhtml
         if persistToServer:
             if versionComment is None:
-                versionComment = "Entry added by Labfluence LimsPage: {}".format(
+                versionComment = u"Entry added by Labfluence LimsPage: {}".format(
                     entry.get('Product', "") )
             self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
         logger.debug("Entry added, xhtml length %s", len(xhtml))

@@ -452,7 +452,7 @@ class FakeLimsTkroot(FakeTkroot):
 
     def __init__(self, app=None, confighandler=None, **kwargs):
         FakeTkroot.__init__(self)
-        logging.info( "FakeTkroot initializing, with self=%s, app=%s, confighandler=%s, kwargs=%s",
+        logger.info( "FakeTkroot initializing, with self=%s, app=%s, confighandler=%s, kwargs=%s",
                      self, app, confighandler, kwargs )
         self.Fields = dict()
         self.Confighandler = confighandler

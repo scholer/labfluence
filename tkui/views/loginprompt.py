@@ -64,9 +64,9 @@ class LoginPrompt(Dialog):
         Dialog.body(self, master)
         logger.debug("login prompt created, self.Fieldvars is: %s, with values: %s",
                      self.Fieldvars,
-                     "; ".join("{}: {}".format(k, bool(v[0].get())) for k, v in self.Fieldvars.items()))
+                     "; ".join(u"{}: {}".format(k, bool(v[0].get())) for k, v in self.Fieldvars.items()))
         logger.debug("self.EntryWidgets have values: %s",
-                     "; ".join("{}: {}".format(k, bool(v.get())) for k, v in self.EntryWidgets.items()))
+                     "; ".join(u"{}: {}".format(k, bool(v.get())) for k, v in self.EntryWidgets.items()))
 
     def validate(self):
         """

@@ -103,18 +103,20 @@ class SatelliteFileLocation(SatelliteLocation):
         Ensures that the file location is available.
         """
         if not self.isMounted():
-            print "\nSatelliteFileLocation does not seem to be correctly mounted (it might just be empty, but hard to tell)\n{}\--will try to mount with mountcommand...".format(self.URI)
+            logger.warning( "SatelliteFileLocation does not seem to be correctly mounted (it might just be empty, but hard to tell) -- %s -- will try to mount with mountcommand...", self.URI)
             ec = self.mount()
             return ec
-        print "\nSatelliteFileLocation correctly mounted (well, it is not empty): {}".format(self.URI)
+        logger.debug( "\nSatelliteFileLocation correctly mounted (well, it is not empty): %s", self.URI)
 
-    def mount(self):
+    def mount(self, uri=None):
         """
         Uses mountcommand to mount; is specific to each system.
         Not implemented yet.
         Probably do something like #http://docs.python.org/2/library/subprocess.html
         """
-        mountcommand = confighandler.get('satellite_locations', dict()).get(uri, dict()).get('mountcommand', None)
+        if uri is None:
+            uri = self.URI
+        mountcommand = self.Confighandler.get('satellite_locations', dict()).get(uri, dict()).get('mountcommand', None)
         if not mountcommand:
             return
         import subprocess, sys
@@ -145,7 +147,7 @@ class SatelliteFileLocation(SatelliteLocation):
         Consider making a call to rsync and see if that is available, and only use the rest as a fallback...
         """
         if not os.path.isdir(localpath):
-            print "\nSatelliteFileLocation.syncToLocalDir() :: localpath '{}' is not a directory, skipping...".format(localpath)
+            logger.debug("SatelliteFileLocation.syncToLocalDir() :: localpath '%s' is not a directory, skipping...", localpath)
             return
         realpath = self.getRealPath(satellitepath)
         # If it is just a file:
@@ -153,7 +155,7 @@ class SatelliteFileLocation(SatelliteLocation):
             self.syncFileToLocalDir(satellitepath, localpath)
             return
         elif not os.path.isdir(realpath):
-            print "\nSatelliteFileLocation.syncToLocalDir() :: satellitepath '{}' is not a file or directory, skipping...".format(realpath)
+            logger.debug( "SatelliteFileLocation.syncToLocalDir() :: satellitepath '%s' is not a file or directory, skipping...", realpath)
             return
         # We have a folder:
         # Note, if satellitepath ends with a '/', the basename will be ''.
@@ -162,7 +164,7 @@ class SatelliteFileLocation(SatelliteLocation):
         foldername = os.path.basename(satellitepath)
         # If the folder does not exists in localpath destination, just use copytree:
         if not os.path.exists(os.path.join(localpath, foldername)):
-            print "shutil.copytree({}, os.path.join({},{}))".format(realpath,localpath, foldername)
+            print u"shutil.copytree({}, os.path.join({},{}))".format(realpath, localpath, foldername)
             shutil.copytree(realpath, os.path.join(localpath, foldername))
             return True
         # foldername already exists in local directory, just recurse for each item...
@@ -171,6 +173,9 @@ class SatelliteFileLocation(SatelliteLocation):
 
 
     def syncFileToLocalDir(self, satellitepath, localpath):
+        """
+        Syncs a file to local dir.
+        """
         if not os.path.isdir(localpath):
             print "\nSatelliteFileLocation.syncFileToLocalDir() :: localpath '{}' is not a directory, skipping...".format(localpath)
             """Consider perhaps overwriting instead..."""

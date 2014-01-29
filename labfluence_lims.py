@@ -67,37 +67,42 @@ if __name__ == '__main__':
     # Examples of different log formats:
     #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
     logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+    logfilefmt = '%(asctime)s %(levelname)6s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s'
+    datefmt = "%Y%m%d-%H:%M:%S" # "%Y%m%d-%Hh%Mm%Ss"
     #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
+    if not os.path.exists('logs'):
+        os.mkdir('logs')
+    logfilepath = 'logs/labfluence_lims_testing.log' if argsns.testing else 'logs/labfluence_lims_debug.log'
+
+    # Logging concepts based on http://docs.python.org/2/howto/logging-cookbook.html
+
+    # Notice: If basicConfig level is set to INFO, it is as though no levels below will ever be printet regardless of what streamhandler is used.
+    logging.basicConfig(level=logging.DEBUG, format=logfilefmt, datefmt=datefmt, filename=logfilepath)
+
+    logstreamhandler = logging.StreamHandler()
+    logging.getLogger('').addHandler(logstreamhandler)
+    logstreamformatter = logging.Formatter(logfmt)
+    logstreamhandler.setFormatter(logstreamformatter)
+
+
     if argsns.debug is None:
         #and 'all' in argsns.debug:
-        logging.basicConfig(level=logging.INFO, format=logfmt)
+        #logging.basicConfig(level=logging.INFO, format=logfmt)
+        logstreamhandler.setLevel(logging.INFO)
     # argsns.debug is a list (possibly empty)
     elif argsns.debug:
     # argsns.debug is a non-empty list
-        logging.basicConfig(level=logging.INFO, format=logfmt)
+        #logging.basicConfig(level=logging.INFO, format=logfmt)
+        logstreamhandler.setLevel(logging.INFO)
         for mod in argsns.debug:
             logger.info("Enabling logging debug messages for module: %s", mod)
             logging.getLogger(mod).setLevel(logging.DEBUG)
     else:
         # argsns.debug is an empty list
-        logging.basicConfig(level=logging.DEBUG, format=logfmt)
-    logging.getLogger("__main__").setLevel(logging.DEBUG)
+        #logging.basicConfig(level=logging.DEBUG, format=logfmt)
+        logstreamhandler.setLevel(logging.DEBUG)
+    #logging.getLogger("__main__").setLevel(logging.DEBUG)
 
-
-
-    if argsns.logtofile or True: # always log for now...
-        # based on http://docs.python.org/2/howto/logging-cookbook.html
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        if argsns.testing:
-            fh = logging.FileHandler('logs/labfluence_testing.log')
-        else:
-            fh = logging.FileHandler('logs/labfluence_debug.log')
-        fh.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s')
-        fh.setFormatter(formatter)
-        #  logging.root == logging.getLogger('')
-        logging.getLogger('').addHandler(fh)
 
 
     if argsns.testing:
@@ -119,17 +124,17 @@ if __name__ == '__main__':
         confighandler.ConfigPaths['exp'] = os.path.join('tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '.labfluence.yml')
         server = FakeConfluenceServer(confighandler=confighandler)
     else:
-        logger.debug("\n\n >>>>>> Initiating real confighandler and server... >>>>>>\n")
+        logger.debug(">>>>>> Initiating real confighandler and server... >>>>>>")
         pathscheme = argsns.pathscheme or 'default1'
         confighandler = ExpConfigHandler(pathscheme=argsns.pathscheme)
-        logger.debug("Confighandler instantiated, Initiating server... >>>>>>\n")
+        logger.debug("Confighandler instantiated, Initiating server... >>>>>>")
         # setting autologin=False during init should defer login attempt...
         server = ConfluenceXmlRpcServer(autologin=False, confighandler=confighandler)
         server._autologin = True
     confighandler.Singletons['server'] = server
-    logger.debug("\n >>>>>> Server instantiated, starting LimsApp... >>>>>>\n")
+    logger.debug(">>>>>> Server instantiated, starting LimsApp... >>>>>>")
     limsapp = LimsApp(confighandler)
-    logger.debug("\n >>>>>> LimsApp instantiated, adding files: %s... >>>>>>\n", argsns.files)
+    logger.debug(">>>>>> LimsApp instantiated, adding files: %s... >>>>>>", argsns.files)
     limsapp.FilesToAdd = argsns.files
     #limsapp.addEntriesForFiles(argsns.files)
     logger.debug("Starting LIMS app loop...")

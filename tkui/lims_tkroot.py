@@ -189,7 +189,7 @@ class LimsTkRoot(tk.Tk):
         """
 
         if not self.Fieldvars:
-            logging.info("No self.Fieldvars, aborting")
+            logger.info("No self.Fieldvars, aborting")
             return
         focusentry = None
         r, c = 1, 0
@@ -206,7 +206,7 @@ class LimsTkRoot(tk.Tk):
                 l = tk.Label(master, text=speclist[1])
                 l.grid(row=r, column=c, sticky="w")
                 e = self.EntryWidgets[key] = ttk.Entry(master, textvariable=speclist[0], **speclist[2])
-                logging.debug("Created ttk.Entry widget with textvariable.get()='%s' and entry.get()='%s'",
+                logger.debug("Created ttk.Entry widget with textvariable.get()='%s' and entry.get()='%s'",
                               speclist[0].get(), e.get())
                 e.grid(row=r, column=c+1, sticky="nesw")
                 r += 1

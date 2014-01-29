@@ -321,7 +321,7 @@ class LabfluenceTkRoot(tk.Tk):
         # to disable items:
         #fieldvars['expid'][2]['state'] = 'disabled'  # This is the third element, the dict.
         dia = Dialog(self, "Create new subentry", fieldvars)
-        logger.debug(u"Dialog result: {}".format(dia.result))
+        logger.debug("Dialog result: %s", dia.result)
         #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
         #self.Experiment.addNewSubentry()
         if dia.result:

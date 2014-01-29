@@ -199,10 +199,10 @@ class ExperimentManager(object):
             expid = exp
         try:
             self.ActiveExperimentIds.remove(expid)
-            logger.debug("Removed expid '{}' from ActiveExperimentIds".format(expid))
+            logger.debug("Removed expid '%s' from ActiveExperimentIds", expid)
         except ValueError:
-            logger.warning("Expid '{}' not in ActiveExperimentIds.".format(expid))
-        logger.debug("Appending expid '{}' to RecentExperimentIds".format(expid))
+            logger.warning("Expid '%s' not in ActiveExperimentIds.", expid)
+        logger.debug("Appending expid '%s' to RecentExperimentIds", expid)
         if expid not in self.RecentExperimentIds:
             self.RecentExperimentIds.append(expid)
             self.sortRecentExprimentIds()
@@ -232,7 +232,7 @@ class ExperimentManager(object):
         """
         if expid not in self.ActiveExperimentIds:
             self.ActiveExperimentIds.append(expid)
-            logger.debug("Appending expid '{}' to ActiveExperimentIds".format(expid))
+            logger.debug("Appending expid '%s' to ActiveExperimentIds", expid)
             # possibly do:
             self.Confighandler.ChangedEntriesForCallbacks.add('app_active_experiments') # it is a set.
         else:
@@ -240,7 +240,7 @@ class ExperimentManager(object):
         if removeFromRecent:
             # Doing a bit specially to make sure to remove all entries, just in case:
             for _ in range(self.RecentExperimentIds.count(expid)):
-                logger.debug("Removing expid '{}' from RecentExperimentIds".format(expid))
+                logger.debug("Removing expid '%s' from RecentExperimentIds", expid)
                 self.RecentExperimentIds.remove(expid)
             self.Confighandler.ChangedEntriesForCallbacks.add('app_recent_experiments')
 
@@ -275,9 +275,9 @@ class ExperimentManager(object):
         """
         Given a list of experiment ids, return a list of
         corresponding experiment objects.
-        API change: To avoid alignment errors, this method now returns 
+        API change: To avoid alignment errors, this method now returns
         a two-tuple list of expids, experiments
-        including only expids actually found in self.ExperimentsById.        
+        including only expids actually found in self.ExperimentsById.
         """
         # Make sure all expids are initialized.
         # This is a lot faster if you have already initialized all experiments in the exp_local_subdir
@@ -480,12 +480,12 @@ class ExperimentManager(object):
         """
         if not self.Server:
             if self.Server is None:
-                logging.info("No server defined, aborting.")
+                logger.info("No server defined, aborting.")
                 return
             # There might have been a temporary issue with server, see if it is ressolved:
             logger.info("Server info: %s", self.getServerInfo) # This will handle cache etc and attempt to reconnect at most every two minutes.
             if not self.Server:
-                logging.warning("Server not connected, aborting")
+                logger.warning("Server not connected, aborting")
                 return
         wiki_exp_root_pageid = self.getWikiExpRootPageId()
         if not wiki_exp_root_pageid:
@@ -701,7 +701,7 @@ class ExperimentManager(object):
     def getNewExpIndex(self):
         """
         Returns a the next/new experiment index.
-        # an expid is expected to be the form "RS123", 
+        # an expid is expected to be the form "RS123",
         # where "RS" is the user initials and "123" is the experiment number/index.
         """
         indices = self.getExperimentsIndices()

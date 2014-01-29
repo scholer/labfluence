@@ -97,21 +97,21 @@ def test_getNewFilename():
     assert getNewFilename(b, used_files) == b
 
     used_files = ('other name.txt', 'some file.txt', b)
-    assert getNewFilename(b, used_files) == 'somefile01.txt'
+    assert getNewFilename(b, used_files) == u'somefile01.txt'
 
     used_files = ('other name.txt', 'some file.txt', b, 'somefile01.txt')
-    assert getNewFilename(b, used_files) == 'somefile02.txt'
+    assert getNewFilename(b, used_files) == u'somefile02.txt'
 
     used_files = ('other name.txt', 'some file.txt', b, 'somefile01.txt',
                   'somefile1.txt', 'somefile2.txt', 'somefile03.txt')
-    assert getNewFilename(b, used_files) == 'somefile02.txt'
+    assert getNewFilename(b, used_files) == u'somefile02.txt'
 
     # test caseinsensitive:
     b = 'Somefile.txt'
     used_files = {'other name.txt', 'some file.txt', 'SomeFile.txt', 'somefile01.txt',
                   'somefile1.txt', 'somefile2.txt', 'somefile03.txt'}
     assert getNewFilename(b, used_files) == b
-    assert getNewFilename(b, used_files, caseinsensitive=True) == 'Somefile02.txt'
+    assert getNewFilename(b, used_files, caseinsensitive=True) == u'Somefile02.txt'
     used_files.add('Somefile.txt')
     assert getNewFilename(b, used_files) == 'Somefile01.txt'
-    assert getNewFilename(b, used_files, caseinsensitive=True) == 'Somefile02.txt'
+    assert getNewFilename(b, used_files, caseinsensitive=True) == u'Somefile02.txt'

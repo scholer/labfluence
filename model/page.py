@@ -320,7 +320,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         if content:
             new_struct['content'] = content
         if not self.validate_xhtml(new_struct['content']):
-            logger.warning("\nPage.updatePage() :: content failed xhtml validation, aborting...")
+            logger.warning("Page.updatePage() :: content failed xhtml validation, aborting...".upper())
             return False
         if title:
             new_struct['title'] = title
@@ -379,7 +379,8 @@ below        source and target become/remain sibling pages and the source is mov
         content = self.Struct['content']
         count = content.count(search_string)
         if count != 1:
-            logger.warning("Page.search_replace() :: Warning, count of search_string '{}' is '{}' (should only be exactly 1).".format(search_string, count))
+            logger.warning("Page.search_replace() :: Warning, count of search_string '%s' is '%s' (should only be exactly 1).",
+                           search_string, count)
             if count < 1:
                 logger.info("search_string not found; aborting...")
                 return False
@@ -447,7 +448,7 @@ below        source and target become/remain sibling pages and the source is mov
         if updateFromServer and not self.reloadFromServer():
             logger.info("Could not retrieve updated version from server, aborting...")
             return False
-        logger.info("\nPage.insertAtRegex() :: inserting in mode '{}' with regex:\n{}\nthe following xhtml code:\n{}".format(mode, regex, xhtml))
+        logger.info("Inserting in mode '%s' with regex: '%s', the following xhtml code: '%s'", mode, regex, xhtml)
         page = self.Struct['content']
         # Developing two modes; the match is easiest to implement correctly here because it is just
         # joining three strings.
@@ -501,6 +502,8 @@ below        source and target become/remain sibling pages and the source is mov
     #    experiment things such as 'subentries'. This WikiPage class should only
     #    be small and focus on storing, retrieving page-structs, and manipulating
     #    them in generic ways only, and additionally work as a relay to the server.
+    #    Edit: Alternatively, make an 'expwikipage' object which handles experiment-
+    #    specific functions, similar to the limspage class.
     #    """
     #    #regex_pat = self.Confighandler.get('wiki_subentry_parse_regex_fmt')
     #    if not regex_pat:
@@ -509,8 +512,6 @@ below        source and target become/remain sibling pages and the source is mov
     #    match = regex_prog.search(self.Struct['content'])
     #    if match:
     #        gd = match.groupdict()
-    #        logger.info("matchgroups: {}".format("  ,  ".join( "'{}': {}".format(k, gd[k]) \
-    #                                                for k in ('subentry_header', 'subentry_xhtml') )) )
     #        subentry_xhtml = "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
     #    else:
     #        logger.info("WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is:\n%s",
@@ -759,7 +760,7 @@ class TemplateManager(object):
         if template_pageids:
             logger.info("template_pageids: %s", template_pageids)
             templatePageId = template_pageids.get(templatetype, None)
-            logger.info("templatePageId: type={}, value={}".format(type(templatePageId), templatePageId))
+            logger.info("templatePageId: type=%s, value=%s", type(templatePageId), templatePageId)
             if not self.Server:
                 # Server might be None or a server instance with attribute _connectionok value of either
                 # of 'None' (not tested), False (last connection failed) or True (last connection succeeded).
@@ -767,7 +768,7 @@ class TemplateManager(object):
                 return
             if templatePageId:
                 templatestruct = self.Server.getPage(pageId=templatePageId)
-                logger.info("\nstruct: %s", templatestruct)
+                logger.info("templatestruct: %s", templatestruct)
                 #new_struct = self.makeMinimalStruct(struct)
                 # Uh... in theory, I guess I could also have permissions etc be a part of a template.
                 # However that should probably be termed page_struct template and not just template
@@ -777,7 +778,7 @@ class TemplateManager(object):
                     if self.Confighandler.get('wiki_allow_template_caching', False):
                         self.Cache[templatetype] = template
                     return template
-        logger.info("No matching pageId for given template '{}', aborting...".format(templatetype))
+        logger.info("No matching pageId for given template '%s', aborting...", templatetype)
         return
 
 
@@ -871,9 +872,9 @@ class WikiPageFactory(object):
             templatetype = self.DefaultTemplateType
         content_template = self.getTemplate(templatetype)
         new_struct = self.makeNewPageStruct(content=content_template, fmt_params=fmt_params, localdirpath=localdirpath)
-        logger.info("\nWikiPageFactory.new() :: new_struct: %s", new_struct)
+        logger.info("WikiPageFactory.new() :: new_struct: %s", new_struct)
         saved_struct = self.Server.storePage(new_struct)
-        logger.info("\nWikiPageFactory.new() :: saved_struct: %s", saved_struct)
+        logger.info("WikiPageFactory.new() :: saved_struct: %s", saved_struct)
         pageId = saved_struct['id']
         new_page = WikiPage(pageId, self.Server, saved_struct)
         return new_page

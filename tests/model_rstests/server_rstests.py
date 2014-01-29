@@ -49,7 +49,7 @@ def rstest_addAttachment():
         #attData = base64.b64encode(fd.read('rb'))
         # xmlrpclib.Binary also does base64.encode, but adds xml tag before and after.
         attData = xmlrpclib.Binary(fd.read())
-    logging.debug("Adding attachment '%s' with base64 encoded attData of length %s to page with id '%s'", attInfo, len(str(attData)), pageid)
+    logger.debug("Adding attachment '%s' with base64 encoded attData of length %s to page with id '%s'", attInfo, len(str(attData)), pageid)
     server.addAttachment(pageid, attInfo, attData)
 
 

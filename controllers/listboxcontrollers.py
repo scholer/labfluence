@@ -91,10 +91,10 @@ class ExpListBoxController(object):
 
     def updateList(self):
         exps = self.Experiments # This property works rather like the getlist() method in filemanager.
-        logger.info("Updating listbox {} with experiments: {}".format(self.__class__.__name__, exps))
+        logger.info("Updating listbox %s with experiments: %s", self.__class__.__name__, exps)
         self.clearList()
         if exps:
-            logger.debug("\nUpdating self {} list with experiments:\n{}".format(self, "\n".join("{e} with props {e.Props}".format(e=e) for e in self.Experiments)))
+            logger.debug("Updating self %s list with experiments:\n%s", self, "\n".join(u"{e} with props {e.Props}".format(e=e) for e in self.Experiments))
             # Note: The list will get the string representation from the experiment ( __repr__ method).
             # This is also what is returned upon querying.
             self.ExperimentByListIndex = exps # This list should be consolidated to match the (<display>, <identifier>, <full object>) tuple list structure
@@ -107,9 +107,9 @@ class ExpListBoxController(object):
         lst = event.widget
         curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
         selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
-        logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
+        logger.info("curselection=%s, selected_items=%s, selected_items type: %s", curselection, selected_items, type(selected_items))
         experiment = self.ExperimentByListIndex[int(curselection[0])]
-        logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
+        logger.info("curselection=%s, experiment=%s, experiment type: %s", curselection, experiment, type(experiment))
         self.showExp(experiment)
     def on_doubleclick(self, event):
         pass
@@ -157,9 +157,9 @@ class RecentExpListBoxController(ExpListBoxController):
         lst = event.widget
         curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
         selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
-        logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
+        logger.info("curselection=%s, selected_items=%s, selected_items type: %s", curselection, selected_items, type(selected_items))
         experiment = self.ExperimentByListIndex[int(curselection[0])]
-        logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
+        logger.info("curselection=%s, experiment=%s, experiment type: %s", curselection, experiment, type(experiment))
         expid = experiment.Expid
         self.ExperimentManager.addActiveExperiments( (expid, ))
         # possibly invoke

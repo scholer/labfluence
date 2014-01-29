@@ -312,40 +312,38 @@ class ConfigHandler(object):
         if not self.AllowChainToSameType and cfgtype in self.ReadConfigTypes:
             return
         if inputfn in self.ReadFiles:
-            logger.warning("WARNING, file already read: {}".format(inputfn) )
+            logger.warning("WARNING, file already read: %s", inputfn)
             return
         try:
             newconfig = yaml.load(open(inputfn)) # I dont think this needs with... or open/close logic.
         except IOError as e:
-            logger.warning("readConfig() :: ERROR, could not load yaml config, cfgtype '{}':\n{}".format(cfgtype, e) )
+            logger.warning("readConfig() :: ERROR, could not load yaml config, cfgtype '{}': %s, error: %s", cfgtype, e)
             return False
         self.ReadConfigTypes.add(cfgtype)
         self.ReadFiles.add(inputfn) # To avoid recursion...
         self.Configs[cfgtype].update(newconfig)
         if VERBOSE > 3:
-            logger.info("\nreadConfig() :: New '{}'-type config loaded:".format(cfgtype) )
-            logger.debug("Loaded config is:\n{}".format(self._printConfig(newconfig)) )
-            logger.debug("\nreadConfig() :: Updated main '{}' config to be:\n{}".format(cfgtype,
-                                                                                        self._printConfig(self.Configs[cfgtype])
-                                                                                       ))
+            logger.info("readConfig() :: New '%s'-type config loaded:", cfgtype)
+            logger.debug("Loaded config is:\n%s", self._printConfig(newconfig))
+            logger.debug("readConfig() :: Updated main '%s' config to be: %s", cfgtype, self._printConfig(self.Configs[cfgtype]) )
         if "next_config_override_fn" in newconfig and self.AllowNextConfigOverrideChain:
             # the next_config_override_fn are read-only, but their content will be persisted to the main configfile.when saved.
             if VERBOSE:
-                logger.debug("\nreadConfig() :: Reading config defined by next_config_override_fn entry: {}".format(newconfig["next_config_override_fn"]))
+                logger.debug("readConfig() :: Reading config defined by next_config_override_fn entry: %s", newconfig["next_config_override_fn"])
             self.readConfig(newconfig["next_config_override_fn"], cfgtype)
         if "config_define_new" in newconfig and self.AllowNewConfigDefinitions:
             for newtype, newconfigfn in newconfig["config_define_new"].items():
                 if not os.path.isabs(newconfigfn):
                     # isabs basically just checks if path[0] == '/'...
                     newconfigfn = os.path.normpath(os.path.join(os.path.dirname(inputfn), newconfigfn))
-                logger.info("readConfig: Adding config-defined config '{}' using filepath '{}'".format(newtype, newconfigfn) )
+                logger.info("readConfig: Adding config-defined config '%s' using filepath '%s'", newtype, newconfigfn)
                 self.addNewConfig(newconfigfn, newtype)
 
         # Inputting configs through Config_path_entries:
         reversemap = dict( (val, key) for key, val in self.Config_path_entries.items() )
         for key in set(newconfig.keys()).intersection(self.Config_path_entries.values()):
             if VERBOSE > 2:
-                logger.debug("\nreadConfig() :: Found the following path_entries key '{}' in the new config: {}".format(key, newconfig[key]) )
+                logger.debug("Found the following path_entries key '%s' in the new config: %s", key, newconfig[key])
             self.readConfig(newconfig[key], reversemap[key])
             self.AutoreadNewFnCache[reversemap[key]] = newconfig[key]
         return newconfig
@@ -358,16 +356,16 @@ class ConfigHandler(object):
         keep track of which configs has been loaded and make sure to avoid cyclic config imports.
         (I.e. avoid the situation where ConfigA says "load ConfigB" and ConfigB says "load ConfigA).
         """
-        logger.debug("ConfigPaths:\n{}".format("\n".join("- {} :\t {}".format(k, v) for k, v in self.ConfigPaths.items())) )
+        logger.debug("ConfigPaths:\n%s", "\n".join(u"- {} :\t {}".format(k, v) for k, v in self.ConfigPaths.items()))
         for (cfgtype, inputfn) in self.ConfigPaths.items():
             if inputfn:
                 logger.debug("autoRead() :: Will read config '%s' to current dict: %s", inputfn, cfgtype)
                 self.readConfig(inputfn, cfgtype)
                 logger.debug("autoRead() :: Finished read config '%s' to dict: %s", inputfn, cfgtype)
-            logger.debug("autoRead() :: Autoreading done, chained with new filenames: {}".format(self.AutoreadNewFnCache) )
+            logger.debug("autoRead() :: Autoreading done, chained with new filenames: %s", self.AutoreadNewFnCache)
         self.ConfigPaths.update(self.AutoreadNewFnCache)
         self.AutoreadNewFnCache.clear()
-        logger.debug("\nautoRead() :: Updated ConfigPaths:\n{}".format("\n".join("- {} : {}".format(k, v) for k, v in self.ConfigPaths.items())) )
+        logger.debug("autoRead() :: Updated ConfigPaths:\n%s", "\n".join(u"- {} : {}".format(k, v) for k, v in self.ConfigPaths.items()))
 
     def saveConfigForEntry(self, key):
         """
@@ -380,7 +378,8 @@ class ConfigHandler(object):
             if key in cfg:
                 self.saveConfigs(what=cfgtype)
                 return True
-        logger.warning("saveConfigForEntry invoked with key '{}', but key not found in any of the loaded configs ({})!".format(key, ",".join(self.Configs)))
+        logger.warning("saveConfigForEntry invoked with key '%s', but key not found in any of the loaded configs (%s)!",
+                       key, ",".join(self.Configs))
 
     def saveConfigs(self, what='all'):
         """
@@ -395,12 +394,12 @@ class ConfigHandler(object):
         for cfgtype, outputfn in self.ConfigPaths.items():
             if (what=='all' or cfgtype in what or cfgtype==what):
                 if outputfn:
-                    logger.info("saveConfigs() :: Saving config '{}' to file: {}".format(cfgtype, outputfn))
+                    logger.info("saveConfigs() :: Saving config '%s' to file: %s", cfgtype, outputfn)
                     self._saveConfig(outputfn, self.Configs[cfgtype])
                 else:
-                    logger.info("saveConfigs() :: No filename specified for config '{}'".format(cfgtype))
+                    logger.info("saveConfigs() :: No filename specified for config '%s'", cfgtype)
             else:
-                logger.debug("configtosave '{}' not matching cfgtype '{}' with outputfn '{}'".format(what, cfgtype, outputfn))
+                logger.debug("configtosave '%s' not matching cfgtype '%s' with outputfn '%s'", what, cfgtype, outputfn)
 
     def saveConfig(self, cfgtype):
         """
@@ -424,7 +423,7 @@ class ConfigHandler(object):
         """
         try:
             yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False)
-            logger.info("_saveConfig() :: Config saved to file: {}".format(outputfn))
+            logger.info("_saveConfig() :: Config saved to file: %s", outputfn)
             return True
         except IOError, e:
             # This is to be expected for the system config...
@@ -435,7 +434,7 @@ class ConfigHandler(object):
         """
         Returns a pretty string representation of a config.
         """
-        return "\n".join( "{indent}{k}: {v}".format(indent=' '*indent, k=k, v=v) for k, v in config.items() )
+        return "\n".join( u"{indent}{k}: {v}".format(indent=' '*indent, k=k, v=v) for k, v in config.items() )
 
 
     def printConfigs(self, cfgtypestoprint='all'):
@@ -445,9 +444,9 @@ class ConfigHandler(object):
         """
         for cfgtype, outputfn in self.ConfigPaths.items():
             if (cfgtypestoprint=='all' or cfgtype in cfgtypestoprint or cfgtype==cfgtypestoprint):
-                print "\nConfig '{}' in file: {}".format(cfgtype, outputfn)
+                print u"\nConfig '{}' in file: {}".format(cfgtype, outputfn)
                 print self._printConfig(self.Configs[cfgtype])
-        return "\n".join( "\n".join([ "\nConfig '{}' in file: {}".format(cfgtype, outputfn),
+        return "\n".join( "\n".join([ u"\nConfig '{}' in file: {}".format(cfgtype, outputfn),
                                       self._printConfig(self.Configs[cfgtype]) ])
                           for cfgtype,outputfn in self.ConfigPaths.items()
                           if (cfgtypestoprint=='all' or cfgtype in cfgtypestoprint or cfgtype==cfgtypestoprint)
@@ -658,7 +657,7 @@ class ExpConfigHandler(ConfigHandler):
         if enableHierarchy and hierarchy_rootdir_config_key:
             rootdir = self.get(hierarchy_rootdir_config_key)
             ignoredirs = self.get(hierarchy_ignoredirs_config_key)
-            logger.debug("ExpConfigHandler.__init__() :: enabling HierarchicalConfigHandler with rootdir: {}".format(rootdir) )
+            logger.debug("ExpConfigHandler.__init__() :: enabling HierarchicalConfigHandler with rootdir: %s", rootdir)
             if rootdir:
                 self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs)
             else:
@@ -799,7 +798,7 @@ class HierarchicalConfigHandler(object):
         """
         Make a pretty string representation of the loaded configs for e.g. debugging.
         """
-        return "\n".join( "{} -> {}".format(path, cfg) for path, cfg in sorted(self.Configs.items())  )
+        return "\n".join( u"{} -> {}".format(path, cfg) for path, cfg in sorted(self.Configs.items())  )
 
     def loadRootHierarchy(self, rootdir=None, clear=False):
         """
@@ -810,15 +809,14 @@ class HierarchicalConfigHandler(object):
         if rootdir is None:
             rootdir = self.Rootdir
         if self.VERBOSE or True:
-            logger.debug("Searching for {} from rootdir {}".format(self.ConfigSearchFn, rootdir) )
-            logger.debug("Ignoredirs are: {}".format(self.Ignoredirs) )
+            logger.debug("Searching for %s from rootdir %s; ignoredirs are: %s", self.ConfigSearchFn, rootdir, self.Ignoredirs)
         for dirpath, dirnames, filenames in os.walk(rootdir):
             if dirpath in self.Ignoredirs:
                 del dirnames[:] # Avoid walking into child dirs. Do not use dirnames=list(), as os.walk still refers to the old list.
-                logger.debug("Ignoring dir (incl children): {}".format(dirpath) )
+                logger.debug("Ignoring dir (incl children): %s", dirpath)
                 continue
             if self.VERBOSE > 3:
-                logger.debug("Searching for {} in {}".format(self.ConfigSearchFn, dirpath) )
+                logger.debug("Searching for %s in %s", self.ConfigSearchFn, dirpath)
             if self.ConfigSearchFn in filenames:
                 self.loadConfig(dirpath)
 
@@ -856,8 +854,8 @@ class HierarchicalConfigHandler(object):
             fpath = path
             dpath = os.path.dirname(path)
         else:
-            logger.error("\nCritical warning: Confighandler.getConfigFileAndDirPath() :: Could not find path:\n{}\n".format(path) )
-            raise ValueError("Confighandler.getConfigFileAndDirPath() :: Could not find path:\n{}".format(path))
+            logger.error("Critical warning: Confighandler.getConfigFileAndDirPath() :: Could not find path: '%s'", path)
+            raise ValueError(u"Confighandler.getConfigFileAndDirPath() :: Could not find path:\n{}".format(path))
         return dpath, fpath
 
 
@@ -890,11 +888,11 @@ class HierarchicalConfigHandler(object):
                 self.Configs[dpath] = cfg
         except IOError, e:
             if self.VERBOSE:
-                logger.warning("HierarchicalConfigHandler.loadConfig() :: Could not open path '{}'\n{}".format(path, e))
+                logger.warning("HierarchicalConfigHandler.loadConfig() :: Could not open path '%s'. Error is: %s", path, e)
             if os.path.exists(fpath):
-                logger.error("""HierarchicalConfigHandler.loadConfig() :: Critical WARNING -> Could not open path '{}',
+                logger.error("""HierarchicalConfigHandler.loadConfig() :: Critical WARNING -> Could not open path '%s',
                              but it does exists (maybe directory or broken link);
-                             I cannot just create a new config then.""".format(path))
+                             I cannot just create a new config then.""", path)
                 raise IOError(e)
             cfg = self.Configs[dpath] = dict() # Best thing is probably to create a new dict then...
         parentdirpath = os.path.dirname(dpath)
@@ -921,7 +919,7 @@ class HierarchicalConfigHandler(object):
             elif dpath in self.Configs:
                 cfg = self.Configs[dpath]
             else:
-                logger.warning("HierarchicalConfigHandler.saveConfig() :: Error, no config found to save for path '{}'".format(fpath) )
+                logger.warning("HierarchicalConfigHandler.saveConfig() :: Error, no config found to save for path '%s'", fpath)
                 return None
         if docheck:
             fileconfig = yaml.load(cfg, open(fpath))
@@ -933,10 +931,10 @@ class HierarchicalConfigHandler(object):
         cfg['lastsaved'] = datetime.now()
         try:
             yaml.dump(cfg, open(fpath, 'wb'))
-            logger.debug("HierarchicalConfigHandler.saveConfig() :: config saved to file '{}'".format(fpath) )
+            logger.debug("HierarchicalConfigHandler.saveConfig() :: config saved to file '%s'", fpath)
             return True
         except IOError, e:
-            logger.warning("HierarchicalConfigHandler.saveConfig() :: Could not open path '{}'\n{}".format(path, e) )
+            logger.warning("HierarchicalConfigHandler.saveConfig() :: Could not open path '%s'. Error is: %s", path, e)
             return False
 
 
@@ -1045,7 +1043,7 @@ class HierarchicalConfigHandler(object):
             """
             _, path = os.path.splitdrive(path)
             while True:
-                logger.debug("yielding path {}".format(path) )
+                logger.debug("yielding path %s", path)
                 yield path
                 parent = os.path.dirname(path)
                 if parent == path or path == rootdir:
@@ -1098,8 +1096,6 @@ class PathFinder(object):
 
         #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
         logger.debug("%s initialized, self.Defaultscheme='%s'", self.__class__.__name__, self.Defaultscheme )
-        if VERBOSE > 2:
-            logger.debug("PathFinder: Schemedicts --> \n{}".format( self.printSchemes() ) )
 
     def mkschemedict(self):
         """
@@ -1137,7 +1133,6 @@ class PathFinder(object):
         of the directory candidates, return None.
         Changes: replaced for-loops with a sequence of generators.
         """
-        #print "filename '{}', dircands: {}".format(filename, dircands)
 
         okdirs = ( dircand for dircand in dircands if os.path.isdir(dircand) )
         normdirs = ( os.path.normpath(dircand) for dircand in okdirs )
@@ -1163,7 +1158,7 @@ class PathFinder(object):
         """
         Returns a pretty string representation of all schemes in self.Schemedicts .
         """
-        ret = "\n".join( "scheme '{}': {}".format(scheme, ", ".join("{}='{}'".format(k, v) \
+        ret = "\n".join( u"scheme '{}': {}".format(scheme, ", ".join(u"{}='{}'".format(k, v) \
                     for k, v in schemedict.items() ) ) \
                     for scheme, schemedict in self.Schemedicts.items() )
         return ret

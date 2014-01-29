@@ -96,13 +96,13 @@ class ExpFilemanagerFrame(ExpFrame):
     def on_filter_change(self, event):
         changed_widget = event.widget
         filterdict = self.filelistfilterframe.getFilterdict()
-        logger.debug("Filterdict: {}".format(filterdict))
+        logger.debug("Filterdict: %s", filterdict)
         self.localfilelistframe.updatelist(filterdict)
         self.wikifilelistframe.updatelist(filterdict)
 
     def on_file_select(self, event):
         listbox = event.widget
-        logger.debug("on_file_select: curselection: {}".format(listbox.curselection()))
+        logger.debug("on_file_select: curselection: %s", listbox.curselection())
         # file_repr, file_identifier, info_struct
         file_tuples = listbox.getSelection()
         # easy way to check if selection is local or wiki file: if 'pageId' in info_struct
@@ -144,14 +144,15 @@ class FilelistFilterFrame(ExpFrame):
         experiment = self.Experiment
         # Layout:
         def cb():
-            logger.debug("fn_isregex is : {}".format(fn_isregex.get()) )
-            logger.debug("self.Filterdict['fn_is_regex'] is : {}".format(self.Filterdict['fn_is_regex'].get()))
+            """ NOT sure this was ever implemented... ? """
+            #logger.debug("fn_isregex is : {}".format(fn_isregex.get()) )
+            logger.debug("self.Filterdict['fn_is_regex'] is : %s", self.Filterdict['fn_is_regex'].get())
 
         headerfont = self.Fonts['header3']
         self.Header_label = ttk.Label(self, text="Filelist filters:", font=headerfont)
-        self.Header_label.grid(row=1,column=1, sticky="nw")
+        self.Header_label.grid(row=1, column=1, sticky="nw")
         label = ttk.Label(self, text="Filter filenames:")
-        label.grid(row=2,column=1, sticky="w")
+        label.grid(row=2, column=1, sticky="w")
         self.regexfnfilter_checkbox = ttk.Checkbutton(self, text="(check for regex)", variable=self.Filterdict['fn_is_regex'], command=cb)
         #self.regexfnfilter_checkbox.configure(justify=tk.LEFT)
         self.regexfnfilter_checkbox.grid(row=2, column=2, sticky="e")
@@ -169,10 +170,15 @@ class FilelistFilterFrame(ExpFrame):
 
 
     def getSelectedSubentryIdxs(self):
+        """ Returns the selected subentry indices from the subentry list... """
         return self.subentries_list.getSelectedSubentryIdxs()
 
     def getFilterdict(self):
-        filterdict = dict( (key,tkvar.get()) for key,tkvar in self.Filterdict.items() )
+        """
+        Returns a proper filter dict, extracting values from self.Filterdict (tk vars).
+        Also adds a proper subentry_idxs entry.
+        """
+        filterdict = { key : tkvar.get() for key, tkvar in self.Filterdict.items() }
         filterdict['subentry_idxs'] = self.getSelectedSubentryIdxs()
         #self.Filterdict['subentry_idxs'] = self.getSelectedSubentryIdxs()
         return filterdict
@@ -242,12 +248,12 @@ class FileInfoFrame(ExpFrame):
 
         row = 2
         expandrow = None
-        for name,tkvar in self.FileinfoTkvars.items():
+        for name, tkvar in self.FileinfoTkvars.items():
             if name in ('fileName', ):
                 label = ttk.Label(self, textvariable=tkvar)
                 label.grid(row=row, column=1, columnspan=2, sticky="w")
             elif name in ('comment', ):
-                label = ttk.Label(self, text="{}:".format(name))
+                label = ttk.Label(self, text=u"{}:".format(name))
                 label.grid(row=row, column=1, sticky="w")
                 row += 1
                 entry = ttk.Entry(self, textvariable=tkvar) # The tk.Text widget is overkill and does not support variables...
@@ -255,7 +261,7 @@ class FileInfoFrame(ExpFrame):
                 entry.grid(row=row, column=1, columnspan=2, sticky="we")
                 expandrow = row
             else:
-                label = ttk.Label(self, text="{}:".format(name))
+                label = ttk.Label(self, text=u"{}:".format(name))
                 label.grid(row=row, column=1, sticky="w")
                 entry = ttk.Entry(self, textvariable=tkvar, state='readonly')
                 self.FileinfoEntries[name] = entry
@@ -290,7 +296,7 @@ class FileInfoFrame(ExpFrame):
                 if 'date_modified' not in metadata:
                     try:
                         metadata['modified'] = time.ctime(os.path.getmtime(file_identifier))
-                    except WindowsError as e:
+                    except WindowsError as e: # MS Windows-specific error:
                         logger.exception(e)
                 if 'fileSize' not in metadata:
                     try:
@@ -302,9 +308,9 @@ class FileInfoFrame(ExpFrame):
         else:
             metadata = dict()
 
-        logger.debug("update_info_tuples(), metadata: {}".format(metadata))
-        for key,tkvar in self.FileinfoTkvars.items():
-            logger.debug("Setting '{}' to value: '{}'".format(key, metadata.get(key, "")))
+        logger.debug("update_info_tuples(), metadata: %s", metadata)
+        for key, tkvar in self.FileinfoTkvars.items():
+            logger.debug("Setting '%s' to value: '%s'", key, metadata.get(key, ""))
             tkvar.set(metadata.get(key, ""))
 
 

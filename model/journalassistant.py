@@ -210,7 +210,7 @@ class JournalAssistant(object):
         insertion_regex_fmt = self.Confighandler.get('wiki_journal_entry_insert_regex_fmt')
         insertion_regex = insertion_regex_fmt.format(**subentryprops)
         subentry_idx = subentryprops['subentry_idx']
-        versionComment = "Labfluence JournalAssistant.flush() for subentry {[expid]}{}".format(subentryprops, subentry_idx)
+        versionComment = u"Labfluence JournalAssistant.flush() for subentry {[expid]}{}".format(subentryprops, subentry_idx)
         res = wikipage.insertAtRegex(new_xhtml, insertion_regex, versionComment=versionComment)
         if not res:
             logger.debug("wikipage.insertAtRegex returned '%s', probably due to failed regex matching of regex_pat '%s', derived from regex_pat_fmt '%s'. self.WikiPage.Struct['content']) is:%s",

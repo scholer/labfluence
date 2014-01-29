@@ -151,7 +151,7 @@ class AbstractServer(object):
         if self.Confighandler:
             config_params = self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
                             or self.Confighandler.get('serverparams', dict())
-            logger.debug("config_params: {}".format(config_params))
+            logger.debug("config_params: %s", config_params)
             params.update(config_params)
         runtime_params =  self._serverparams or dict()
         params.update(runtime_params)
@@ -168,9 +168,9 @@ class AbstractServer(object):
         configs = self.configs_iterator()
         for desc, cfg in configs:
             if cfg and key in cfg: # runtime-params
-                logger.debug("Returning {} from {}[{}]".format(cfg[key], desc, key))
+                logger.debug("Returning %s from %s[%s]", cfg[key], desc, key)
                 return cfg[key]
-        logger.debug("param '{}' not found, returning None.".format(key))
+        logger.debug("param '%s' not found, returning None.", key)
         return default
 
     @property
@@ -191,7 +191,6 @@ class AbstractServer(object):
     @property
     def BaseUrl(self):
         serverparams = self.Serverparams
-        #logger.debug("serverparams: {}".format(serverparams)
         if 'baseurl' in serverparams:
             return serverparams['baseurl']
         try:
@@ -210,7 +209,7 @@ class AbstractServer(object):
             return url
         baseurl = self.BaseUrl
         urlpostfix = self.UrlPostfix
-        logger.debug("baseurl: {}     urlpostfix: {}".format(baseurl, urlpostfix))
+        logger.debug("baseurl: %s     urlpostfix: %s", baseurl, urlpostfix)
         if baseurl:
             return baseurl + self.UrlPostfix
         else:
@@ -239,7 +238,7 @@ class AbstractServer(object):
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
         logger.debug( "Server: _connectionok is now: %s", self._connectionok)
     def notok(self):
-        logger.debug("server.notok() invoked, earlier value of self._connectionok is: {}".format(self._connectionok))
+        logger.debug("server.notok() invoked, earlier value of self._connectionok is: %s", self._connectionok)
         if self._connectionok is not False:
             self._connectionok = False
             if self.Confighandler:
@@ -313,7 +312,7 @@ class AbstractServer(object):
                     self.notok()
                     logger.debug("%s: Autologin disabled. self._connectionok set to '%s'", self.__class__.__name__, self._connectionok)
             elif cause == 'TooManyFailedLogins':
-                self.display_message("Server ERROR, too many failed logins.\nDetermined from exception:\n{}".format(e))
+                self.display_message("Server ERROR, too many failed logins. Determined from exception: %s", e)
                 logger.warning("%s: Server ERROR, too many failed logins. Determined from exception: %s", self.__class__.__name__, e)
             elif cause == 'PageNotAvailable':
                 logger.info("PageNotAvailable: %s called with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
@@ -356,7 +355,7 @@ class AbstractServer(object):
         if token_crypt is None:
             token_crypt = self.Confighandler.get('wiki_logintoken_crypt')
         if not token_crypt:
-            logger.warning("\nAbstractServer.getToken() :: ERROR, token_crypt is '%s'; aborting...", token_crypt)
+            logger.warning("AbstractServer.getToken() :: ERROR, token_crypt is '%s'; aborting...", token_crypt)
             return
         crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', crypt_key_default)
@@ -364,10 +363,10 @@ class AbstractServer(object):
         # The IV is set along with the encrypted token; if the IV is not present, the encrypted token cannot be decrypted.
         # Using an initiation vector different from the one used to encrypt the message will produce scamble.
         if crypt_iv is None:
-            logger.warning("\nAbstractServer.getToken() :: Warning, could not retrieve initiation vector for decrypting token...")
+            logger.warning("AbstractServer.getToken() :: Warning, could not retrieve initiation vector for decrypting token...")
             token_unencrypted = self.Confighandler.get('wiki_logintoken')
             if token_unencrypted:
-                logger.warning("\nAbstractServer.getToken() :: unencrypted logintoken found in config. Returning this, but please try to transfer to encrypted version.")
+                logger.warning("AbstractServer.getToken() :: unencrypted logintoken found in config. Returning this, but please try to transfer to encrypted version.")
                 return token_unencrypted
             else:
                 logger.info("AbstractServer.getToken() :: Aborting...")
@@ -377,10 +376,9 @@ class AbstractServer(object):
         token = cryptor.decrypt(token_crypt)
         # Perform a check; I believe the tokens consists of string.ascii_letters+string.digits only.
         char_space = string.ascii_letters+string.digits
-        for char in token:
-            if char not in char_space:
-                logger.error("getToken() :: ERROR, invalid token decrypted, token is '{}'".format(token))
-                return None
+        if not all( char in char_space for char in token ):
+            logger.error("getToken() :: ERROR, invalid token decrypted, decrypted token is '%s'", token)
+            return None
         logger.debug("getToken returns token of type %s and length %s", type(token), len(token))
         return token
 
@@ -394,7 +392,7 @@ class AbstractServer(object):
             crypt_key   : the encryption key used for encryption
         """
         if token is None:
-            logger.error("\nAbstractServer.saveToken() :: ERROR, token is None; aborting...")
+            logger.error("AbstractServer.saveToken() :: ERROR, token is None; aborting...")
             return
         crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', '6xytURQ4JITKMhgN') # crypt key should generally be stored in the system config; different from the one where crypt_iv is stored...
@@ -657,17 +655,8 @@ to prevent the login token from expiring.
         if password is None:
             password = self.Password
         if prompt is True:
-            #msg = "Please provide your credentials" # Uh, no do not override.
-            #promptopts = self.Loginpromptoptions
-            #if self.UI and hasattr(self.UI, 'login_prompt'):
-            #    promptfun = self.UI.login_prompt
-            #else: # use command line login prompt, defined above.
-            #    promptfun = login_prompt
-            #username, password = promptfun(username=username, msg=msg, options=promptopts)
-            logger.debug("Calling prompt...")
+            logger.debug("Calling login prompt...")
             username, password = self.promptForUserPass(username=username, msg=msg)
-            #logger.debug("Prompt called, average length of username and password: {}".format((len(username)+len(password)/2)))
-            # The prompt method may modify the promptopts dict in-place:
         if not (username and password):
             logger.info( "%s :: Username or password is boolean False; retrying...", self.__class__.__name__ )
             newmsg = "Empty username or password; please try again. Use Ctrl+C (or cancel) to cancel."
@@ -677,7 +666,7 @@ to prevent the login token from expiring.
             token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=newmsg)
             return token
         try:
-            logger.debug("Attempting server login with username: {}".format(username))
+            logger.debug("Attempting server login with username: %s", username)
             token = self._login(username, password)
             logger.debug("Token of type %s obtained from server.", type(token))
             if doset:
@@ -692,9 +681,9 @@ to prevent the login token from expiring.
                     self._username = username
                 if self.Loginpromptoptions.get('save_password_inmemory', True):
                     self._password = password
-            logger.info("Logged in as '{}', received token of length {}".format(username, len(token)))
+            logger.info("Logged in as '%s', received token of length %s", username, len(token))
         except xmlrpclib.Fault as err:
-            err_msg = "Login error, catched xmlrpclib.Fault. faultCode and -String is:\n{}: {}".format( err.faultCode, err.faultString)
+            err_msg = "Login error, catched xmlrpclib.Fault. faultCode and -String is:\n%s: %s" % ( err.faultCode, err.faultString )
             logger.info(err_msg)
             # NOTE: In case of too many failed logins, it will not be possible to log in with xmlrpc,
             # and a browser login is required.
@@ -712,7 +701,7 @@ to prevent the login token from expiring.
                 token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=err_msg)
             else:
                 logger.info(err_msg)
-                logger.info("server.login failed completely, prompt is '{}' and retry is {}.".format(prompt, retry))
+                logger.info("server.login failed completely, prompt is '%s' and retry is %s.", prompt, retry)
                 return None
         # If a succesful login is completed, set serverstatus to ok:
         # This is not done by self._login, which does not use execute.
@@ -778,10 +767,10 @@ to prevent the login token from expiring.
         logger.debug("Determining cause of Fault with attributes: faultCode=%s, faultString=%s, message=%s, args=%s", e.faultCode, e.faultString, e.message, e.args)
         import re
         faultRegexs = [
-                ("PageNotAvailable",        "com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
-                ("IncorrectUserPassword",   "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
-                ("TooManyFailedLogins",     "com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
-                ("TokenExpired",            "User not authenticated or session expired"),
+                ("PageNotAvailable",        r"com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
+                ("IncorrectUserPassword",   r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
+                ("TooManyFailedLogins",     r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
+                ("TokenExpired",            r"User not authenticated or session expired"),
                 ]
         for cause, regexpat in faultRegexs:
             match = re.search(regexpat, e.faultString)
@@ -798,7 +787,7 @@ to prevent the login token from expiring.
     ##############################
 
     # Note: These methods should NOT catch any exceptions!
-    def _login(self, username,password):
+    def _login(self, username, password):
         """
         Returns a login token.
         Raises xmlrpclib.Fauls on auth error/failure.
@@ -1102,7 +1091,7 @@ Note: the return value can be null, if an error that did not throw an exception 
 Operates exactly like updatePage() if the page already exists.
 """
         if self.VERBOSE:
-            logger.info("server.storePage() :: Storing page:\n{}".format(page_struct))
+            logger.info("server.storePage() :: Storing page: %s", page_struct)
         return self.execute(self.RpcServer.confluence2.storePage, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
