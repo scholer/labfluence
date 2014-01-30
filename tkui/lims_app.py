@@ -366,7 +366,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
                 att_info = self.WikiLimsPage.addAttachment(attachmentInfo, attachmentData)
                 self._newAttachments.append(att_info)
             except xmlrpclib.Fault as e:
-                logger.error("Error uploading file: %s\nattachmentInfo is: %s\nattachmentData has length: %s\nError is: %s",
+                logger.error("Error uploading file: %s; attachmentInfo is: %s; attachmentData has length: %s; Error is: %s",
                              fp, attachmentInfo, len(str(attachmentData)), e)
                 raise e
             self.FilesAdded.append(fp)

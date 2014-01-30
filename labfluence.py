@@ -20,7 +20,7 @@ Main labfluence module for starting labfluence with Tkinter GUI.
 
 """
 
-
+from __future__ import print_function
 
 # Other standard lib modules:
 import socket
@@ -31,6 +31,7 @@ import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
 
+from __init__ import init_logging
 
 
 ### MODEL IMPORT ###
@@ -45,13 +46,6 @@ from model.model_testdoubles.fake_server import FakeConfluenceServer
 ### GUI IMPORTS ###
 from tkui.labfluence_tkapp import LabfluenceApp
 
-#from views.expnotebook import ExpNotebook, BackgroundFrame
-#from views.experimentselectorframe import ExperimentSelectorWindow
-#from views.dialogs import Dialog
-
-#from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExpListBoxController
-#from controllers.filemanagercontroller import ExpFilemanagerController
-#from ui.fontmanager import FontManager
 
 
 
@@ -94,12 +88,9 @@ if __name__ == '__main__':
     ###########################
 
     parser = argparse.ArgumentParser(description="Labfluence - Experiment manager with Confluence connector.")
-    #parser.add_argument('-o', '--outputfilenamefmt', help="How to format the filename of the robot output file (*.dws)")
-    #parser.add_argument('--plateconc', metavar='<conc_in_uM>', help="Specify the concentration of the plates. Used as information in the report file.")
-    #parser.add_argument('--nofiltertips', action='store_true', help="Do not use filter-tips. Default is false (= do use filter tips)")
-    #parser.add_argument('-r', '--rackfiles', nargs='*', help="Specify which rackfiles to use. If not specified, all files ending with *.rack.csv will be used. This arguments will take all following arguments, and can thus be used as staplemixer -r *.racks")
     parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment.")
-    parser.add_argument('--logtofile', action='store_true', help="Log logging outputs to files.")
+    parser.add_argument('--logtofile', help="Log logging outputs to this file.")
+    parser.add_argument('--loglevel', default=logging.WARNING, help="The log level printed to stderr.")
     parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
                         help="Specify modules where you want to display logging.DEBUG messages.")
     parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.")
@@ -107,41 +98,15 @@ if __name__ == '__main__':
     argsns = parser.parse_args() # produces a namespace, not a dict.
 
 
-    # Examples of different log formats:
-    #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
-    logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
-    #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
-    if argsns.debug is None:
-        #and 'all' in argsns.debug:
-        logging.basicConfig(level=logging.INFO, format=logfmt)
-    # argsns.debug is a list (possibly empty)
-    elif argsns.debug:
-    # argsns.debug is a non-empty list
-        logging.basicConfig(level=logging.INFO, format=logfmt)
-        for mod in argsns.debug:
-            logger.info("Enabling logging debug messages for module: %s", mod)
-            logging.getLogger(mod).setLevel(logging.DEBUG)
-    else:
-        # argsns.debug is an empty list
-        logging.basicConfig(level=logging.DEBUG, format=logfmt)
-    logging.getLogger("__main__").setLevel(logging.DEBUG)
+    #######################################
+    ### Set up standard logging system ####
+    #######################################
+    loghandlers = init_logging(argsns, prefix="labfluence")
 
 
-
-    if argsns.logtofile or True: # always log for now...
-        # based on http://docs.python.org/2/howto/logging-cookbook.html
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        if argsns.testing:
-            fh = logging.FileHandler('logs/labfluence_testing.log')
-        else:
-            fh = logging.FileHandler('logs/labfluence_debug.log')
-        fh.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s')
-        fh.setFormatter(formatter)
-        #  logging.root == logging.getLogger('')
-        logging.getLogger('').addHandler(fh)
-
+    ####################################################################################
+    # Set up confighandler, etc (depending on whether testing mode is requested...) ####
+    ####################################################################################
     if argsns.testing:
         # These should be enabled with --debug <modules>.
         #logging.getLogger("tkui.views.expjournalframe").setLevel(logging.DEBUG)
@@ -164,32 +129,32 @@ if __name__ == '__main__':
 
         pathscheme = argsns.pathscheme or 'test1'
 
-        print "Enabling testing environment...:"
+        logger.info( "Enabling testing environment..." )
         confighandler = FakeConfighandler(pathscheme=pathscheme)
         # set basedir for exp:
         confighandler.ConfigPaths['exp'] = os.path.join('tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '.labfluence.yml')
         server = FakeConfluenceServer(confighandler=confighandler)
 
     else:
-        logger.debug("\n\n >>>>>> Initiating real confighandler and server... >>>>>>\n")
+        logger.debug(" >>>>>> Initiating real confighandler and server... >>>>>>")
         pathscheme = argsns.pathscheme or 'default1'
         confighandler = ExpConfigHandler(pathscheme='default1')
         try:
-            logger.debug("Confighandler instantiated, Initiating server... >>>>>>\n")
+            logger.debug("Confighandler instantiated, Initiating server... >>>>>>")
             # setting autologin=False during init should defer login attempt...
             server = ConfluenceXmlRpcServer(autologin=False, confighandler=confighandler)
             server._autologin = True
-        except socket.error:
-            print "This should not happen; autologin is shielded by try-clause."
+        except socket.error as e:
+            logger.error( "Socket error during server init ('%s'). This should not happen; autologin is shielded by try-clause.", e)
             server = None
     confighandler.Singletons['server'] = server
-    logger.debug("\n\n >>>>>> Server instantiated, initiating ExperimentManager... >>>>>>\n")
+    logger.debug(" >>>>>> Server instantiated, initiating ExperimentManager... >>>>>> ")
     manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ))
     confighandler.Singletons['experimentmanager'] = manager
-    logger.debug("\n\n >>>>>> ExperimentManager instantiated, starting LabfluenceApp... >>>>>>\n")
+    logger.debug(" >>>>>> ExperimentManager instantiated, starting LabfluenceApp... >>>>>>")
 
     app = LabfluenceApp(confighandler=confighandler)
-    logger.debug("\n\n >>>>>> LabfluenceApp instantiated, connecting with server >>>>>>\n")
+    logger.debug(" >>>>>> LabfluenceApp instantiated, connecting with server >>>>>>")
     server.autologin()
 
 
@@ -202,25 +167,18 @@ if __name__ == '__main__':
     #confighandler = app.Confighandler
     em = confighandler.Singletons.get('experimentmanager', None)
     if em:
-        print "\nem.ActiveExperiments:"
-        print em.ActiveExperiments
-        print "\nem.RecentExperiments:"
-        print em.RecentExperiments
-#    exps self.Confighandler.get('app_recent_experiments')
-    print "\nRecent experiments:"
-    print "\n".join( "-> {}".format(e) for e in app.RecentExperiments )
-    print "\nActive experiments:"
-    print "\n".join( "-> {}".format(e) for e in app.ActiveExperiments )
+        logger.info( "em.ActiveExperiments: %s", em.ActiveExperiments )
+        logger.info( "em.RecentExperiments: %s", em.RecentExperiments )
 
     exps = app.ActiveExperiments
-    print "\n\nGUI init (almost) finished..."
+    logger.info("GUI init (almost) finished...")
     if exps:
-        print "\n\nShowing exps: {}".format(exps[0])
+        logger.info("Showing exp: %s", exps[0])
         notebook, expid, experiment = app.show_notebook(exps[0])
         #notebook.tab(1, state="enabled")
         #notebook.select(2)
     else:
-        print "\n\nNo active experiments? -- {}".format(exps)
+        logger.info("No active experiments(?) - app.ActiveExperiments = %s", exps)
 
     logger.debug("Invoking app.start()")
     app.start()
@@ -237,5 +195,44 @@ REFS:
 
 Other Confluence interface implementations:
 * https://github.com/RaymiiOrg/confluence-python-cli/blob/master/confluence.py
+
+
+
+OLD OBSOLETE:
+
+
+    # Examples of different log formats:
+    #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
+    logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+    #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
+    if argsns.debug is None:
+        #and 'all' in argsns.debug:
+        logging.basicConfig(level=logging.INFO, format=logfmt)
+    # argsns.debug is a list (possibly empty)
+    elif argsns.debug:
+    # argsns.debug is a non-empty list
+        logging.basicConfig(level=logging.INFO, format=logfmt)
+        for mod in argsns.debug:
+            logger.info("Enabling logging debug messages for module: %s", mod)
+            logging.getLogger(mod).setLevel(logging.DEBUG)
+    else:
+        # argsns.debug is an empty list
+        logging.basicConfig(level=logging.DEBUG, format=logfmt)
+    logging.getLogger("__main__").setLevel(logging.DEBUG)
+
+    if argsns.logtofile or True: # always log for now...
+        # based on http://docs.python.org/2/howto/logging-cookbook.html
+        if not os.path.exists('logs'):
+            os.mkdir('logs')
+        if argsns.testing:
+            fh = logging.FileHandler('logs/labfluence_testing.log')
+        else:
+            fh = logging.FileHandler('logs/labfluence_debug.log')
+        fh.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s')
+        fh.setFormatter(formatter)
+        #  logging.root == logging.getLogger('')
+        logging.getLogger('').addHandler(fh)
+
 
 """

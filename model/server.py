@@ -63,7 +63,7 @@ class AbstractServer(object):
         Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
         However, this could also be simplified using getattr...
         """
-        logger.debug("AbstractServer init started.\n")
+        logger.debug("AbstractServer init started.")
         self.VERBOSE = VERBOSE
         #dict(host=None, url=None, port=None, protocol=None, urlpostfix=None)
         self._defaultparams = dict(host="localhost", port='80', protocol='http',
@@ -281,7 +281,7 @@ class AbstractServer(object):
             logger.debug("server request completed, returned value is: %s", type(ret))
             return ret
         except socket.error as e:
-            logger.debug("%s, socket error during execution of function %s:\n%s", self.__class__.__name__, inspect.stack()[1][3], e)
+            logger.debug("%s, socket error during execution of function %s: %s", self.__class__.__name__, inspect.stack()[1][3], e)
             self.notok()
             logger.debug("self.notok() invoked?")
             #if raiseerrors is None:

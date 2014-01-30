@@ -142,7 +142,7 @@ if __name__ == '__main__':
                 #            info[k] = repr(v.value)
                 comments[pid] = pagecomments
         else:
-            logger.warning("could not retrieve page with pageId '%s'. More info:\n-- %s", pid, summary)
+            logger.warning("could not retrieve page with pageId '%s'. Summary: %s", pid, summary)
     persistdata = dict(pages=pages, attachments=attachments, comments=comments)
     #print persistdata['pages']
     print(type(persistdata['pages']))

@@ -95,10 +95,8 @@ class ExpManagerListBox(tk.Listbox):
         #lst = self
         #curselection = lst.curselection() # Returns tuple of selected indices., e.g. (1, )
         #selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
-        #logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
         #experiment = self.ExperimentByListIndex[int(curselection[0])]
         #expids = [self.TupleList[int(i)][1] for i in self.curselection()]
-        #logger.info("curselection={}, experiment={}, experiment type: {}".format(curselection, experiment, type(experiment)))
         expids = self.getSelectedIds()
         logger.debug("(%s) - selected expids: %s", self.__class__.__name__, expids)
         logger.debug("(%s) - self.TupleList is: %s", self.__class__.__name__, self.TupleList)
@@ -169,9 +167,8 @@ class ExpManagerListBox(tk.Listbox):
         tuples = list(self.getTupleList())
         self.clearlist()
         if tuples:
-            logger.debug("Updating %s listbox with experiment tuples:\n%s",
-                         self.__class__.__name__,
-                         "\n".join("{e}".format(e=e) for e in tuples))
+            logger.debug("Updating %s listbox with experiment tuples: %s",
+                         self.__class__.__name__, tuples )
             # Note: The list will get the string representation from the experiment ( __repr__ method).
             # This is also what is returned upon querying.
             self.TupleList = tuples # save (<display>, <identifier>, <full object>) tuple list structure
@@ -189,7 +186,6 @@ class ExpManagerListBox(tk.Listbox):
         """
         curselection = self.curselection() # Returns tuple of selected indices., e.g. (1, )
         #selected_items = lst.get(tk.ACTIVE) # Returns the string values of the list entries
-        #logger.info("curselection={}, selected_items={}, selected_items type: {}".format(curselection, selected_items, type(selected_items)))
         expid = self.TupleList[int(curselection[0])][1]
         logger.info("curselection=%s, expid=%s", curselection, expid)
         self.ExperimentManager.addActiveExperiments( (expid, )) # This takes care of invoking callbacks.

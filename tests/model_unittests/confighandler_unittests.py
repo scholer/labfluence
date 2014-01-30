@@ -38,7 +38,7 @@ class PathFinder_Tests1(unittest.TestCase):
         #ch3 = ExpConfigHandler( pathscheme='default1' )
         ch3 = self.Confighandler #ExpConfigHandler( pathscheme='test1' )
         ch3.printConfigs()
-        logger.info("\nch3.HierarchicalConfigHandler.Configs:\n{}".format( ch3.HierarchicalConfigHandler.printConfigs() ))
+        logger.info("ch3.HierarchicalConfigHandler.Configs: %s", ch3.HierarchicalConfigHandler.printConfigs() )
         return ch3
 
     def testPathFinder1():
@@ -59,11 +59,11 @@ class Confighandler_OldTests1(unittest.TestCase):
         configtestdir = os.path.join(scriptdir, '../test/config')
         paths = [ os.path.join(configtestdir, cfg) for cfg in ('system_config.yml', 'user_config.yml', 'exp_config.yml') ]
         self.Confighandler = ch = ExpConfigHandler(*paths)
-        logger.info("\nEnd ch confighandler init...\n\n" )
+        logger.info("End ch confighandler init..." )
         def printPaths():
-            logger.info("os.path.curdir:            {}".format(os.path.curdir) )
-            logger.info("os.path.realpath(curdir) : {}".format(os.path.realpath(os.path.curdir)) )
-            logger.info("os.path.abspath(__file__): {}".format(os.path.abspath(__file__)) )
+            logger.info("os.path.curdir:            %s", os.path.curdir)
+            logger.info("os.path.realpath(curdir) : %s", os.path.realpath(os.path.curdir))
+            logger.info("os.path.abspath(__file__): %s", os.path.abspath(__file__))
             #print "os.path.curdir: {}".format(os.path.curdir)
         printPaths()
         return ch
@@ -76,9 +76,9 @@ class Confighandler_OldTests1(unittest.TestCase):
         ch.Configs['user']['username'] = 'scholer'
         ch.Configs['user']['exp_config_path'] = os.path.join(os.path.expanduser("~"), 'Documents', 'labfluence_data_testsetup', '.labfluence.yml')
         usr = ch.setdefault('wiki_username', 'scholer')
-        logger.info("Default user: {}".format(usr) )
+        logger.info("Default user: %s", usr)
         ch.setkey('wiki_url', 'http://10.14.40.245:8090/rpc/xmlrpc')
-        logger.info("ch.get('wiki_username') --> {}".format(ch.get('wiki_username')) )
+        logger.info("ch.get('wiki_username') --> %s", ch.get('wiki_username'))
         logger.info("Config, combined:" )
         logger.info(ch.getConfig(what='combined') )
         return ch
@@ -102,4 +102,4 @@ class Confighandler_OldTests1(unittest.TestCase):
     def test_readdata():
         ch.autoReader()
         for cfg in ('system', 'user', 'exp'):
-            logger.info("{} config: \n{}".format(cfg, ch.Configs[cfg]))
+            logger.info("%s config: %s", cfg, ch.Configs[cfg])

@@ -94,7 +94,8 @@ class ExpListBoxController(object):
         logger.info("Updating listbox %s with experiments: %s", self.__class__.__name__, exps)
         self.clearList()
         if exps:
-            logger.debug("Updating self %s list with experiments:\n%s", self, "\n".join(u"{e} with props {e.Props}".format(e=e) for e in self.Experiments))
+            logger.debug("Updating self %s list with experiments: %s", self,
+                         [u"{e} with props {e.Props}".format(e=e) for e in self.Experiments])
             # Note: The list will get the string representation from the experiment ( __repr__ method).
             # This is also what is returned upon querying.
             self.ExperimentByListIndex = exps # This list should be consolidated to match the (<display>, <identifier>, <full object>) tuple list structure

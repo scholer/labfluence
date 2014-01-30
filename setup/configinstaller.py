@@ -85,16 +85,16 @@ you must figure out ourself how to activate those with labfluence."""
             if not os.path.isdir(basedir):
                 try:
                     os.makedirs(basedir)
-                    logger.info("Created directory\n    '%s'", basedir)
+                    logger.info("Created directory '%s'", basedir)
                 except (OSError, IOError) as e:
-                    logger.error("Error while making directory\n    '%s'\nfor config '%s': %s",
+                    logger.error("Error while making directory '%s' for config '%s': %s",
                                  os.path.basename(to_path), cfgtype, e)
                     continue
             else:
-                logger.debug("Basedir exists:\n    %s", basedir)
+                logger.debug("Basedir exists: %s", basedir)
             try:
                 shutil.copy2(from_path, to_path)
-                logger.info("Copied file\n    %s\nto path\n    %s", from_path, to_path)
+                logger.info("Copied file: '%s' to path: '%s'", from_path, to_path)
             except (OSError, IOError) as e:
                 logger.error("Error while making directory '%s' for config '%s': %s",
                              os.path.basename(to_path), cfgtype, e)

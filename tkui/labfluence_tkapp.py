@@ -82,7 +82,7 @@ class LabfluenceApp(object):
     def __init__(self, confighandler=None):
         #self.ActiveExperiments = list() # Probably better to use a property attribute
         #self.RecentExperiments = list()
-        logger.info( "\n\n\n>>>>>>>>>>>>>>  Starting init of LabfluenceGUI  >>>>>>>>>>>>>>>>\n" )
+        logger.info(">>>>>>>>>>>>>>  Starting init of LabfluenceGUI  >>>>>>>>>>>>>>>>")
 
         self.Confighandler = confighandler or ExpConfigHandler(pathscheme='default1')
         #self.Confighandler.Singletons.setdefault('app', self)

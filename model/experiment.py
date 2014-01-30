@@ -172,7 +172,7 @@ class Experiment(object):
         ### Experiment properties/config related
         ### Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
         if self.VERBOSE:
-            logger.debug( "Experiment.__init__() :: Props already in HierarchicalConfig cfg: \n%s", self.Props )
+            logger.debug( "Experiment %s initial Props: %s", self, self.Props )
         if props:
             self.Props.update(props)
             logger.debug("Experiment %s updated with props argument, is now %s", self, self.Props)
@@ -221,7 +221,7 @@ functionality of this object will be greatly reduced and may break at any time."
 
         self.JournalAssistant = JournalAssistant(self)
         if self.VERBOSE:
-            logger.debug("Experiment.__init__() :: Props (at end of init): \n%s", self.Props)
+            logger.debug("Experiment '%s', Props (at end of init): %s", self, self.Props)
 
 
 
@@ -981,7 +981,7 @@ functionality of this object will be greatly reduced and may break at any time."
         expsection_regex = self.getConfigEntry('wiki_experiment_section')
         logger.debug("expsection_regex = %s", expsection_regex)
         expsection_regex_prog = re.compile(expsection_regex, flags=re.DOTALL+re.MULTILINE)
-        logger.debug("wiki_experiment_section is:\n%s", expsection_regex_prog.pattern)
+        logger.debug("wiki_experiment_section regex is: %s", expsection_regex_prog.pattern)
 
         subentry_regex_fmt = self.getConfigEntry('wiki_subentry_regex_fmt')
         logger.debug("wiki_subentry_regex_fmt is: '%s'", subentry_regex_fmt)
@@ -993,7 +993,7 @@ functionality of this object will be greatly reduced and may break at any time."
         if not expsection_match:
             logger.warning("NO MATCH ('%s') for expsubsection_regex '%s' in xhtml of length %s, aborting",
                            expsection_match, expsection_regex_prog.pattern, len(xhtml))
-            logger.debug("xhtml is:\n%s", xhtml)
+            logger.debug("xhtml is: %s", xhtml)
             return
         exp_xhtml = expsection_match.groupdict().get('exp_section_body')
         if not exp_xhtml:
@@ -1307,7 +1307,7 @@ functionality of this object will be greatly reduced and may break at any time."
         fmt_params = self.makeFormattingParams(subentry_idx=subentry)
         regex_pat = regex_pat_fmt.format(**fmt_params)
         if not regex_pat:
-            logger.warning("No regex pattern found in config, aborting...\n")
+            logger.warning("No regex pattern found in config, aborting...")
             return
         if not self.WikiPage or not self.WikiPage.Struct:
             logger.info("WikiPage or WikiPage.Struct is None, aborting...")
@@ -1463,8 +1463,8 @@ functionality of this object will be greatly reduced and may break at any time."
         if not singleMatchOnly:
             return results
         if len(results) > 1:
-            logger.info("Experiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match:\n%s",
-            "\n".join( u"{} ({})".format(page['title'], page['id']) for page in results ) )
+            logger.info("Experiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match: %s",
+            [ u"{} ({})".format(page['title'], page['id']) for page in results ] )
             return False
         if len(results) < 1:
             return 0

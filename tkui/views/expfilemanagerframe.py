@@ -145,7 +145,6 @@ class FilelistFilterFrame(ExpFrame):
         # Layout:
         def cb():
             """ NOT sure this was ever implemented... ? """
-            #logger.debug("fn_isregex is : {}".format(fn_isregex.get()) )
             logger.debug("self.Filterdict['fn_is_regex'] is : %s", self.Filterdict['fn_is_regex'].get())
 
         headerfont = self.Fonts['header3']

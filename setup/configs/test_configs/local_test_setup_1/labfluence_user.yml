@@ -4,9 +4,9 @@ app_active_experiments:
 - RS135
 app_recent_experiments:
 - RS103
-crypt_iv: uYTx3NmpDMgkOyVf
+crypt_iv: wnic5sWXVNvCkIBP
 exp_config_path: /home/scholer/Documents/labfluence_data_testsetup/.labfluence.yml
-limsapp_tk_window_geometry: 361x342+0+24
+limsapp_tk_window_geometry: 361x342+0+829
 satellite_locations:
   /home/scholer/Documents/labfluence_satellite_tests/cdnaafm_cftp:
     folderscheme: ./subentry/
@@ -21,7 +21,7 @@ username: scholer
 wiki_lims_pageid: '917542'
 wiki_lims_pageid_comment: PageIds should generally be strings
 wiki_logintoken_crypt: !!binary |
-  GrcKMSyX2ptMCg==
+  mlIvgHemRUDNyA==
 wiki_serverparams:
   baseurl: http://10.14.40.245:8090
 wiki_username: scholer

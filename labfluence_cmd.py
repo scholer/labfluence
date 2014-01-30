@@ -51,6 +51,7 @@ import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
 
+from __init__ import init_logging
 
 ### MODEL IMPORT ###
 from model.confighandler import ExpConfigHandler
@@ -133,7 +134,7 @@ def outputres(res, outputfmt):
         import pickle
         print pickle.dumps(res)
     else:
-        logging.error("Outputfmt '%s' not recognized!", outputfmt)
+        logger.error("Outputfmt '%s' not recognized!", outputfmt)
     logger.debug("Output generation complete.")
 
 
@@ -234,6 +235,28 @@ if __name__ == '__main__':
                                        description='valid subcommands',
                                        help='sub-command help')
 
+    ##################################
+    ### Basic command line options ###
+    ##################################
+
+    parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment.")
+    parser.add_argument('--logtofile', help="Log logging outputs to this file.")
+    parser.add_argument('--loglevel', default=logging.WARNING,
+                        help="Logging level to use. Higher log levels results in less output. \
+                             Can be specified either as string (debug, info, warning, error), \
+                             or as an integer (10, 20, 30, 40). \
+                             Loglevel defaults to logging.INFO (= 20), unless \
+                             --debug is set, the log level will be min(logging.DEBUG, argsns.loglevel).")
+    parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
+                        help="Specify modules where you want to display logging.DEBUG messages.\
+                             Note that modules specified after --debug are not affected by the --loglevel \
+                             argument, but always defaults to logging.DEBUG.")
+    parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.")
+    parser.add_argument('--outputformat', metavar="<FORMAT>", default="pretty",
+                        help="How to format the output (if applicable). E.g. YAML, JSON, PRETTY, etc. \
+                             Use NONE to supress normal output. Default is to do pretty print.")
+
+
     ######################################
     ### Simple command line functions ####
     ######################################
@@ -276,76 +299,55 @@ Use "addattachments --help" to see help information for this command.')
 
 
 
-
-    ##################################
-    ### Other command line options ###
-    ##################################
-
-    parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment.")
-    parser.add_argument('--logtofile', action='store_true', help="Log logging outputs to files.")
-    parser.add_argument('--loglevel', default=logging.INFO,
-                        help="Logging level to use. Higher log levels results in less output. \
-                             Can be specified either as string (debug, info, warning, error), \
-                             or as an integer (10, 20, 30, 40). \
-                             Loglevel defaults to logging.INFO (= 20), unless \
-                             --debug is set, the log level will be min(logging.DEBUG, argsns.loglevel).")
-    parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
-                        help="Specify modules where you want to display logging.DEBUG messages.\
-                             Note that modules specified after --debug are not affected by the --loglevel \
-                             argument, but always defaults to logging.DEBUG.")
-    parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.")
-    parser.add_argument('--outputformat', metavar="<FORMAT>", default="pretty",
-                        help="How to format the output (if applicable). E.g. YAML, JSON, PRETTY, etc. \
-                             Use NONE to supress normal output. Default is to do pretty print.")
-
-
-
-
     ##############################
     ###### Parse arguments: ######
     ##############################
 
     argsns = parser.parse_args() # produces a namespace, not a dict.
 
+    #######################################
+    ### Set up standard logging system ####
+    #######################################
+    loghandlers = init_logging(argsns, prefix="labfluence_cmd")
 
 
     ############################
     #### Set up logging:    ####
     ############################
-    logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
-    try:
-        loglevel = int(argsns.loglevel)
-    except ValueError:
-        loglevel = argsns.loglevel.upper()
-    #logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
-    if argsns.debug is None:
-        #and 'all' in argsns.debug:
-        logging.basicConfig(level=loglevel, format=logfmt)
-    # argsns.debug is a list (possibly empty)
-    elif argsns.debug:
-    # argsns.debug is a non-empty list
-        logging.basicConfig(level=loglevel, format=logfmt)
-        for mod in argsns.debug:
-            logger.info("Enabling logging debug messages for module: %s", mod)
-            logging.getLogger(mod).setLevel(logging.DEBUG)
-    else:
-        # argsns.debug is an empty list
-        logging.basicConfig(level=min(logging.DEBUG, loglevel), format=logfmt)
-    logging.getLogger("__main__").setLevel(logging.DEBUG)
+    #logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
+    #try:
+    #    loglevel = int(argsns.loglevel)
+    #except ValueError:
+    #    loglevel = argsns.loglevel.upper()
+    ##logfmt = "%(levelname)s:%(name)s: %(funcName)s() :: %(message)s"
+    #if argsns.debug is None:
+    #    #and 'all' in argsns.debug:
+    #    logging.basicConfig(level=loglevel, format=logfmt)
+    ## argsns.debug is a list (possibly empty)
+    #elif argsns.debug:
+    ## argsns.debug is a non-empty list
+    #    logging.basicConfig(level=loglevel, format=logfmt)
+    #    for mod in argsns.debug:
+    #        logger.info("Enabling logging debug messages for module: %s", mod)
+    #        logging.getLogger(mod).setLevel(logging.DEBUG)
+    #else:
+    #    # argsns.debug is an empty list
+    #    logging.basicConfig(level=min(logging.DEBUG, loglevel), format=logfmt)
+    #logging.getLogger("__main__").setLevel(logging.DEBUG)
 
-
-    if argsns.logtofile or True: # always log for now...
-        # based on http://docs.python.org/2/howto/logging-cookbook.html
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        if argsns.testing:
-            fh = logging.FileHandler('logs/labfluence_cmd_testing.log')
-        else:
-            fh = logging.FileHandler('logs/labfluence_cmd_debug.log')
-        fh.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        fh.setFormatter(formatter)
-        logging.getLogger('').addHandler(fh)  #  logging.root == logging.getLogger('')
+    #
+    #if argsns.logtofile or True: # always log for now...
+    #    # based on http://docs.python.org/2/howto/logging-cookbook.html
+    #    if not os.path.exists('logs'):
+    #        os.mkdir('logs')
+    #    if argsns.testing:
+    #        fh = logging.FileHandler('logs/labfluence_cmd_testing.log')
+    #    else:
+    #        fh = logging.FileHandler('logs/labfluence_cmd_debug.log')
+    #    fh.setLevel(logging.DEBUG)
+    #    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    #    fh.setFormatter(formatter)
+    #    logging.getLogger('').addHandler(fh)  #  logging.root == logging.getLogger('')
 
 
     ####################################################################################

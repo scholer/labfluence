@@ -197,7 +197,7 @@ def getnearestfile(startpath=None):
     def walkup(startpath):
         """ Recursively walk up the file hierarchy until a file is found. """
         parpath = os.path.dirname(startpath)
-        logger.debug("walkup:\n--startpath: %s\n--parpath: %s", startpath, parpath)
+        logger.debug("startpath: %s, parpath: %s", startpath, parpath)
         if parpath == startpath:
             logger.debug("startpath '%s' == parpath '%s'", startpath, parpath)
             return None

@@ -106,7 +106,7 @@ class SatelliteFileLocation(SatelliteLocation):
             logger.warning( "SatelliteFileLocation does not seem to be correctly mounted (it might just be empty, but hard to tell) -- %s -- will try to mount with mountcommand...", self.URI)
             ec = self.mount()
             return ec
-        logger.debug( "\nSatelliteFileLocation correctly mounted (well, it is not empty): %s", self.URI)
+        logger.debug( "SatelliteFileLocation correctly mounted (well, it is not empty): %s", self.URI)
 
     def mount(self, uri=None):
         """

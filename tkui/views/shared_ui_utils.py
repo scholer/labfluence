@@ -144,7 +144,7 @@ class HyperLink(ttk.Label):
         # self should equal event.widget
         url = event.widget.getUrl()
         if not url:
-            logger.debug("No url available...\n-url='%s'\nself.Experiment='%s'", url, self.Experiment)
+            logger.debug("No url available! url='%s', self.Experiment='%s'", url, self.Experiment)
             return
         logger.debug("Opening '%s'", url)
         # Perhaps check what protocol to use first, and open in webbrowser/filebrowser/ftpclient/?

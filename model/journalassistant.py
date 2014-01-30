@@ -136,7 +136,7 @@ class JournalAssistant(object):
             except OSError as e:
                 logger.warning("JournalAssistant.addEntry() failed while doing os.makedirs(journal_folderpath) due to an OSError: %s", e)
                 return False
-        logger.debug("Adding entry: %s\nto file: %s", entry_text, journal_path)
+        logger.debug("Adding entry: '%s' to file: %s", entry_text, journal_path)
         if self._writetofile(journal_path, entry_text):
             return entry_text
         else:
@@ -339,7 +339,7 @@ class JournalAssistant(object):
         # get regex and insert variables:
         regex_pat_fmt = self.getConfigEntry('wiki_exp_new_subentry_insert_regex_fmt')
         regex_pat = regex_pat_fmt.format(**fmtparams)
-        logger.debug("Adding the following xhtml to wikipage '%s' using regex pattern '%s':\n %s", wikipage, regex_pat, subentry_xhtml )
+        logger.debug("Adding the following xhtml to wikipage '%s' using regex pattern '%s': %s", wikipage, regex_pat, subentry_xhtml )
 
         # Do page substitution:
         versionComment = "JournalAssistant: Adding new subentry {expid}{subentry_idx}".format(**fmtparams)

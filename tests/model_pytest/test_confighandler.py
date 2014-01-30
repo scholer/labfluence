@@ -98,7 +98,7 @@ def test_cfgNewConfigDef():
 
 def notestExpConfig1():
     ch = ExpConfigHandler(pathscheme='test1')
-    logger.info("\nch.HierarchicalConfigHandler.Configs:" )
+    logger.info("ch.HierarchicalConfigHandler.Configs:" )
     ch.HierarchicalConfigHandler.printConfigs()
     path = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
     cfg = ch.loadExpConfig(path)
@@ -106,32 +106,32 @@ def notestExpConfig1():
         logger.info("cfg is None; using empty dict.")
         cfg = dict()
     cfg['test_key'] = datetime.now().strftime("%Y%m%d-%H%M%S") # you can use strptime to parse a formatted date string.
-    logger.info("\n\nSaving config for path '{}'".format(path) )
+    logger.info("Saving config for path '%s'", path)
     ch.saveExpConfig(path)
 
 
 def test_registerEntryChangeCallback():
-    logger.info("\n\n>>>>>>>>>>>> starting test_registerEntryChangeCallback(): >>>>>>>>>>>>>>>>>>>>" )
+    logger.info(">>>>>>>>>>>> starting test_registerEntryChangeCallback(): >>>>>>>>>>>>>>>>>>>>" )
     #registerEntryChangeCallback invokeEntryChangeCallback
     ch = ExpConfigHandler(pathscheme='test1')
     ch.setkey('testkey', 'random string')
     def printHej(who, *args):
-        logger.info("hi {}, other args: {}".format(who, args) )
+        logger.info("hi %s, other args: %s", who, args)
     def printNej():
         logger.info("no way!" )
     def argsAndkwargs(arg1, arg2, hej, der, **kwargs):
-        logger.info("{}, {}, {}, {}, {}".format(arg1, arg2, hej, der, kwargs) )
+        logger.info("%s, %s, %s, %s, %s", arg1, arg2, hej, der, kwargs)
     ch.registerEntryChangeCallback('app_active_experiments', printHej, ('morten', ) )
     ch.registerEntryChangeCallback('app_recent_experiments', printNej)
     ch.registerEntryChangeCallback('app_recent_experiments', argsAndkwargs, ('word', 'up'), dict(hej='tjubang', der='sjubang', my='cat') )
     ch.ChangedEntriesForCallbacks.add('app_active_experiments')
     ch.ChangedEntriesForCallbacks.add('app_recent_experiments')
 
-    logger.info("\nRound one:")
+    logger.info("Round one:")
     ch.invokeEntryChangeCallback('app_active_experiments')
     ch.invokeEntryChangeCallback() # invokes printNej and argsAndkwargs
-    logger.info("\nRound two:")
+    logger.info("Round two:")
     ch.invokeEntryChangeCallback('app_active_experiments') # still invokes printHej
     ch.invokeEntryChangeCallback() # does not invoke anything...
 
-    logger.info("\n<<<<<<<<<<<<< completed test_registerEntryChangeCallback(): <<<<<<<<<<<<<<<<<<<<")
+    logger.info("<<<<<<<<<<<<< completed test_registerEntryChangeCallback(): <<<<<<<<<<<<<<<<<<<<")

@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 from utils import isvalidfilename
 #from confighandler import ExpConfigHandler
 #from server import ConfluenceXmlRpcServer
-from decorators.cache_decorator import cached_property
+#from decorators.cache_decorator import cached_property
 
 
 
@@ -468,11 +468,12 @@ below        source and target become/remain sibling pages and the source is mov
                 if matchgroups.get('after_insert', None):
                     after_insert_index = match.start('after_insert')
                 if before_insert_index is None and after_insert_index is None:
-                    logger.warning("Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is %s, aborting...\n--regex: %s\n--Page content: %s",
+                    logger.warning("Page.insertAtRegex() :: Weird --> (before_insert_index, after_insert_index) is %s, aborting!!! | regex: %s | Page content: %s",
                                    (before_insert_index, after_insert_index), regex, page)
                     return False
                 elif before_insert_index != after_insert_index:
-                    logger.warning("Page.insertAtRegex() :: WARNING!! before_insert_index != after_insert_index; risk of content loss!\n ---> (before_insert_index, after_insert_index) is %s, aborting...\n--regex: %s\n--Page content: %s",
+                    logger.warning("Page.insertAtRegex() :: WARNING!! before_insert_index != after_insert_index; \
+risk of content loss! ---> (before_insert_index, after_insert_index) is %s | regex: %s | Page content: %s",
                                    (before_insert_index, after_insert_index), regex, page)
                 logger.debug("Inserting xhtml as positions before_insert_index=%s, after_insert_index=%s; \
                              page[before_insert_index-30:before_insert_index+5] = '%s'\
@@ -514,7 +515,7 @@ below        source and target become/remain sibling pages and the source is mov
     #        gd = match.groupdict()
     #        subentry_xhtml = "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
     #    else:
-    #        logger.info("WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is:\n%s",
+    #        logger.info("WikiPage.getWikiSubentryXhtml() > No match found? -- self.Struct['content'] is: %s",
     #                    self.Struct['content'])
     #        subentry_xhtml = ""
     #    return subentry_xhtml

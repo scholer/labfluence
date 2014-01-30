@@ -89,7 +89,7 @@ class LimsTkRoot(tk.Tk):
             self.init_fieldvars()
             logger.debug("init_ui -> calling init_widgets...")
             self.init_widgets()
-            logger.debug("init_ui complete, asking for user input.\n")
+            logger.debug("init_ui complete, asking for user input.")
         else:
             logger.debug("init_ui -> no self.Fields, you have to call init_ui again when these are available...")
 
