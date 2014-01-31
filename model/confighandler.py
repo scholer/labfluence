@@ -423,11 +423,11 @@ class ConfigHandler(object):
         """
         try:
             yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False)
-            logger.info("_saveConfig() :: Config saved to file: %s", outputfn)
+            logger.info("Config saved to file: %s", outputfn)
             return True
         except IOError, e:
             # This is to be expected for the system config...
-            logger.warning("_saveConfig() :: Could not save config to file '%s', error raised: %s", outputfn, e)
+            logger.warning("Could not save config to file '%s', error raised: %s", outputfn, e)
 
 
     def _printConfig(self, config, indent=2):

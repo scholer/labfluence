@@ -14,7 +14,20 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+"""
+Module with a simple confluence xmlrpc server, which does not include
+all the extra code of the fully-featured, non-simple, ConfluenceXmlRpcServer class.
+The most predominant difference includes authentication, where the fully-featured
+server wraps (almost) all server calls and intercepts errors due to expired
+login token, attempts to re-authenticate to obtain a new token, and re-execute the method.
+This simple server, otoh, simply uses the xmlrpc methods directly, and simply
+makes it more convenient to call/remember the method names, etc.
 
+The huge difference affecting all methods also means that no attempt was made to
+use class inheritance between the simple and the full server model. One might argue
+that this could have been implemented using method decorators to wrap the methods...
+
+"""
 from __future__ import print_function
 import xmlrpclib
 import socket
@@ -76,7 +89,7 @@ class SimpleConfluenceXmlRpcServer(object):
             print("ConfluenceXmlRpcServer.test_token() :: No token provided, aborting...")
             return None
         try:
-            serverinfo = self.getServerInfo(logintoken)
+            self.getServerInfo(logintoken)
             if doset:
                 self.Logintoken = logintoken
             return True
@@ -86,8 +99,22 @@ class SimpleConfluenceXmlRpcServer(object):
             return False
 
     def login(self, username=None, password=None, prompt=False, retry=3, dopersist=True, msg=None):
-        if username is None: username=self.Username
-        if password is None: password=self.Password
+        """
+        If no username/password is provided, prompts the user for this.
+        Attempts to authenticate with the server.
+        If authentication fails, will ask for username+password again and
+        repeat for <retry> number of times.
+        If dopersist is True, the obtained token is persisted as self.Logintoken.
+        (Setting dopersist to False, you can authenticate with another user, e.g. an administrator,
+        and obtain a token that you can provide to methods that requires admin priviledges,
+        without having to instantiate another server object for the admin user.)
+
+        Returns a token if authentication succeeds and None otherwise.
+        """
+        if username is None:
+            username = self.Username
+        if password is None:
+            password = self.Password
         if prompt is True:
             if self.UI and hasattr(self.UI, 'login_prompt'):
                 username, password = self.UI.login_prompt(username=username, msg=msg)
@@ -100,7 +127,8 @@ class SimpleConfluenceXmlRpcServer(object):
             return token
         try:
             logger.debug("Attempting server login with username: %s", username)
-            self.Logintoken = token = self._login(username, password)
+            if dopersist:
+                self.Logintoken = token = self._login(username, password)
             logger.info("Logged in as '%s', received token of length %s", username, len(token))
             return token
         except xmlrpclib.Fault as err:
@@ -309,11 +337,15 @@ class SimpleConfluenceXmlRpcServer(object):
         return self.RpcServer.confluence2.removeComment(self.Logintoken, commentId)
 
     def addComment(self, comment_struct):
-        # adds a comment to the page.
+        """
+        Adds a comment to the page.
+        """
         return self.RpcServer.confluence2.addComment(self.Logintoken, comment_struct)
 
     def editComment(self, comment_struct):
-        # Updates an existing comment on the page.
+        """
+        Updates an existing comment on the page.
+        """
         return self.RpcServer.confluence2.editComment(self.Logintoken, comment_struct)
 
 
@@ -322,13 +354,29 @@ class SimpleConfluenceXmlRpcServer(object):
     #### Attachment-level methods   ######
     ######################################
 
-    def getAttachment(self, pageId, fileName, versionNumber=0):
-        # Returns get information about an attachment.
-        # versionNumber=0 is the current version.
+    def getAttachment(self, pageId, fileName, versionNumber='0'):
+        """
+        Returns information about an attachment.
+        versionNumber=0 is the current version.
+        Note that versionNumber MUST be a string in the confluence2 xmlrpc API.
+        """
         return self.RpcServer.confluence2.getAttachment(self.Logintoken, pageId, fileName, versionNumber)
 
-    def getAttachmentData(self, pageId, fileName, versionNumber=0):
-        # Returns the contents of an attachment. (bytes)
+    def getAttachmentData(self, pageId, fileName, versionNumber='0'):
+        """
+        Returns the contents of an attachment as an xmlrpc.Binary instance,
+        saving the data as base64-encoded data in the .data attribute.
+        Using an xmlrpc.Binary data object is as simple as regular binary data from file:
+        with open('somefile.png', 'wb') as fd:
+            fd.write(attdata.data) # attdata.data should be binary data
+        xmlrpc.Binary instances use decode(bindata) to convert binary-filedata -> base64-data
+        and .encode(output) to put base64-data -> xml-rpc package.
+        The data-flow is (I think):
+                    .decode(data)              .encode(fout)
+        base64-data -------------> binary-data -..----------> xml-wrapped base64-encoded data (stored to fout)
+        More info:
+            base64.encode(file_like_input, file_like_output) --> return None
+        """
         return self.RpcServer.confluence2.getAttachmentData(self.Logintoken, pageId, fileName, versionNumber)
 
     def addAttachment(self, contentId, attachment_struct, attachmentData):

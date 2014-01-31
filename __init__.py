@@ -37,7 +37,7 @@ def init_logging(argsns, prefix="labfluence"):
     #logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
     logfmt = "%(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s"
     logfilefmt = '%(asctime)s %(levelname)-6s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s'
-    datefmt = "%Y%m%d-%H:%M:%S" # "%Y%m%d-%Hh%Mm%Ss"
+    logdatefmt = "%Y%m%d-%H:%M:%S" # "%Y%m%d-%Hh%Mm%Ss"
     logfiledir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'logs')
     if not os.path.exists(logfiledir):
         os.mkdir(logfiledir)
@@ -70,7 +70,7 @@ def init_logging(argsns, prefix="labfluence"):
     # You can retrieve individual handlers specifically from <rootlogger>.handlers.
 
     # Set up basic logging using a file (FileHandler):
-    # logging.basicConfig(level=logging.DEBUG, format=logfilefmt, datefmt=datefmt, filename=logfilepath)
+    # logging.basicConfig(level=logging.DEBUG, format=logfilefmt, datefmt=logdatefmt, filename=logfilepath)
     # Note: basicConfig does not do anything super special, it simply: (c.f. source)
     # - checks if root.handlers is empty
     # - creates a FileHandler or StreamHandler, and a Formatter
@@ -81,7 +81,7 @@ def init_logging(argsns, prefix="labfluence"):
     logging.root.setLevel(logging.DEBUG)
     #logfilehandler = logging.FileHandler(logfilepath)
     logfilehandler = logging.handlers.RotatingFileHandler(logfilepath, maxBytes=2*2**20, backupCount=3)
-    logfileformatter = logging.Formatter(fmt=logfilefmt, datefmt=datefmt)
+    logfileformatter = logging.Formatter(fmt=logfilefmt, datefmt=logdatefmt)
     logfilehandler.setFormatter(logfileformatter)
     logging.root.addHandler(logfilehandler)
 
