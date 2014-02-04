@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 logfmt = "%(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s"
 logfilefmt = '%(asctime)s %(levelname)-6s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s'
 logdatefmt = "%Y%m%d-%H:%M:%S"
-logging.basicConfig(format=logfmt, datefmt=logdatefmt)
+logging.basicConfig(format=logfmt, datefmt=logdatefmt, level=logging.DEBUG)
 
 from confighandler import ExpConfigHandler
 Confighandler = ExpConfigHandler

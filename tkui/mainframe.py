@@ -48,7 +48,7 @@ from controllers.listboxcontrollers import ActiveExpListBoxController, RecentExp
 from controllers.filemanagercontroller import ExpFilemanagerController
 
 
-from ui.fontmanager import FontManager
+from fontmanager import FontManager
 
 
 

@@ -111,6 +111,8 @@ class SimpleConfluenceXmlRpcServer(object):
 
         Returns a token if authentication succeeds and None otherwise.
         """
+        if retry < 0:
+            return None
         if username is None:
             username = self.Username
         if password is None:
