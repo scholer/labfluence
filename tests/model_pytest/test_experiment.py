@@ -14,10 +14,19 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0111,W0613,W0621
+# pylint: disable-msg=F0401,C0103,C0301,C0111,W0613,W0621,W0142
 
 
 
+
+import pytest
+from collections import OrderedDict
+import re
+import os
+from datetime import datetime
+import logging
+logger = logging.getLogger(__name__)
+# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
 from model.experiment import Experiment
 
@@ -30,13 +39,6 @@ from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpC
 # - WikiPage and WikiPageFactory
 # - JournalAssistant
 # - ExperimentManager
-
-from collections import OrderedDict
-import re
-import pytest
-import logging
-logger = logging.getLogger(__name__)
-# Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
 
 
@@ -55,6 +57,28 @@ def exp_no_wikipage_or_subentries(expprops):
                             autoattachwikipage=False,
                             doparseLocaldirSubentries=False)
     return experiment
+
+
+def test_parseLocaldirSubentries(exp_no_wikipage_or_subentries, monkeypatch):
+    e = exp_no_wikipage_or_subentries
+    def listdirmock(*args):
+        return ["RS191a Subentry test a", "20131224 RS191b Subentry testb",
+                "RS191c Subentry test-c (20131225)", "20131226 RS191d Subentry test _d (20131227)"]
+    monkeypatch.setattr(os, 'listdir', listdirmock)
+    monkeypatch.setattr(os.path, 'isdir', lambda x: True)
+    # Discarting e afterwards, so no reason to monkeypatch:
+    e.Subentries_regex_prog = re.compile(r"(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$")
+    monkeypatch.setattr(e, 'Localdirpath', 'something unimportant')
+    subentries = e.parseLocaldirSubentries()
+    assert len(subentries) == 4
+    assert subentries.keys() == ['a', 'b', 'c', 'd']
+    assert all(subentry['expid'] == 'RS191' for subentry in subentries.values())
+    assert [subentry['date'] for subentry in subentries.values()] == [None, '20131224', '20131225', '20131226']
+    assert [subentry['subentry_titledesc'] for subentry in subentries.values()] \
+            == ['Subentry test a', 'Subentry testb', 'Subentry test-c', 'Subentry test _d']
+
+
+
 #
 #
 #def setup1(useserver=True):

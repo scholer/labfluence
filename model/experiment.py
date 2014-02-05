@@ -14,8 +14,9 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
 # messages:
+#   C0103: Invalid attribute/variable name (too short/long/etc?)
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
 #   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
 #   R0904: Too many public methods (20 max); R0913: Too many arguments;
@@ -46,16 +47,17 @@ from datetime import datetime
 from collections import OrderedDict
 import xmlrpclib
 #import hashlib
-import fnmatch
+#import fnmatch
 import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
 from page import WikiPage, WikiPageFactory
 from journalassistant import JournalAssistant
-from utils import getmimetype, increment_idx, idx_generator, filehexdigest, asciize
+from filemanager import Filemanager
+from utils import increment_idx, idx_generator, asciize
 from decorators.cache_decorator import cached_property
-from decorators.deprecated_decorator import deprecated
+#from decorators.deprecated_decorator import deprecated
 
 
 class Experiment(object):
@@ -144,7 +146,7 @@ class Experiment(object):
         self.Subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
         self.ConfigFn = '.labfluence.yml',
         self._attachments_cache = None # cached list of wiki attachment_structs. None = <not initialized>
-        self._fileshistory = dict()
+        #self._fileshistory = dict()
         self._props = dict()
         self._expid = None
         self._allowmanualpropssavetofile = False # Set to true if you want to let this experiment handle Props file persisting without a confighandler.
@@ -220,6 +222,7 @@ functionality of this object will be greatly reduced and may break at any time."
                 self.makeWikiPage()
 
         self.JournalAssistant = JournalAssistant(self)
+        self.Filemanager = Filemanager(self)
         if self.VERBOSE:
             logger.debug("Experiment '%s', Props (at end of init): %s", self, self.Props)
 
@@ -314,7 +317,7 @@ functionality of this object will be greatly reduced and may break at any time."
         self.Props['wiki_pageId'] = pageid
 
 
-    @cached_property(ttl=300)
+    @cached_property(ttl=60)
     def Attachments(self):
         """
         Returns list of attachment structs with metadata on attachments on the wiki page.
@@ -362,9 +365,7 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         Invokes loadFilesHistory() lazily if self._fileshistory has not been loaded.
         """
-        if not self._fileshistory:
-            self.loadFileshistory() # Make sure self.loadFileshistory does NOT refer to self.Fileshistory (cyclic reference)
-        return self._fileshistory
+        return self.Filemanager.Fileshistory
     @property
     def Subentries_regex_prog(self):
         """
@@ -448,7 +449,7 @@ functionality of this object will be greatly reduced and may break at any time."
             return self.saveProps() and self.saveFileshistory()
         """
         self.saveProps()
-        self.saveFileshistory()
+        self.Filemanager.saveFileshistory()
 
 
     """
@@ -753,7 +754,7 @@ functionality of this object will be greatly reduced and may break at any time."
         try:
             subentry = self.Subentries[subentry_idx]
         except KeyError:
-            logger.debug("subentry_idx not in self.Subentries, returning None")
+            logger.info("subentry_idx not in self.Subentries, returning None")
             return
         if 'foldername' in subentry:
             foldername = subentry['foldername']
@@ -789,16 +790,6 @@ functionality of this object will be greatly reduced and may break at any time."
             return (False, folderpath, subentry_foldername)
         return False
 
-    def registerCallback(self, callbackkey):
-        """
-        It would be nice to be able to register various kinds of callbacks,
-        e.g. have a wikipage reload (fetch new struct from server)
-        trigger e.g. a new subentry merge, and have a new subentry init
-        invoking a UI widget reload.
-        """
-        pass
-
-
     def makeSubentryFolder(self, subentry_idx):
         """
         Creates a new subentry subfolder in the local experiment directory,
@@ -825,34 +816,44 @@ functionality of this object will be greatly reduced and may break at any time."
             self.saveProps()
         return subentry_foldername
 
-    @deprecated
-    def getSubentry_(self, subentry_idx, default='getSubentry-not-set', ensureExisting=False):
+    def registerCallback(self, callbackkey):
         """
-        I want to raise KeyError if default is not given (like dict does).
-        However, how to set default to allow it to be optional, but allowing the
-        user to set it to e.g. None. It is very likely that the user would want to get
-        'None' returned instead of having a KeyError value raised.
-        Note: Unless you want to use the 'default' parameter or make convenient use of
-        the 'ensureExisting' option, it is generally more code efficient to simply do:
-            try:
-                subentry = self.Subentries[subentry_idx]
-            except KeyError:
-                <something>
-        or just use:
-            self.Subentries.get(subentry_idx, None)
-        Actually, I think this is a bad method to have, the only advantage is that if you
-        decide to refactor and e.g. have Subentries as something else, you would just have to
-        change this method. However, since self.Subentries is a property, I can always just change that.
-        So, I hereby decide to deprechate this method.
-        And actually, the dict does NOT raise a KeyError, ever. But, in that case, just use
-        self.Subentries.get(subentry_idx) instead of bloating this class with yet another method.
+        It would be nice to be able to register various kinds of callbacks,
+        e.g. have a wikipage reload (fetch new struct from server)
+        trigger e.g. a new subentry merge, and have a new subentry init
+        invoking a UI widget reload.
         """
-        if subentry_idx not in self.Subentries and ensureExisting:
-            self.initSubentriesUpTo(subentry_idx)
-        if default != 'getSubentry-not-set':
-            return self.Subentries.get(subentry_idx, default)
-        else:
-            return self.Subentries[subentry_idx]
+        pass
+
+
+    #@deprecated
+    #def getSubentry_(self, subentry_idx, default='getSubentry-not-set', ensureExisting=False):
+    #    """
+    #    I want to raise KeyError if default is not given (like dict does).
+    #    However, how to set default to allow it to be optional, but allowing the
+    #    user to set it to e.g. None. It is very likely that the user would want to get
+    #    'None' returned instead of having a KeyError value raised.
+    #    Note: Unless you want to use the 'default' parameter or make convenient use of
+    #    the 'ensureExisting' option, it is generally more code efficient to simply do:
+    #        try:
+    #            subentry = self.Subentries[subentry_idx]
+    #        except KeyError:
+    #            <something>
+    #    or just use:
+    #        self.Subentries.get(subentry_idx, None)
+    #    Actually, I think this is a bad method to have, the only advantage is that if you
+    #    decide to refactor and e.g. have Subentries as something else, you would just have to
+    #    change this method. However, since self.Subentries is a property, I can always just change that.
+    #    So, I hereby decide to deprechate this method.
+    #    And actually, the dict does NOT raise a KeyError, ever. But, in that case, just use
+    #    self.Subentries.get(subentry_idx) instead of bloating this class with yet another method.
+    #    """
+    #    if subentry_idx not in self.Subentries and ensureExisting:
+    #        self.initSubentriesUpTo(subentry_idx)
+    #    if default != 'getSubentry-not-set':
+    #        return self.Subentries.get(subentry_idx, default)
+    #    else:
+    #        return self.Subentries[subentry_idx]
 
 
     def initSubentriesUpTo(self, subentry_idx):
@@ -917,48 +918,28 @@ functionality of this object will be greatly reduced and may break at any time."
     def parseLocaldirSubentries(self, directory=None):
         """
         make self.Subentries by parsing local dirs like '20130106 RS102f PAGE of STV-col11 TR staps (20010203)'.
-
+        # Consider using glob.re
         """
-        if directory is None:
-            directory = self.Localdirpath
-            logger.debug("No directory provided, using self.Localdirpath '%s'", directory)
+        directory = directory or self.Localdirpath
         if directory is None:
             logger.error("Experiment.parseLocaldirSubentries() :: ERROR, no directory provided and no localdir in Props attribute.")
             return
-        # Consider using glob.re
         regex_prog = self.Subentries_regex_prog
-        logger.debug("parsing subentries for directory %s ", directory)
-        localdirs = sorted([dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ])
-        if self.VERBOSE:
-            logger.debug("Experiment.parseLocaldirSubentries() :: self.Props: %s", self.Props)
+        localdirs = sorted(dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) )
         subentries = self.Props.setdefault('exp_subentries', OrderedDict())
-        if self.VERBOSE:
-            logger.debug("Experiment.parseLocaldirSubentries() :: searching in directory '%s'", directory)
-            logger.debug("Experiment.parseLocaldirSubentries() :: regex = '%s'", regex_prog.pattern)
-            logger.debug("Experiment.parseLocaldirSubentries() :: localdirs = %s", localdirs)
-            logger.debug("Experiment.parseLocaldirSubentries() :: subentries (before read:) = %s", subentries)
-        for foldername in localdirs:
-            res = regex_prog.match(foldername)
-            if self.VERBOSE:
-                logger.info("%s found when testing '%s' dirname against regex '%s'", "MATCH" if res else "No match", foldername, regex_prog.pattern)
-            if res:
-                props = res.groupdict()
-                # I allow for regex with multiple date entries, i.e. both at the start end end of filename.
-                datekeys = sorted( key for key in props.items() if 'date' in key and len(key)>4 )
-                # Having found the relevant datekeys, remove them all from the parsed props dict.
-                # If there is one that is not None, set it as the 'real' date field for the subentry:
-                for k in datekeys:
-                    val = props.pop(k)
-                    if val:
-                        props['date'] = val
-                props['foldername'] = foldername
-                #if 'subentry_idx' in props: - it must be
-                current_idx = props['subentry_idx']
-                # edit: how could subentry_idx possibly not be in res.groupdict? only if not included in regex?
-                # anyways, if not present, simply making a new index could be dangerous; what if the directories are not sorted and the next index is not right?
-                #else:
-                #    current_idx =  self.getNewSubentryIdx() # self.subentry_index_increment(current_idx)
-                subentries.setdefault(current_idx, dict()).update(props)
+        logger.debug("Parsing directory '%s' for subentries using regex = '%s', localdirs = %s, subentries before parsing = %s",
+                     directory, regex_prog.pattern, localdirs, subentries)
+        matchsubdirs = sorted((match.group('subentry_idx'), match) for match in (regex_prog.match(subdir) for subdir in localdirs) if match)
+        for idx, match in matchsubdirs:
+            gd = match.groupdict()
+            logger.debug("MATCH found when for folder '%s', groupdict = %s", match.string, gd)
+            # I allow for regex with multiple date entries, i.e. both at the start end end of filename.
+            datekeys = sorted( key for key in gd.keys() if 'date' in key )
+            gd['date'] = next((date for date in [gd.pop(k) for k in datekeys] if date), None)
+            gd['foldername'] = match.string
+            # If subentry_idx is not in gd, then the regex is wrong and it is ok to fail with KeyError
+            # Note that if subentry_idx is not present, simply making a new index could be dangerous; what if the directories are not sorted and the next index is not right?
+            subentries.setdefault(idx, dict()).update(gd)
         return subentries
 
     def parseSubentriesFromWikipage(self, wikipage=None, xhtml=None, return_subentry_xhtml=False):
@@ -1096,63 +1077,6 @@ functionality of this object will be greatly reduced and may break at any time."
             self.Confighandler.renameConfigKey(oldpath, newpath)
 
 
-    def hashFile(self, filepath, digesttypes=('md5', )):
-        """
-        Default is currently md5, although e.g. sha1 is not that much slower.
-        The sha256 and sha512 are approx 2x slower than md5, and I dont think that is requried.
-
-        Returns digestentry dict {datetime:datetime.now(), <digesttype>:digest }
-        """
-        logger.info("Experiment.hashFile() :: Not tested yet - take care ;)")
-        if not os.path.isabs(filepath):
-            filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
-        relpath = os.path.relpath(filepath, self.Localdirpath)
-        fileshistory = self.Fileshistory
-        digestentry = dict( (digesttype, filehexdigest(filepath, digesttype)) for digesttype in digesttypes)
-        digestentry['datetime'] = datetime.now()
-        if relpath in fileshistory:
-            # if hexdigest is present, then no need to add it...? Well, now that you have hashed it, just add it anyways.
-            #if hexdigest not in [entry[digesttype] for entry in fileshistory[relpath] if digesttype in entry]:
-            fileshistory[relpath].append(digestentry)
-        else:
-            fileshistory[relpath] = [digestentry]
-        return digestentry
-
-    def saveFileshistory(self):
-        """
-        Persists fileshistory to file.
-        """
-        fileshistory = self.Fileshistory # This is ok; if _fileshistory is empty, it will try to reload to make sure not to override.
-        if not fileshistory:
-            logger.info("No fileshistory ('%s')for experiment '%s', aborting saveFileshistory.", fileshistory, self)
-            return
-        savetofolder = os.path.join(self.Localdirpath, '.labfluence')
-        if not os.path.isdir(savetofolder):
-            try:
-                os.mkdir(savetofolder)
-            except OSError as e:
-                logger.warning(e)
-                return
-        fn = os.path.join(savetofolder, 'files_history.yml')
-        yaml.dump(fileshistory, open(fn, 'wb'), default_flow_style=False)
-
-    def loadFileshistory(self):
-        """
-        Loads the fileshistory from file.
-        """
-        if not getattr(self, 'Localdirpath', None):
-            logger.warning("loadFileshistory was invoked, but experiment has no localfiledirpath. (%s)", self)
-            return
-        savetofolder = os.path.join(self.Localdirpath, '.labfluence')
-        fn = os.path.join(savetofolder, 'files_history.yml')
-        try:
-            if self._fileshistory is None:
-                self._fileshistory = dict()
-            self._fileshistory.update(yaml.load(open(fn)))
-            return True
-        except (OSError, IOError, yaml.YAMLError) as e:
-            logger.info("loadFileshistory error: %s", e)
-
     def getRelativeStartPath(self, relative):
         """
         Returns the relative path for various elements, e.g.
@@ -1175,12 +1099,7 @@ functionality of this object will be greatly reduced and may break at any time."
         Lists all local files, essentially a lite version of getLocalFilelist
         that makes it clear that the task can be accomplished as a one-liner :-)
         """
-        if not self.Localdirpath:
-            return list()
-        relstart = self.getRelativeStartPath(relative)
-        return [os.path.relpath(os.path.join(dirpath, filename),relstart) for dirpath,dirnames,filenames in os.walk(self.Localdirpath) for filename in filenames]
-
-
+        return self.Filemanager.listLocalFiles(relative)
 
     def getLocalFilelist(self, fn_pattern=None, fn_is_regex=False, relative=None, subentries_only=True, subentry_idxs=None):
         """
@@ -1191,82 +1110,8 @@ functionality of this object will be greatly reduced and may break at any time."
         - relative       -> relative to what ('exp', 'local_exp_subDir', 'local_exp_rootDir')
         - subentries_only -> only return files from subentry folders and not other files.
         - subentries_idxs -> only return files from from subentries with these subentry indices (sequence)
-        # oneliner for listing files with os.walk:
-        #print "\n".join(u"{}:\n{}".format(dirpath,
-        #        "\n".join(os.path.join(dirpath, filename) for filename in filenames))for dirpath, dirnames, filenames in os.walk('.') )
         """
-        ret = list()
-        if not self.Localdirpath:
-            return ret
-        if subentry_idxs is None:
-            subentry_idxs = list()
-        relstart = self.getRelativeStartPath(relative)
-        # I am not actually sure what is fastest, repeatedly checking "if include_prog and include_prog.match()
-        if relative == 'filename-only':
-            def file_repr(path, filename, relstart):
-                return filename
-            def make_tuple(path, filename):
-                return ( filename, path, dict(fileName=filename, filepath=path) )
-        else:
-            def file_repr(dirpath, filename, relstart):
-                path = os.path.join(dirpath, filename)
-                return os.path.join(os.path.relpath(path, relstart))
-            def make_tuple(dirpath, filename):
-                path = os.path.join(dirpath, filename)
-                return ( os.path.join(os.path.relpath(path, relstart)), path, dict(fileName=filename, filepath=path) )
-        if fn_pattern:
-            if not fn_is_regex:
-                # fnmatch translates into equivalent regex, offers the methods fnmatch, fnmatchcase, filter, re and translate
-                fn_pattern = fnmatch.translate(fn_pattern)
-            include_prog = re.compile(fn_pattern)
-            def appendfile(dirpath, filename):
-                # tuple format is (<list_repr>, <identifier>, <metadata>)
-                if include_prog.match(filename):
-                    ret.append( make_tuple(dirpath, filename ) )
-        else:
-            # alternative, just do if include_prog is None or include_prog.match(...)
-            def appendfile(dirpath, filename):
-                ret.append( make_tuple(dirpath, filename ) )
-
-        if subentry_idxs or subentries_only:
-            logger.debug("returning filelist using subentries...")
-            if not self.Subentries:
-                logger.warning("getLocalFilelist() :: subentries requested, but no subentries loaded, aborting.")
-                return ret
-            for idx, subentry in self.Subentries.items():
-                if (subentries_only or idx in subentry_idxs) and 'foldername' in subentry:
-                    # perhaps in a try-except clause...
-                    for dirpath, dirnames, filenames in os.walk(os.path.join(self.Localdirpath, subentry['foldername'])):
-                        for filename in filenames:
-                            appendfile(dirpath, filename)
-            return ret
-        ignore_pat = self.Confighandler.get('local_exp_ignore_pattern')
-        if ignore_pat:
-            logger.debug("returning filelist by ignore pattern '%s'", ignore_pat)
-            ignore_prog = re.compile(ignore_pat)
-            for dirpath, dirnames, filenames in os.walk(self.Localdirpath):
-                # http://stackoverflow.com/questions/18418/elegant-way-to-remove-items-from-sequence-in-python
-                # remember to modify dirnames list in-place:
-                #dirnames = filter(lambda d: ignore_prog.search(d) is None, dirnames) # does not work
-                #dirnames[:] = filter(lambda d: ignore_prog.search(d) is None, dirnames) # works
-                dirnames[:] = ( d for d in dirnames if ignore_prog.search(d) is None ) # works, using generator
-                # alternatively, use list.remove() in a for-loop, but remember to iterate backwards.
-                # or perhaps even better, iterate over a copy of the list, and remove items with list.remove().
-                # if you can control the datatype, you can also use e.g. collections.deque instead of a list.
-                logger.debug("filtered dirnames: %s", dirnames)
-                for filename in filenames:
-                    if ignore_prog.search(filename) is None:
-                        appendfile(dirpath, filename)
-                    else:
-                        logger.debug("filename %s matched ignore_pat %s, skipping.", filename, ignore_pat)
-        else:
-            logger.debug("Experiment.getLocalFilelist() - no ignore_pat, filtering from complete filelist...")
-            #return [(path, os.path.relpath(path) for dirpath,dirnames,filenames in os.walk(self.Localdirpath) for filename in filenames for path in (appendfile(dirpath, filename), ) if path]
-            for dirpath, dirnames, filenames in os.walk(self.Localdirpath):
-                for filename in filenames:
-                    appendfile(dirpath, filename)
-        logger.debug("Experiment.getLocalFilelist() :: Returning list: %s", ret)
-        return ret
+        return self.Filemanager.getLocalFilelist(fn_pattern, fn_is_regex, relative, subentries_only, subentry_idxs)
 
 
     ###
@@ -1492,13 +1337,11 @@ functionality of this object will be greatly reduced and may break at any time."
         if pagefactory is None:
             pagefactory = WikiPageFactory(self.Server, self.Confighandler)
         current_datetime = datetime.now()
-        fmt_params = dict(datetime=current_datetime,
-                          date=current_datetime)
+        fmt_params = dict(datetime=current_datetime, date=current_datetime)
         fmt_params.update(self.Props)
         self.WikiPage = pagefactory.new('exp_page', fmt_params=fmt_params)
         self.Props['wiki_pageId'] = self.WikiPage.Struct['id']
-        #if dosave or self.SavePropsOnChange:
-        # edit: always save/persist props after making a wiki page, otherwise the pageId might be lost.
+        # Always save/persist props after making a wiki page, otherwise the pageId might be lost.
         self.saveProps()
         return self.WikiPage
 
@@ -1512,7 +1355,6 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.info("Experiment.makeWikiSubentry() :: ERROR, subentry_idx '%s' not in self.Subentries; make sure to first add the subentry to the subentries list and _then_ add a corresponding subentry on the wikipage.", subentry_idx)
             return
         res = self.JournalAssistant.newExpSubentry(subentry_idx, subentry_titledesc=subentry_titledesc, updateFromServer=updateFromServer, persistToServer=persistToServer)
-        # pagetoken = where to insert the new subentry on the page, typically before <h2>Results and discussion</h2>.
         #pagetoken = self.getConfigEntry('wiki_exp_new_subentry_token') # I am no longer using tokens, but relying on regular expressions to find the right insertion spot.
         self.saveIfChanged()
         return res
@@ -1534,38 +1376,9 @@ functionality of this object will be greatly reduced and may break at any time."
             creator     String  creator of the attachment
             url         String  url to download the attachment online
             comment     String  comment for the attachment (Required)
+        #attachment = self.WikiPage.addAttachment(attachmentInfo, attachmentData)
         """
-        logger.warning("Experiment.uploadAttachment() :: Not tested yet - take care ;)")
-        if not getattr(self, 'WikiPage', None):
-            logger.error("ERROR, no wikipage attached to this experiment object (%s)", self)
-            return None
-        if not os.path.isabs(filepath):
-            filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
-        # path relative to this experiment, e.g. 'RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'
-        from model.utils import attachmentTupFromFilepath
-        attachmentInfo, attachmentData = attachmentTupFromFilepath(filepath)
-        # NOTE: CONF-31169 and CONF-30024.
-        # - attachment title ignored when adding attachment
-        # - RemoteAttachment.java does not have a comment setter.
-        relpath = os.path.relpath(filepath, self.Localdirpath)
-        mimetype = getmimetype(filepath)
-        #attachmentInfo['contentType'] = mimetype
-        #attachmentInfo.setdefault('comment', os.path.basename(filepath) )
-        #attachmentInfo.setdefault('fileName', os.path.basename(filepath) )
-        #attachmentInfo.setdefault('title', os.path.basename(relpath) )
-        attachmentInfo.update(att_info)
-        if digesttype:
-            digestentry = self.hashFile(filepath, (digesttype, ))
-            # INFO: Setting attachment comment with xmlrpc does not currently work (confluence bug)
-            attachmentInfo['comment'] = attachmentInfo.get('comment', '') \
-                + "; {}-hexdigest: {}".format(digesttype, digestentry[digesttype])
-        with open(filepath, 'rb') as f:
-            # Not sure exactly what format the file bytes should have.
-#            attachmentData = f # Is a string/file-like object ok?
-#            attachmentData = f.read() # Can I just load the bytes?
-            # Should I do e.g. base64 encoding of the bytes?
-            attachmentData = xmlrpclib.Binary(f.read())# as seen in https://confluence.atlassian.com/display/DISC/Upload+attachment+via+Python+XML-RPC
-            attachment = self.WikiPage.addAttachment(attachmentInfo, attachmentData)
+        attachment = self.Filemanager.uploadAttachment(filepath, att_info, digesttype)
         return attachment
 
 
@@ -1582,71 +1395,21 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.info( "Experiment.updateAttachmentsCache() :: listAttachments() returned '%s'", structs )
         return structs
 
-
-    #@cached_property(ttl=300)
     # edit: cached_property makes the method a property and can no longer be used as a method.
     # I have moved the caching to the Attachments property instead...
     def listAttachments(self):
-        """
-        Lists attachments on the wiki page.
-        Returns a list of attachments (structs) if succeeded, and empty list if failed.
-        https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects#RemoteConfluenceDataObjects-attachmentAttachment
-        attachment-struct has:
-        - comment (string, required)
-        - contentType (string, required)
-        - created (date)
-        - creator (string username)
-        - fileName (string, required)
-        - fileSize (string, number of bytes)
-        - id (string, attachmentId)
-        - pageId (string)
-        - title (string)
-        - url (string)
-        """
-        if not getattr(self, 'WikiPage', None):
-            logger.info("ERROR, no wikipage attached to this experiment object (%s)", self)
-            return list()
-        #logger.warning("Experiment.listAttachments() :: Not implemented yet - take care ;)")
-        attachment_structs = self.WikiPage.getAttachments()
-        if attachment_structs is None:
-            logger.debug("exp.WikiPage.getAttachments() returned None, likely because the server it not connected.")
-            return list()
-        return attachment_structs
-
-
+        return self.Filemanager.getAttachments()
 
     def getAttachmentList(self, fn_pattern=None, fn_is_regex=False, **filterdict):
         """
-        The wiki-attachments equivalent to getLocalFileslist(),
+        Note: This does not simply return a list of wiki attachments.
+        This is the wiki-attachments equivalent to getLocalFileslist(),
         Returns a tuple list of (<display>, <identifier>, <complete struct>) elements.
         Like getLocalFileslist, the returned list can be filtered based on
         filename pattern (glob; or regex if fn_is_regex is True).
         The filterdict kwargs are currently not used.
-        However, when needed, this could be used to filter the returned list based on
-        attachment metadata, which includes:
-        - comment (string)
-        - contentType (string)
-        - created (date)
-        - creator (string username)
-        - fileName (string, required)
-        - fileSize (string, number of bytes)
-        - id (string, attachmentId)
         """
-        struct_list = self.Attachments
-        if not struct_list:
-            return list()
-        # Returned tuple of (<display>, <identifier>, <complete struct>)
-        # I think either filename or id would work as identifier.
-        if fn_pattern:
-            if not fn_is_regex:
-                fn_pattern = fnmatch.translate(fn_pattern)
-            regex_prog = re.compile(fn_pattern)
-        else:
-            regex_prog = None
-        # attachment struct_list might be None or False, so must check before trying to iterate:
-        return [ (struct['fileName'], struct['id'], struct) for struct in struct_list \
-                    if regex_prog is None or regex_prog.match(struct['fileName']) ]
-
+        return self.Filemanager.getAttachmentList(fn_pattern, fn_is_regex, **filterdict)
 
     ### Other stuff...###
 
@@ -1654,7 +1417,7 @@ functionality of this object will be greatly reduced and may break at any time."
         try:
             return "e>"+self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)
         except KeyError:
-            logger.debug("KeyError for 'return e>+self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)'")
+            logger.debug("KeyError trying to obtain string representation using self.Confighandler.get('exp_series_dir_fmt').format(**self.Props). Returning default.")
             return "e>"+str(getattr(self, 'Foldername', '<no-foldername>'))+str(self.Props)
 
     def update(self, other_exp):

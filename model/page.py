@@ -566,7 +566,7 @@ risk of content loss! ---> (before_insert_index, after_insert_index) is %s | reg
         if not self.Server and not self.Server.CachedConnectStatus:
             logger.info("%s > Server is None or not connected, aborting...", self.__class__.__name__)
             return
-        data = self.Server.getAttachmentData(self.PageId, fileName, versionNumber)
+        data = self.Server.getAttachmentData(self.PageId, fileName, str(versionNumber))
         return data
 
     def addAttachment(self, attachmentInfo, attachmentData):
