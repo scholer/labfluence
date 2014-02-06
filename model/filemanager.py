@@ -72,6 +72,9 @@ class Filemanager(object):
     def Fileshistory(self):
         """
         Invokes loadFilesHistory() lazily if self._fileshistory has not been loaded.
+        ###I plan to allow for saving file histories, having a dict
+        ###Fileshistory['RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'] -> list of {datetime:<datetime>, md5:<md5digest>} dicts.
+        ###This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
         """
         if not self._fileshistory:
             ok = self.loadFileshistory() # Make sure self.loadFileshistory does NOT refer to self.Fileshistory (cyclic reference)

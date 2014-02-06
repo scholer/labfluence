@@ -23,6 +23,8 @@ wiki_exp_root_pageId: '524296'
 wiki_exp_archive_pageId: '524308'
 wiki_exp_new_subentry_token: <h2>Results and discussion</h2>
 wiki_exp_new_subentry_insert_regex_fmt: (?P<before_insert><h2>Experimental section</h2>.*?)(?P<after_insert><h4>{expid}[_-]?[{next_subentry_idx}-z].*?</h4>|<h[1-3]>.*?</h[1-3]>|$)
+wiki_experiment_section: (?P<experiment_info>.*?)(?P<exp_section_header><h2>Experimental
+  section</h2>)(?P<exp_section_body>.*?)(?=<h[1-2]>.+?</h[1-2]>|$)
 wiki_journal_entry_insert_regex_fmt: '(?P<before_insert><h2>Experimental section</h2>.*?<h4>{expid}{subentry_idx}.*?</h4>.*?)(?P<after_insert><h[1-4]>.+?</h[1-4]>|$)'
 wiki_subentry_parse_regex_fmt: '(?P<exp_section_header><h2>Experimental section</h2>).*?(?P<subentry_header><h4>{expid}{subentry_idx}.+?</h4>)(?P<subentry_xhtml>.*?)(?P<next_header><h[1-4]>.+?</h[1-4]>|$)'
 wiki_templates_pageIds:

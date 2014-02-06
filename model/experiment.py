@@ -14,21 +14,21 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0103,C0301,C0302,R0201,R0902,R0904,R0913,W0142,W0201,W0221,W0402
 # messages:
 #   C0103: Invalid attribute/variable name (too short/long/etc?)
+#   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
 #   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
+#   C0303: Trailing whitespace (happens if you have windows-style \r\n newlines)
 #   R0904: Too many public methods (20 max); R0913: Too many arguments;
+#   R0921: Abstract class not referenced. Pylint thinks any class that raises a NotImplementedError somewhere is abstract.
+#   W0201: Attribute "_underscore_first_marks_insternal" defined outside __init__ -- yes, I use it in my properties.
 #   W0221: Arguments differ from overridden method,
 #   W0402: Use of deprechated module (e.g. string)
 #   E1101: Instance of <object> has no <dynamically obtained attribute> member.
-#   R0921: Abstract class not referenced. Pylint thinks any class that raises a NotImplementedError somewhere is abstract.
 #   E0102: method already defined in line <...> (pylint doesn't understand properties well...)
 #   E0202: An attribute affected in <...> hide this method (pylint doesn't understand properties well...)
-#   C0303: Trailing whitespace (happens if you have windows-style \r\n newlines)
-#   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
-#   W0201: Attribute "_underscore_first_marks_insternal" defined outside __init__ -- yes, I use it in my properties.
 # Regarding pylint failure of python properties: should be fixed in newer versions of pylint.
 """
 Experiment module and its primary Experiment class
@@ -143,88 +143,58 @@ class Experiment(object):
         # NOTICE: Attaching wiki pages is done lazily using a property (unless makewikipage is not False)
         self.SavePropsOnChange = savepropsonchange
         self.PropsChanged = False # Flag,
-        self.Subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
+        self._subentries_regex_prog = subentry_regex_prog # Allows recycling of a single compiled regex for faster directory tree processing.
         self.ConfigFn = '.labfluence.yml',
-        self._attachments_cache = None # cached list of wiki attachment_structs. None = <not initialized>
-        #self._fileshistory = dict()
+        # For use without a confighandler:
         self._props = dict()
         self._expid = None
+        self._cache = dict() # cached_property cache
         self._allowmanualpropssavetofile = False # Set to true if you want to let this experiment handle Props file persisting without a confighandler.
         self._doserversearch = False
-        if localdir is None:
-            localdir = props.get('localdir')
+        localdir = localdir or props.get('localdir')
         if makelocaldir:
             logger.debug("makelocaldir is boolean True, invoking self.makeLocaldir(props=%s, localdir=%s)", props, localdir)
-            localdir = self.makeLocaldir(props, localdir, wikipage) # only props currently supported...
+            localdir = self.makeLocaldir(props) # only props currently supported...
             logger.debug("localdir after makeLocaldir: %s", localdir)
         if localdir:
-            # We have a localdir. Local dirs may be of many formats, e.g.:
-            #   /some/abosolute/unix/folder
-            #   C:\some\absolute\windows\folder
-            #   relative/unix/folder
-            #   relative\windows\folder
-            # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
             self.setLocaldirpathAndFoldername(localdir)
         else:
             logger.debug("localdir is: %s (and makelocaldir was: %s), setting Localdirpath, Foldername and Parentdirpath to None.", localdir, makelocaldir)
-            self.Localdirpath = None
-            self.Foldername = None
-            self.Parentdirpath = None
+            logger.info( "NOTICE: No localdir provided for this experiment (are you in test mode?)\
+functionality of this object will be greatly reduced and may break at any time.\
+props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
+            self.Localdirpath, self.Foldername, self.Parentdirpath = None, None, None
 
         ### Experiment properties/config related
         ### Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
-        if self.VERBOSE:
-            logger.debug( "Experiment %s initial Props: %s", self, self.Props )
         if props:
             self.Props.update(props)
             logger.debug("Experiment %s updated with props argument, is now %s", self, self.Props)
         if regex_match:
             gd = regex_match.groupdict()
             # In case the groupdict has multiple date fields, find out which one to use and discart the other keys:
-            date = next( ( date for date in [gd.pop(k, None) for k in ('date1', 'date2', 'date')] if date ), None )
-            gd['date'] = date
+            gd['date'] = next( ( date for date in [gd.pop(k, None) for k in ('date1', 'date2', 'date')] if date ), None )
             ## regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)"
             self.Props.update(gd)
         elif not 'expid' in self.Props:
             logger.debug("self.Props is still too empty (no expid field). Attempting to populate it using 1) the localdirpath and 2) the wikipage.")
-            exp_regex = self.getConfigEntry('exp_series_regex')
-            exp_regex_prog = re.compile(exp_regex)
-            regex_match = None
             if self.Foldername:
-                regex_match = self.updatePropsByFoldername(exp_regex_prog)
+                regex_match = self.updatePropsByFoldername()
             if not regex_match and wikipage: # equivalent to 'if wikipage and not regex_match', but better to check first:
-                regex_match = self.updatePropsByWikipage(exp_regex_prog)
+                regex_match = self.updatePropsByWikipage()
 
-        if not localdir:
-            logger.info( "NOTICE: No localdir provided for expid '%s'; \
-functionality of this object will be greatly reduced and may break at any time.", self.Expid)
-
-        ### Subentries related...###
-        # Subentries is currently an element in self.Props, makes it easier to save info...
-        self.Subentries = self.Props.setdefault('exp_subentries', OrderedDict())
+        ### Subentries related - Subentries are stored as an element in self.Props ###
+        # self.Subentries = self.Props.setdefault('exp_subentries', OrderedDict()) # Is now a property
         if doparseLocaldirSubentries and self.Localdirpath:
             self.parseLocaldirSubentries()
 
-        ###I plan to allow for saving file histories, having a dict
-        ###Fileshistory['RS123d subentry_titledesc/RS123d_c1-grid1_somedate.jpg'] -> list of {datetime:<datetime>, md5:<md5digest>} dicts.
-        ###This will make it easy to detect simple file moves/renames and allow for new digest algorithms.
-
-        #self.loadFileshistory()
-        #if not self.WikiPage:
-        #    wikipage = self.attachWikiPage(dosearch=doserversearch)
-        #if self.WikiPage and self.WikiPage.Struct:
-        #    self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
-        if makewikipage:
+        if makewikipage and not self.WikiPage: # will attempt auto-attaching
             # page attaching should only be done if you are semi-sure that a page does not already exist.
             # trying to attach a wiki page will see if a page already exist.
-            page_test = self.WikiPage # will do auto-attaching.
-            if not page_test:
-                self.makeWikiPage()
+            self.makeWikiPage()
 
         self.JournalAssistant = JournalAssistant(self)
         self.Filemanager = Filemanager(self)
-        if self.VERBOSE:
-            logger.debug("Experiment '%s', Props (at end of init): %s", self, self.Props)
 
 
 
@@ -234,7 +204,7 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         If localdirpath is provided, use that to get props from the confighandler.
         """
-        if getattr(self, 'Localdirpath', None):
+        if self.Localdirpath:
             props = self.Confighandler.getExpConfig(self.Localdirpath)
         else:
             props_cache = self.Confighandler.get('expprops_by_id_cache')
@@ -248,7 +218,6 @@ functionality of this object will be greatly reduced and may break at any time."
                 props = self._props
                 logger.debug("(test mode?) self.Localdirpath is '%s', props_cache type: %s, self._expid is: %s, returning props: %s",
                                getattr(self, 'Localdirpath', '<not set>'), type(props_cache), _expid, props)
-                #logger.debug("Returning self._props, which is: %s", props)
         try:
             wikipage = self._wikipage # Do NOT try to use self.WikiPage. self.WikiPage calls self.attachWikiPage which calls self.Props -- circular loop.
             if not props.get('wiki_pagetitle') and wikipage and wikipage.Struct \
@@ -273,11 +242,7 @@ functionality of this object will be greatly reduced and may break at any time."
     @Expid.setter
     def Expid(self, expid):
         """property setter"""
-        if expid == self.Expid:
-            logger.info("Trying to set new expid '%s', but that is the same as the existing self.Expid '%s', localpath='%s'",
-                        expid, self.Expid, self.Localdirpath)
-            return
-        elif self.Expid:
+        if self.Props.get('expid') != expid:
             logger.info("Overriding old self.Expid '%s' with new expid '%s', localpath='%s'",
                         self.Expid, expid, self.Localdirpath)
         self.Props['expid'] = expid
@@ -335,9 +300,9 @@ functionality of this object will be greatly reduced and may break at any time."
         Server evaluates to False if it is not connected, so check specifically against None.
         """
         if self._server is not None:
-            return self._server
+            return
         else:
-            return self.Confighandler.Singletons.get('server')
+            return self._server or self.Confighandler.Singletons.get('server')
     @property
     def Manager(self):
         """
@@ -350,8 +315,7 @@ functionality of this object will be greatly reduced and may break at any time."
         Attempts to lazily attach a wikipage if none is attached.
         """
         if not self._wikipage:
-            self.attachWikiPage()
-            if self._wikipage:
+            if self.attachWikiPage():
                 logger.info("%s - Having just attached the wikipage (pageid=%s), I will now parse wikipage subentries and merge them...",
                             self, self._wikipage.PageId)
                 self.mergeWikiSubentries(self._wikipage)
@@ -367,24 +331,39 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         return self.Filemanager.Fileshistory
     @property
+    def Exp_regex_prog(self):
+        """
+        Compiled regex for parsing experiments by e.g. foldername or wiki pagetitles.
+        Might be different from one experiment to the next if the experiment's
+        exp_series_regex config/property key has been customized.
+        """
+        if not getattr(self, '_exp_regex_prog', None):
+            self._exp_regex_prog = re.compile(self.getConfigEntry('exp_series_regex'))
+        return self._exp_regex_prog
+    @property
     def Subentries_regex_prog(self):
         """
         Returns self._subentries_regex_prog if defined and not None, otherwise obtain from confighandler.
+        Compiled regex for parsing subentries in this experiment by e.g. foldername or wiki page headers.
+        Might be different from one experiment to the next if the experiment's
+        exp_series_regex config/property key has been customized.
         """
-        regex_prog = getattr(self, '_subentries_regex_prog', None)
-        if regex_prog:
-            return regex_prog
-        else:
+        if not getattr(self, '_subentries_regex_prog', None):
             regex_str = self.getConfigEntry('exp_subentry_regex') #getExpSubentryRegex()
             if not regex_str:
                 logger.warning("Warning, no exp_subentry_regex entry found in config, reverting to hard-coded default.")
                 regex_str = r"(?P<date1>[0-9]{8})?[_ ]*(?P<expid>RS[0-9]{3})-?(?P<subentry_idx>[^_ ])[_ ]+(?P<subentry_titledesc>.+?)\s*(\((?P<date2>[0-9]{8})\))?$"
             self._subentries_regex_prog = re.compile(regex_str)
-            return self._subentries_regex_prog
+        return self._subentries_regex_prog
     @Subentries_regex_prog.setter
-    def Subentries_regex_prog(self, value):
-        """property setter"""
-        self._subentries_regex_prog = value
+    def Subentries_regex_prog(self, subentry_regex_prog):
+        """
+        Compiled regex for parsing subentries in this experiment by e.g. foldername or wiki page headers.
+        Might be different from one experiment to the next if the experiment's
+        exp_subentry_regex config/property key has been customized.
+        """
+        self._subentries_regex_prog = subentry_regex_prog
+
     @property
     def Status(self):
         """
@@ -392,12 +371,11 @@ functionality of this object will be greatly reduced and may break at any time."
         Returns None if neither.
         """
         manager = self.Manager
-        if not manager:
-            return None
-        if self.Expid in manager.ActiveExperimentIds:
-            return 'active'
-        elif self.Expid in manager.RecentExperimentIds:
-            return 'recent'
+        if manager:
+            if self.Expid in manager.ActiveExperimentIds:
+                return 'active'
+            elif self.Expid in manager.RecentExperimentIds:
+                return 'recent'
     def isactive(self):
         """Returns whether experiment is listed in the active experiments list."""
         return self.Status == 'active'
@@ -417,9 +395,9 @@ functionality of this object will be greatly reduced and may break at any time."
         return url
 
 
-    ########################
-    ### MANAGER methods: ###
-    ########################
+    ################################
+    ### MANAGER / MACRO methods: ###
+    ################################
 
     def archive(self):
         """
@@ -431,10 +409,6 @@ functionality of this object will be greatly reduced and may break at any time."
             return
         self.Manager.archiveExperiment(self)
 
-
-    ######################
-    ### Macro methods: ###
-    ######################
 
     def saveAll(self):
         """
@@ -450,6 +424,24 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         self.saveProps()
         self.Filemanager.saveFileshistory()
+
+
+    def registerCallback(self, callbackkey):
+        """
+        It would be nice to be able to register various kinds of callbacks,
+        e.g. have a wikipage reload (fetch new struct from server)
+        trigger e.g. a new subentry merge, and have a new subentry init
+        invoking a UI widget reload.
+        """
+        pass
+
+    def update(self, other_exp):
+        """
+        Update this experiment with the content from other_exp.
+        """
+        #raise NotImplementedError("Experiment.update is not implemented...")
+        logger.warning( "update not implemented..." )
+
 
 
     """
@@ -502,31 +494,30 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         Saves content of self.Props to file.
         If a confighandler is attached, allow it to do it; otherwise just persist as yaml to default location.
+        Returns True if suceed and false if unsuccessful.
         """
         logger.debug("(Experiment.saveProps() triggered; confighandler: %s", self.Confighandler)
         if self.VERBOSE > 2:
             logger.debug("self.Props: %s", self.Props)
-        if path is None:
-            path = self.Localdirpath
-            if not path:
-                logger.debug("No path provided to saveProps and Experiment.Localdirpath is also '%s'", path)
-                return False
+        path = path or self.Localdirpath
+        if not path:
+            logger.info("No path provided to saveProps and Experiment.Localdirpath is also '%s'", path)
+            return False
         if self.Confighandler:
             if not os.path.isdir(path):
                 path = os.path.dirname(path)
             logger.debug("Invoking self.Confighandler.updateAndPersist(path=%s, self.Props=%s)", path, self.Props)
             self.Confighandler.updateAndPersist(path, self.Props)
         elif self._allowmanualpropssavetofile:
-            logger.debug("Experiment.saveProps() :: No confighandler, saving manually...")
             if os.path.isdir(path):
                 path = os.path.normpath(os.path.join(self.Localdirpath, self.ConfigFn))
-            logger.debug("Experiment.saveProps() :: saving directly to file '%s' (not using confighandler)", path)
+            logger.debug("Experiment.saveProps() :: No confighandler, saving manually to file '%s'", path)
             yaml.dump(self.Props, open(path, 'wb'))
+            if self.VERBOSE > 4:
+                logger.debug("Content of exp config/properties file after save:")
+                logger.debug(open(os.path.join(path, self.ConfigFn)).read())
         else:
             return False
-        if self.VERBOSE > 4:
-            logger.debug("Content of exp config/properties file after save:")
-            logger.debug(open(os.path.join(path, self.ConfigFn)).read())
         return True
 
 
@@ -535,8 +526,7 @@ functionality of this object will be greatly reduced and may break at any time."
         Update self.Props to match the meta info provided by the folder name, e.g. expid, titledesc and date.
         """
         if regex_prog is None:
-            exp_regex = self.getConfigEntry('exp_series_regex')
-            regex_prog = re.compile(exp_regex)
+            regex_prog = self.Exp_regex_prog
         regex_match = regex_prog.match(self.Foldername)
         if regex_match:
             self.Props.update(regex_match.groupdict())
@@ -551,8 +541,7 @@ functionality of this object will be greatly reduced and may break at any time."
         e.g. expid, titledesc and date.
         """
         if regex_prog is None:
-            exp_regex = self.getConfigEntry('exp_series_regex')
-            regex_prog = re.compile(exp_regex)
+            regex_prog = self.Exp_regex_prog
         wikipage = self.WikiPage
         if not wikipage.Struct:
             wikipage.reloadFromServer()
@@ -563,7 +552,6 @@ functionality of this object will be greatly reduced and may break at any time."
             if self.SavePropsOnChange:
                 self.saveProps()
         return regex_match
-
 
 
     def makeFormattingParams(self, subentry_idx=None, props=None):
@@ -586,10 +574,20 @@ functionality of this object will be greatly reduced and may break at any time."
         return fmt_params
 
 
+    ###
+    ### Methods related to the local directory:
+    ###
+
     def setLocaldirpathAndFoldername(self, localdir):
-        """
+        r"""
         Takes a localdir, either absolute or relative (to local_exp_subDir),
         and use this to set self.Foldername, self.Parentdirpath and self.Localdirpath.
+        # We have a localdir. Local dirs may be of many formats, e.g.:
+        #   /some/abosolute/unix/folder
+        #   C:\some\absolute\windows\folder
+        #   relative/unix/folder
+        #   relative\windows\folder
+        # More logic may be required, e.g. if the dir is relative to e.g. the local_exp_rootDir.
         """
         foldername, parentdirpath, localdirpath = self._getFoldernameAndParentdirpath(localdir)
         logger.debug("self._getFoldernameAndParentdirpath(%s) returned: %s, %s, %s", localdir, foldername, parentdirpath, localdirpath)
@@ -610,56 +608,55 @@ functionality of this object will be greatly reduced and may break at any time."
             # The path provided was relative, e.g.:
             # "RS102 Strep-col11 TR annealed with biotin",
             # or "2012_Aarhus/RS065 something".
-            local_exp_root = self.getConfigEntry('local_exp_rootDir')
-            local_exp_subdir = self.getConfigEntry('local_exp_subDir')
-            if os.path.isdir(os.path.join(local_exp_root, localdir)):
-                localdir = os.path.join(local_exp_root, localdir)
-            elif os.path.isdir(os.path.join(local_exp_subdir, localdir)):
-                localdir = os.path.join(local_exp_subdir, localdir)
-            else:
-                if getattr(self, 'Parentdirpath', None):
-                    logger.info("localdir %s does not exist, but self.Parentdirpath is set, so using self.Parentdirpath %s as base.", localdir, self.Parentdirpath)
-                    localdir = os.path.join(self.Parentdirpath, localdir)
-                else:
-                    logger.info("localdir %s does not exist, using local_exp_subDir (%s) as base.", localdir, local_exp_subdir)
-                    common = os.path.commonprefix([local_exp_subdir, localdir])
-                    if common:
-                        # localdir might be a long relative dir, that shares most in comon with local_exp_subDir.
-                        org = localdir
-                        localdir = os.path.abspath(os.path.join(local_exp_subdir, os.path.relpath(localdir, local_exp_subdir)))
-                        logger.info("EXPERIMENTAL: localdir set using os.path.abspath(os.path.join(local_exp_subdir, os.path.relpath(localdir, local_exp_subdir))):\
+            try:
+                # Note: To avoid circular reference, using confighandler to obtain these.
+                basedircandidates = [self.Confighandler.get(k) for k in ('local_exp_rootDir', 'local_exp_subDir')]
+            except AttributeError as e:
+                logger.debug(e)
+                basedircandidates = list()
+            if getattr(self, 'Parentdirpath', None):
+                basedircandidates.append(self.Parentdirpath)
+            localdircandidates = [os.path.join(basedircand, localdir) for basedircand in basedircandidates]
+            localdircandidates.append(os.path.abspath(localdir))
+            try:
+                localdir = next(path for path in localdircandidates if os.path.isdir(path))
+            except StopIteration:
+                # No localdir found by searching the most obvious candidates. Trying a bit extra using local_exp_subDir:
+                local_exp_subdir = self.Confighandler.get('local_exp_subDir')
+                logger.warning("localdir '%s' was not found, attempting to use local_exp_subDir (%s) as base.", localdir, local_exp_subdir)
+                common = os.path.commonprefix([local_exp_subdir, localdir])
+                if common:
+                    # localdir might be a long relative dir, that shares most in comon with local_exp_subDir.
+                    org = localdir
+                    localdir = os.path.abspath(os.path.join(local_exp_subdir, os.path.relpath(localdir, local_exp_subdir)))
+                    logger.info("EXPERIMENTAL: localdir set using os.path.abspath(os.path.join(local_exp_subdir, os.path.relpath(localdir, local_exp_subdir))):\
 \n-localdir: %s\n-local_exp_subDir: %s\n-localdir: %s", org, local_exp_subdir, localdir)
-                    else:
-                        localdir = os.path.join(local_exp_subdir, localdir)
-                        logger.info("Setting localdir by joining local_exp_subdir and localdir, result is: %s", localdir)
+                else:
+                    localdir = os.path.join(local_exp_subdir, localdir)
+                    logger.info("Setting localdir by joining local_exp_subdir and localdir, result is: %s", localdir)
         parentdirpath, foldername = os.path.split(localdir)
         return foldername, parentdirpath, localdir
 
 
-    def makeLocaldir(self, props, localdir=None, wikipage=None):
+    def makeLocaldir(self, props, basedir=None):
         """
         Alternatively, 'makeExperimentFolder' ?
         props:      Dict with props required to generate folder name.
-        localdir:   Not supported yet.
-        wikipage:   Not supported yet.
+        Edit: Instead of supporting wikipage argument, use updatePropsByWikipage
+        and then pass self.Props.
         """
         # Note: If this is called as part of __init__, it is called as one of the first things,
         # before setting self.Props, and before pretty much anything.
-        logger.debug("Experiment makeLocaldir invoked with props=%s, localdir=%s", props, localdir)
+        logger.debug("Experiment makeLocaldir invoked with props=%s, basedir=%s", props, basedir)
+        localexpsubdir = basedir or self.Confighandler.get('local_exp_subDir')
         try:
             foldername = self.getFoldernameFromFmtAndProps(props)
-            localexpsubdir = self.getConfigEntry('local_exp_subDir')
             localdirpath = os.path.join(localexpsubdir, foldername)
             os.mkdir(localdirpath)
             #logger.info("Created new localdir: %s", localdirpath)
-        except KeyError as e:
-            logger.warning("KeyError making new folder: %s", e)
-        except TypeError as e:
-            logger.warning("TypeError making new folder: %s", e)
-        except OSError as e:
-            logger.warning("OSError making new folder: %s", e)
-        except IOError as e:
-            logger.warning("IOError making new folder: %s", e)
+        except (KeyError, TypeError, OSError, IOError) as e:
+            logger.warning("%r making new folder, ABORTING...", e)
+            return False
         logger.info("Created new localdir for experiment: %s", localdirpath)
         return localdirpath
 
@@ -672,13 +669,13 @@ functionality of this object will be greatly reduced and may break at any time."
         if props is None:
             props = self.Props
         if foldername_fmt is None:
-            foldername_fmt = self.getConfigEntry('exp_series_dir_fmt')
+            foldername_fmt = self.Confighandler.get('exp_series_dir_fmt')
         foldername = foldername_fmt.format(**props)
         return foldername
 
 
 
-    def changeLocaldir(self, newfolder):
+    def renameLocaldir(self, newfolder):
         """
         Renames the folder of the experiment's local folder.
         Will also rename path-based exp key in confighandler.
@@ -688,18 +685,70 @@ functionality of this object will be greatly reduced and may break at any time."
         - self.Parentdirpath (in case the experiment was previously initialized).
         """
         oldlocaldirpath = self.Localdirpath
-        _, newfoldername, newlocaldirpath = self._getFoldernameAndParentdirpath(newfolder)
+        if os.path.isabs(newfolder):
+            newlocaldirpath = newfolder
+        else:
+            if getattr(self, 'Parentdirpath', None):
+                newlocaldirpath = os.path.join(self.Parentdirpath, newfolder)
+            else:
+                logger.warning("renameLocaldir with relative foldername is only allowed if exp Parentdirpath has been set; ABORTING... (newfolder = %s)", newfolder)
+                return False
         try:
             os.rename(oldlocaldirpath, newlocaldirpath)
         except (OSError, IOError) as e:
-            logger.warning("IO or OSError renaming old folder %s to new folder %s: %s", oldlocaldirpath, newlocaldirpath, e)
+            logger.warning("%r while renaming old folder %s to new folder %s.", e, oldlocaldirpath, newlocaldirpath)
         self.Confighandler.renameConfigKey(oldlocaldirpath, newlocaldirpath)
         logger.info("Renamed old folder %s to new folder %s", oldlocaldirpath, newlocaldirpath)
+        self.setLocaldirpathAndFoldername(newlocaldirpath)
         return newlocaldirpath
 
 
+    def renameFolderByFormat(self):
+        """
+        Renames the local directory folder to match the formatting dictated by exp_series_dir_fmt.
+        Also takes care to update the confighandler.
+        """
+        dir_fmt = self.Confighandler.get('exp_series_dir_fmt')
+        if not dir_fmt:
+            logger.warning("No 'exp_series_dir_fmt' found in config; aborting")
+            return
+        newname = dir_fmt.format(self.Props)
+        newpath = os.path.join(self.Parentdirpath, newname)
+        oldpath = self.Localdirpath
+        logger.info("Renaming exp folder: %s -> %s", oldpath, newpath)
+        #os.rename(oldname_full, newname_full)
+        self.Localdirpath = newpath
+        self.Foldername = newname
+        # Note: there is NO reason to have a key 'dirname' in self.Props;
+        if self.Confighandler:
+            self.Confighandler.renameConfigKey(oldpath, newpath)
 
+
+    ###
     ### STUFF RELATED TO SUBENTRIES ###
+    ###
+
+    def renameSubentriesFoldersByFormat(self, createNonexisting=False):
+        """
+        Renames all subentries folders to match
+        """
+        logger.warning("This method is temporarily disabled while testing...")
+        dir_fmt = self.getConfigEntry('exp_subentry_dir_fmt')
+        if not dir_fmt:
+            logger.warning("No 'exp_subentry_dir_fmt' found in config; aborting")
+            return
+        for subentry in self.Subentries.values():
+            # subentry is a dict
+            newname = dir_fmt.format(subentry)
+            newname_full = os.path.join(self.Localdirpath, newname)
+            if 'dirname' in subentry:
+                oldname_full = os.path.join(self.Localdirpath, subentry['dirname'])
+                logger.info("Renaming subentry folder: %s -> %s", oldname_full, newname_full)
+                #os.rename(oldname_full, newname_full)
+            elif createNonexisting:
+                logger.info("Making new subentry folder: %s", newname_full)
+                #os.mkdir(newname_full)
+            subentry['dirname'] = newname
 
     def sortSubentrires(self):
         """
@@ -801,7 +850,6 @@ functionality of this object will be greatly reduced and may break at any time."
         except KeyError:
             logger.warning("Experiment.makeSubentryFolder() :: ERROR, subentry_idx '%s' not listed in subentries, aborting...", subentry_idx)
             return
-
         folder_exists, newfolderpath, subentry_foldername = self.existingSubentryFolder(subentry_idx, returntuple=True)
         if folder_exists:
             logger.error("Experiment.makeSubentryFolder() :: ERROR, newfolderpath (%s) already exists, aborting...", newfolderpath)
@@ -816,45 +864,6 @@ functionality of this object will be greatly reduced and may break at any time."
             self.saveProps()
         return subentry_foldername
 
-    def registerCallback(self, callbackkey):
-        """
-        It would be nice to be able to register various kinds of callbacks,
-        e.g. have a wikipage reload (fetch new struct from server)
-        trigger e.g. a new subentry merge, and have a new subentry init
-        invoking a UI widget reload.
-        """
-        pass
-
-
-    #@deprecated
-    #def getSubentry_(self, subentry_idx, default='getSubentry-not-set', ensureExisting=False):
-    #    """
-    #    I want to raise KeyError if default is not given (like dict does).
-    #    However, how to set default to allow it to be optional, but allowing the
-    #    user to set it to e.g. None. It is very likely that the user would want to get
-    #    'None' returned instead of having a KeyError value raised.
-    #    Note: Unless you want to use the 'default' parameter or make convenient use of
-    #    the 'ensureExisting' option, it is generally more code efficient to simply do:
-    #        try:
-    #            subentry = self.Subentries[subentry_idx]
-    #        except KeyError:
-    #            <something>
-    #    or just use:
-    #        self.Subentries.get(subentry_idx, None)
-    #    Actually, I think this is a bad method to have, the only advantage is that if you
-    #    decide to refactor and e.g. have Subentries as something else, you would just have to
-    #    change this method. However, since self.Subentries is a property, I can always just change that.
-    #    So, I hereby decide to deprechate this method.
-    #    And actually, the dict does NOT raise a KeyError, ever. But, in that case, just use
-    #    self.Subentries.get(subentry_idx) instead of bloating this class with yet another method.
-    #    """
-    #    if subentry_idx not in self.Subentries and ensureExisting:
-    #        self.initSubentriesUpTo(subentry_idx)
-    #    if default != 'getSubentry-not-set':
-    #        return self.Subentries.get(subentry_idx, default)
-    #    else:
-    #        return self.Subentries[subentry_idx]
-
 
     def initSubentriesUpTo(self, subentry_idx):
         """
@@ -865,54 +874,6 @@ functionality of this object will be greatly reduced and may break at any time."
         for idx in idx_generator(subentry_idx):
             if idx not in self.Subentries:
                 self.Subentries[idx] = dict()
-
-    def getExpRepr(self, default=None):
-        """
-        Returns a string representation of this exp object.
-        Used by self.__repr__()
-        """
-        if 'foldername' in self.Props:
-            return self.Props['foldername']
-        else:
-            fmt = self.Confighandler.get('exp_series_dir_fmt')
-            fmt_params = self.makeFormattingParams()
-            try:
-                return fmt.format(**fmt_params)
-            except KeyError:
-                if default:
-                    return default
-                else:
-                    return "{} {}".format(asciize(self.Props.get('expid', "(no expid)")), asciize(self.Props.get('exp_titledesc', "(no title)")))
-
-    def getSubentryRepr(self, subentry_idx=None, default=None):
-        """
-        Returns a string representation for a particular subentry,
-        formatted according to config entry 'exp_subentry_dir_fmt'
-        Is used to create new subentry folders, and display subentries in e.g. lists, etc.
-        """
-        if subentry_idx:
-            subentry = self.Subentries.get(subentry_idx, None)
-            if subentry:
-                if 'foldername' in subentry:
-                    return subentry['foldername']
-                else:
-                    fmt = self.Confighandler.get('exp_subentry_dir_fmt')
-                    fmt_params = self.makeFormattingParams(subentry_idx=subentry_idx)
-                    try:
-                        return fmt.format(**fmt_params)
-                    except KeyError:
-                        if default:
-                            return default
-                        else:
-                            return "{}{} {}".format(
-                                asciize(self.Props.get('expid', "(no expid)")),
-                                asciize(subentry.get('subentry_idx', "(no subentryidx)")),
-                                asciize(self.Props.get('subentry_titledesc', "(no subentry title)")))
-        if default == 'exp':
-            return self.getExpRepr()
-        else:
-            return default
-
 
 
     def parseLocaldirSubentries(self, directory=None):
@@ -944,32 +905,42 @@ functionality of this object will be greatly reduced and may break at any time."
 
     def parseSubentriesFromWikipage(self, wikipage=None, xhtml=None, return_subentry_xhtml=False):
         """
+        Arguments:
+          wikipage  : the wikipage (object) to parse
+          xhtml     : parse directly this xhtml
+        If wikipage and xhtml is None, then self.WikiPage will be used.
+        Returns a dict with subentries, similar to the subentries in self.Props['exp_subentries'],
+        i.e.     subentry['a'] = {'expid': ...}
+        Returns None if something failed.
+        If return_subentry_xhtml is set to True, then the subentry-dict in the returned subentries dict
+        will include the current xhtml source for that subentry. This is generally NOT desired.
         Note: wikipage is a WikiPage object, not a page struct.
-        Not sure what the return_subentry_xhtml argument was intended for...?
         """
         ### Uh, it would seem that the wiki_experiment_section config entry has gone missing,
         ### returning none until it is back up.
-        return dict()
-        if isinstance(wikipage, WikiPage):
-            logger.debug("wikipage is instance of WikiPage, ok.")
-        else:
-            logger.warning("wikipage is not instance of WikiPage! This has not been implemented (but should be easy to do)")
         if xhtml is None:
             if wikipage is None:
                 wikipage = self.WikiPage
-            #xhtml = wikipage['content']
             xhtml = wikipage.Content
-        expsection_regex = self.getConfigEntry('wiki_experiment_section')
-        logger.debug("expsection_regex = %s", expsection_regex)
-        expsection_regex_prog = re.compile(expsection_regex, flags=re.DOTALL+re.MULTILINE)
-        logger.debug("wiki_experiment_section regex is: %s", expsection_regex_prog.pattern)
-
-        subentry_regex_fmt = self.getConfigEntry('wiki_subentry_regex_fmt')
-        logger.debug("wiki_subentry_regex_fmt is: '%s'", subentry_regex_fmt)
-        subentry_regex = subentry_regex_fmt.format(expid=self.Expid, subentry_idx=r"(?P<subentry_idx>[_-]{0,3}[^\s]+)" ) # alternatively, throw in **self.Props
-        logger.debug("Subentry regex after format substitution: '%s'", subentry_regex)
-        subentry_regex_prog = re.compile(subentry_regex, flags=re.DOTALL+re.MULTILINE)
-
+        # GENERATE required regex programs:
+        try:
+            expsection_regex_prog = re.compile(self.getConfigEntry('wiki_experiment_section'), flags=re.DOTALL+re.MULTILINE)
+            logger.debug("wiki_experiment_section regex is: %s", expsection_regex_prog.pattern)
+        except TypeError as e:
+            logger.warning("TypeError: %s while creating regex prog; self.getConfigEntry('wiki_experiment_section')=%s; ABORTING...",
+                           e, self.getConfigEntry('wiki_experiment_section'))
+            return
+        try:
+            subentry_regex_fmt = self.getConfigEntry('wiki_subentry_regex_fmt')
+            logger.debug("wiki_subentry_regex_fmt is: '%s'", subentry_regex_fmt)
+            subentry_regex = subentry_regex_fmt.format(expid=self.Expid, subentry_idx=r"(?P<subentry_idx>[_-]{0,3}[^\s]+)" ) # alternatively, throw in **self.Props
+            logger.debug("Subentry regex after format substitution: '%s'", subentry_regex)
+            subentry_regex_prog = re.compile(subentry_regex, flags=re.DOTALL+re.MULTILINE)
+        except (TypeError, KeyError) as e:
+            logger.warning("%r while creating wiki subentry regex prog; self.getConfigEntry('wiki_subentry_regex_fmt')=%s; ABORTING...",
+                           e, self.getConfigEntry('wiki_subentry_regex_fmt'))
+            return
+        # PARSE the wiki xhtml:
         expsection_match = expsection_regex_prog.match(xhtml) # consider using search instead of match?
         if not expsection_match:
             logger.warning("NO MATCH ('%s') for expsubsection_regex '%s' in xhtml of length %s, aborting",
@@ -986,7 +957,7 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.debug("Match groupdict: %s", gd)
             datestring = gd.pop('subentry_date_string')
             if not return_subentry_xhtml:
-                subentry_xhtml = gd.pop('subentry_xhtml')
+                gd.pop('subentry_xhtml')
             if datestring:
                 gd['date'] = datetime.strptime(datestring, "%Y%m%d")
             if gd['subentry_idx'] in wiki_subentries:
@@ -999,10 +970,11 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         Used to parse existing subentries (in self.Props) with subentries
         obtained by parsing the wiki page.
+        Returns True if success and False on fail.
         """
-        if wikipage is None:
-            wikipage = self.WikiPage
         wiki_subentries = self.parseSubentriesFromWikipage(wikipage)
+        if wiki_subentries is None:
+            return False
         # OrderedDict returned
         subentries = self.Subentries
         for subentry_idx, subentry_props in wiki_subentries.items():
@@ -1012,8 +984,7 @@ functionality of this object will be greatly reduced and may break at any time."
                 subentries[subentry_idx] = subentry_props
                 logger.debug("Subentry '%s' from wikipage added to Subentries, props are: %s",
                              subentry_idx, subentry_props)
-
-
+        return True
 
 
 
@@ -1029,52 +1000,9 @@ functionality of this object will be greatly reduced and may break at any time."
 
 
 
-    """ -------------------------------------------
-    --- STUFF related to local file management ----
-    ------------------------------------------- """
-
-
-    def renameSubentriesFoldersByFormat(self, createNonexisting=False):
-        """
-        Renames all subentries folders to match
-        """
-        dir_fmt = self.getConfigEntry('exp_subentry_dir_fmt')
-        if not dir_fmt:
-            logger.warning("No 'exp_subentry_dir_fmt' found in config; aborting")
-            return
-        for subentry in self.Subentries.values():
-            # subentry is a dict
-            newname = dir_fmt.format(subentry)
-            newname_full = os.path.join(self.Localdirpath, newname)
-            if 'dirname' in subentry:
-                oldname_full = os.path.join(self.Localdirpath, subentry['dirname'])
-                logger.info("Renaming subentry folder: %s -> %s", oldname_full, newname_full)
-                #os.rename(oldname_full, newname_full)
-            elif createNonexisting:
-                logger.info("Making new subentry folder: %s", newname_full)
-                #os.mkdir(newname_full)
-            subentry['dirname'] = newname
-
-
-    def renameFolderByFormat(self):
-        """
-        Renames the local directory folder to match the formatting dictated by exp_series_dir_fmt.
-        Also takes care to update the confighandler.
-        """
-        dir_fmt = self.getConfigEntry('exp_series_dir_fmt')
-        if not dir_fmt:
-            logger.warning("No 'exp_series_dir_fmt' found in config; aborting")
-            return
-        newname = dir_fmt.format(self.Props)
-        newpath = os.path.join(self.Parentdirpath, newname)
-        oldpath = self.Localdirpath
-        logger.info("Renaming exp folder: %s -> %s", oldpath, newpath)
-        #os.rename(oldname_full, newname_full)
-        self.Localdirpath = newpath
-        self.Foldername = newname
-        # Note: there is NO reason to have a key 'dirname' in self.Props;
-        if self.Confighandler:
-            self.Confighandler.renameConfigKey(oldpath, newpath)
+    ###
+    ### STUFF related to local file management
+    ###
 
 
     def getRelativeStartPath(self, relative):
@@ -1142,8 +1070,7 @@ functionality of this object will be greatly reduced and may break at any time."
         Get xhtml (journal) for a particular subentry on the wiki page.
         subentry defaults to self.JournalAssistant.Current_subentry_idx.
         """
-        if subentry is None:
-            subentry = getattr(self.JournalAssistant, 'Current_subentry_idx', None)
+        subentry = subentry or getattr(self.JournalAssistant, 'Current_subentry_idx', None)
         if not subentry:
             logger.info("No subentry set/selected/available, aborting...")
             return None
@@ -1224,9 +1151,9 @@ functionality of this object will be greatly reduced and may break at any time."
         callinfo = logger.findCaller()
         method_repr = "{}.{}".format(self.__class__.__name__, callinfo[2])
         logger.info("%s :: Searching on server...", method_repr)
-        spaceKey = self.getConfigEntry('wiki_exp_root_spaceKey')
+        spaceKey = self.Confighandler.get('wiki_exp_root_spaceKey')
         pageTitle = self.Foldername or self.getFoldernameFromFmtAndProps() # No reason to make this more complicated...
-        user = self.getConfigEntry('wiki_username') or self.getConfigEntry('username')
+        user = self.Confighandler.get('wiki_username') or self.Confighandler.get('username')
         try:
             # First try to find a wiki page with an exactly matching pageTitle.
             pagestruct = self.Server.getPage(spaceKey=spaceKey, pageTitle=pageTitle)
@@ -1352,7 +1279,7 @@ functionality of this object will be greatly reduced and may break at any time."
         content at the right location using regex'es.
         """
         if subentry_idx not in self.Subentries:
-            logger.info("Experiment.makeWikiSubentry() :: ERROR, subentry_idx '%s' not in self.Subentries; make sure to first add the subentry to the subentries list and _then_ add a corresponding subentry on the wikipage.", subentry_idx)
+            logger.warning("Experiment.makeWikiSubentry() :: ERROR, subentry_idx '%s' not in self.Subentries; make sure to first add the subentry to the subentries list and _then_ add a corresponding subentry on the wikipage.", subentry_idx)
             return
         res = self.JournalAssistant.newExpSubentry(subentry_idx, subentry_titledesc=subentry_titledesc, updateFromServer=updateFromServer, persistToServer=persistToServer)
         #pagetoken = self.getConfigEntry('wiki_exp_new_subentry_token') # I am no longer using tokens, but relying on regular expressions to find the right insertion spot.
@@ -1411,8 +1338,11 @@ functionality of this object will be greatly reduced and may break at any time."
         """
         return self.Filemanager.getAttachmentList(fn_pattern, fn_is_regex, **filterdict)
 
-    ### Other stuff...###
 
+
+    ###
+    ### String representations:
+    ###
     def __repr__(self):
         try:
             return "e>"+self.Confighandler.get('exp_series_dir_fmt').format(**self.Props)
@@ -1420,18 +1350,49 @@ functionality of this object will be greatly reduced and may break at any time."
             logger.debug("KeyError trying to obtain string representation using self.Confighandler.get('exp_series_dir_fmt').format(**self.Props). Returning default.")
             return "e>"+str(getattr(self, 'Foldername', '<no-foldername>'))+str(self.Props)
 
-    def update(self, other_exp):
+    def getExpRepr(self, default=None):
         """
-        Update this experiment with the content from other_exp.
+        Returns a string representation of this exp object.
+        Used by self.__repr__()
         """
-        #raise NotImplementedError("Experiment.update is not implemented...")
-        logger.warning( "update not implemented..." )
+        if 'foldername' in self.Props:
+            return self.Props['foldername']
+        else:
+            fmt = self.Confighandler.get('exp_series_dir_fmt')
+            fmt_params = self.makeFormattingParams()
+            try:
+                return fmt.format(**fmt_params)
+            except KeyError:
+                if default:
+                    return default
+                else:
+                    return "{} {}".format(asciize(self.Props.get('expid', "(no expid)")), asciize(self.Props.get('exp_titledesc', "(no title)")))
 
-
-
-if __name__ == '__main__':
-
-    logfmt = "%(levelname)s:%(name)s:%(lineno)s %(funcName)s():\n%(message)s\n"
-    logging.basicConfig(level=logging.INFO, format=logfmt)
-    logging.getLogger("__main__").setLevel(logging.DEBUG)
-    #logging.getLogger("server").setLevel(logging.DEBUG)
+    def getSubentryRepr(self, subentry_idx=None, default=None):
+        """
+        Returns a string representation for a particular subentry,
+        formatted according to config entry 'exp_subentry_dir_fmt'
+        Is used to create new subentry folders, and display subentries in e.g. lists, etc.
+        """
+        if subentry_idx:
+            subentry = self.Subentries.get(subentry_idx, None)
+            if subentry:
+                if 'foldername' in subentry:
+                    return subentry['foldername']
+                else:
+                    fmt = self.Confighandler.get('exp_subentry_dir_fmt')
+                    fmt_params = self.makeFormattingParams(subentry_idx=subentry_idx)
+                    try:
+                        return fmt.format(**fmt_params)
+                    except KeyError:
+                        if default:
+                            return default
+                        else:
+                            return "{}{} {}".format(
+                                asciize(self.Props.get('expid', "(no expid)")),
+                                asciize(subentry.get('subentry_idx', "(no subentryidx)")),
+                                asciize(self.Props.get('subentry_titledesc', "(no subentry title)")))
+        if default == 'exp':
+            return self.getExpRepr()
+        else:
+            return default

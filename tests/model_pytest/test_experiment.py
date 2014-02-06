@@ -41,6 +41,8 @@ from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpC
 # - ExperimentManager
 
 
+TESTDATADIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '2013_Aarhus')
+
 
 @pytest.fixture
 def expprops():
@@ -77,6 +79,43 @@ def test_parseLocaldirSubentries(exp_no_wikipage_or_subentries, monkeypatch):
     assert [subentry['subentry_titledesc'] for subentry in subentries.values()] \
             == ['Subentry test a', 'Subentry testb', 'Subentry test-c', 'Subentry test _d']
 
+
+def test_getFoldernameAndParentdirpath(exp_no_wikipage_or_subentries, monkeypatch):
+    e = exp_no_wikipage_or_subentries
+    # test 1: value from confighandler:
+    monkeypatch.setattr(e.Confighandler, 'get', lambda key: TESTDATADIR)
+    localtestdir = "RS105 TR STV-col11 Origami v3"
+    foldername, parentdirpath, localdir = e._getFoldernameAndParentdirpath(localtestdir)
+    logger.debug("foldername, parentdirpath, localdir = %s, %s, %s", foldername, parentdirpath, localdir)
+    assert foldername == localtestdir
+    assert parentdirpath == TESTDATADIR
+    assert os.path.join(parentdirpath, foldername) == localdir
+
+    # Test 2: cwd based (via os.path.abspath)
+    monkeypatch.setattr(e.Confighandler, 'get', lambda key: "/tmp/config")
+    monkeypatch.setattr(os.path, 'abspath', lambda path: os.path.join(TESTDATADIR, localdir))
+    foldername, parentdirpath, localdir = e._getFoldernameAndParentdirpath(localtestdir)
+    logger.debug("foldername, parentdirpath, localdir = %s, %s, %s", foldername, parentdirpath, localdir)
+    assert foldername == localtestdir
+    assert parentdirpath == TESTDATADIR
+
+    # Test 3: Parentdirpath based
+    #monkeypatch.setattr(e.Confighandler, 'get', lambda key: "/tmp")
+    monkeypatch.setattr(os.path, 'abspath', lambda path: "/tmp/abspath")
+    e.Parentdirpath = TESTDATADIR
+    foldername, parentdirpath, localdir = e._getFoldernameAndParentdirpath(localtestdir)
+    logger.debug("foldername, parentdirpath, localdir = %s, %s, %s", foldername, parentdirpath, localdir)
+    assert foldername == localtestdir
+    assert parentdirpath == TESTDATADIR
+
+    # Test 4: All fails -- should rely on exp_root_subDir from config.
+    #monkeypatch.setattr(e.Confighandler, 'get', lambda key: "/tmp")
+    #monkeypatch.setattr(os.path, 'abspath', lambda path: "/tmp")
+    e.Parentdirpath = '/tmp/pardirpath'
+    foldername, parentdirpath, localdir = e._getFoldernameAndParentdirpath(localtestdir)
+    logger.debug("foldername, parentdirpath, localdir = %s, %s, %s", foldername, parentdirpath, localdir)
+    assert foldername == localtestdir
+    assert parentdirpath == '/tmp/config'
 
 
 #

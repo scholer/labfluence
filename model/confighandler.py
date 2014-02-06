@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221
 # messages:
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
 #   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
@@ -24,7 +24,6 @@
 Confighandler module includes all logic to read, parse and save config and
 
 """
-
 
 import yaml
 import os
@@ -59,7 +58,6 @@ def os_path_split_asunder(path, debug=False):
 
 
 class ConfigHandler(object):
-
     """
     For now, the configs are "flat", i.e. no nested entries, ala config["subject"]["key"] = value. Only config["key"] = value.
 
@@ -97,7 +95,6 @@ class ConfigHandler(object):
     """
 
     def __init__(self, systemconfigfn=None, userconfigfn=None):
-        # pylint: disable-msg=R0902
         self.VERBOSE = 0
         self.ConfigPaths = OrderedDict()
         self.Configs = OrderedDict()
@@ -106,8 +103,7 @@ class ConfigHandler(object):
         # Config_path_entries is used to map config entries to a config type,
         # for instance, with the setting above, the config key "system_config_path" can be used to
         # specify a file path for the 'system' config.
-        self.ConfigPaths['system'] = systemconfigfn
-        self.ConfigPaths['user'] = userconfigfn
+        self.ConfigPaths['system'], self.ConfigPaths['user'] = systemconfigfn, userconfigfn
         self.Configs['system'] = dict()
         self.Configs['user'] = dict()
         self.Singletons = dict() # dict for singleton objects; makes it easy to share objects across application objects that already have access to the confighandler singleton.
@@ -132,10 +128,8 @@ class ConfigHandler(object):
         # Attributes for the callback system:
         self.EntryChangeCallbacks = dict()   # dict with: config_key : <list of callbacks>
         self.ChangedEntriesForCallbacks = set() # which config keys has been changed.
-
         logger.debug("ConfigPaths : %s", self.ConfigPaths)
 
-        # end __init__
 
     def getSingleton(self, key):
         """
@@ -390,7 +384,6 @@ class ConfigHandler(object):
             saveConfigs(('sys', 'exp') --> save the 'sys' and 'exp' config.
         """
         logger.info("saveConfigs invoked with configtosave '%s'", what)
-        #for (outputfn, config) in zip(self.getConfigPath(what='all'), self.getConfig(what='all')):
         for cfgtype, outputfn in self.ConfigPaths.items():
             if (what=='all' or cfgtype in what or cfgtype==what):
                 if outputfn:
