@@ -10,3 +10,8 @@ thirdparty/*
 projectfiles/*
 */test_data/test_filestructure*
 *.log
+diff.txt
+cat.out
+logs/*
+*.yml
+*.yml-*
