@@ -36,6 +36,54 @@ is the center for all "Experiment" related functionality.
 It ties together two important helper objects:
 * WikiPage
 * JournalAssistant
+
+It mostly models the local directory in which the experiment (data) is saved.
+However, it is also the main node onto which other model parts of an experiment is attached, e.g.
+- A WikiPage object, representing the wiki page on the server. This object should be capable of
+  performing most server-related inqueries, particularly including wiki-page updates/appends.
+  Experiment objects can also refer directly to the server object. However, this is mostly as
+  a convenience and is mostly used before a WikiPage object is attached; in particular the
+  server object is used to search for existing/matching wiki pages.
+  Most other logic should be done by the ExperimentManager rather than individual experiments.
+
+The Prop attribute is a dict which include the following info (is persisted as a .labfluence.yml file)
+- localdir, relative to local_exp_rootDir
+- expid, generated expid string e.g. 'RS123'
+- exp_index
+- exp_title_desc
+- exp_series_longdesc, not used
+- wiki_pageId
+- wiki_pageTitle (cached)
+
+Regarding "experiment entry" vs "experiment item" vs "-subitem":
+ - 'subitem' returns 2e6 google hits, has entry at merriam-webster and wikitionary.
+ - 'subentry' returns 4e5 google hits, but also has
+ - 'item' returns 4e9 hits.
+ - 'entry' returns 1.6e9 hits.
+ --> I think I will go with entry, as that also relates to "entry in a journal/log".
+
+Subentries attribute is a list of dicts, keyed alphabetically ('a','b',...) which each include:
+- subentry_id, generated string e.g. 'RS123a'
+- subentry_idx, index e.g. 'a'.
+- subentry_titledesc,
+- dirname, directory relative to the main experiment
+- dirname should match expitem_title_desc
+Note: The properties are related via config items exp_subentry_dir_fmt and exp_subentry_regex.
+      The dir can be generated using exp_subentry_dir_fmt.format(...),
+      while reversedly the items can be generated from the dirname using exp_subentry_regex,
+      in much the same way as is done with the experiment (series).
+
+Changes:
+ - Trying to eliminate all the 'series' annotations and other excess;
+   - exp_series_index --> exp_index
+   - exp_series_shortdesc --> exp_title_desc
+   - expid_str --> expid
+ - Settled on term 'subentry' to designate 'RS123a'-like items.
+
+ Considerations:
+ - I recently implemented HierarchicalConfigHandler, which loads all '.labfluence.yml' files in the experiment tree.
+   It seems counter-productive to also implement loading/saving of yaml files here
+
 """
 
 
@@ -63,55 +111,8 @@ from decorators.cache_decorator import cached_property
 class Experiment(object):
     """
     This class is the main model for a somewhat abstract "Experiment".
-    It mostly models the local directory in which the experiment (data) is saved.
-    However, it is also the main node onto which other model parts of an experiment is attached, e.g.
-     - A WikiPage object, representing the wiki page on the server. This object should be capable of
-       performing most server-related inqueries, particularly including wiki-page updates/appends.
-       Experiment objects can also refer directly to the server object. However, this is mostly as
-       a convenience and is mostly used before a WikiPage object is attached; in particular the
-       server object is used to search for existing/matching wiki pages.
-       Most other logic should be done by the ExperimentManager rather than individual experiments.
-
-
-    The Prop attribute is a dict which include the following info (is persisted as a .labfluence.yml file)
-     - localdir, relative to local_exp_rootDir
-     - expid, generated expid string e.g. 'RS123'
-     - exp_index
-     - exp_title_desc
-     - exp_series_longdesc, not used
-     - wiki_pageId
-     - wiki_pageTitle (cached)
-
-     Regarding "experiment entry" vs "experiment item" vs "-subitem":
-      - 'subitem' returns 2e6 google hits, has entry at merriam-webster and wikitionary.
-      - 'subentry' returns 4e5 google hits, but also has
-      - 'item' returns 4e9 hits.
-      - 'entry' returns 1.6e9 hits.
-      --> I think I will go with entry, as that also relates to "entry in a journal/log".
-
-     Subentries attribute is a list of dicts, keyed alphabetically ('a','b',...) which each include:
-     - subentry_id, generated string e.g. 'RS123a'
-     - subentry_idx, index e.g. 'a'.
-     - subentry_titledesc,
-     - dirname, directory relative to the main experiment
-     - dirname should match expitem_title_desc
-     Note: The properties are related via config items exp_subentry_dir_fmt and exp_subentry_regex.
-           The dir can be generated using exp_subentry_dir_fmt.format(...),
-           while reversedly the items can be generated from the dirname using exp_subentry_regex,
-           in much the same way as is done with the experiment (series).
-
-     Changes:
-      - Trying to eliminate all the 'series' annotations and other excess;
-        - exp_series_index --> exp_index
-        - exp_series_shortdesc --> exp_title_desc
-        - expid_str --> expid
-      - Settled on term 'subentry' to designate 'RS123a'-like items.
-
-      Considerations:
-      - I recently implemented HierarchicalConfigHandler, which loads all '.labfluence.yml' files in the experiment tree.
-        It seems counter-productive to also implement loading/saving of yaml files here
+    See module docstring for further info.
     """
-
 
     def __init__(self, localdir=None, props=None, server=None, manager=None, confighandler=None, wikipage=None, regex_match=None,
                  doparseLocaldirSubentries=True, subentry_regex_prog=None, autoattachwikipage=True, savepropsonchange=True, makelocaldir=False, makewikipage=False):
@@ -166,7 +167,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             self.Localdirpath, self.Foldername, self.Parentdirpath = None, None, None
 
         ### Experiment properties/config related
-        ### Manual handling is deprecated; Props are now a property that deals soly with confighandler."""
+        ### Manual handling is deprecated; Props are now a property that deals soly with confighandler.
         if props:
             self.Props.update(props)
             logger.debug("Experiment %s updated with props argument, is now %s", self, self.Props)
@@ -300,9 +301,9 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         Server evaluates to False if it is not connected, so check specifically against None.
         """
         if self._server is not None:
-            return
+            return self._server
         else:
-            return self._server or self.Confighandler.Singletons.get('server')
+            return self.Confighandler.Singletons.get('server')
     @property
     def Manager(self):
         """
