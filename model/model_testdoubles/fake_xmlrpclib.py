@@ -38,6 +38,14 @@
 """
 This module provides a fake xmlrpclib  which can be used for testing (and offline access, I guess).
 
+NOTE: To make a fake server, you can use either of the following:
+a) Use fake_server.FakeConfluenceServer in place of a normal ConfluenceXmlRpcServer(proxy) object.
+b) Replace the server.RpcServer attribute of a normal ConfluenceXmlRpcServerProxy server
+    with fake_xmlrpclib.FakeXmlRpcServerProxy below (which uses FakeConfluence2Api)
+c) Replace the server.RpcServer.confluence2 attribute of a normal ConfluenceXmlRpcServerProxy server
+    with a FakeConfluence2Api object.
+
+The latter alternative is used for testing the ConfluenceXmlRpcServerProxy class.
 """
 
 
@@ -57,6 +65,8 @@ class FakeXmlRpcServerProxy(object):
         self.Uri = uri
         self.confluence2 = FakeConfluence2Api()
 
+    def _resetworkdata(self):
+        self.confluence2._resetworkdata()
 
 
 ServerProxy = Server = FakeServerProxy = FakeXmlRpcServerProxy

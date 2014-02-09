@@ -14,11 +14,12 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=C0103,C0301,R0201,R0904,W0142
 """
 Server module. Provides classes to access e.g. a Confluence server through xmlrpc.
 """
 
-from __future__ import print_function
+from __future__ import print_function, division
 import xmlrpclib
 import socket
 #import os.path
@@ -158,6 +159,7 @@ class AbstractServer(object):
         return params
 
     def configs_iterator(self):
+        """ Returns an iterator over the various config sources. """
         yield ('runtime params', self._serverparams)
         if self.Confighandler:
             yield ('config params', self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
@@ -165,6 +167,7 @@ class AbstractServer(object):
         yield ('hardcoded defaults', self._defaultparams)
 
     def getServerParam(self, key, default=None):
+        """ Returns a particular configuration parameter key. """
         configs = self.configs_iterator()
         for desc, cfg in configs:
             if cfg and key in cfg: # runtime-params
@@ -175,21 +178,27 @@ class AbstractServer(object):
 
     @property
     def RaiseTimeoutErrors(self):
+        """ Returns whether to raise timeout errors by querying the server config. """
         return self.getServerParam('raisetimeouterrors', True)
     @property
     def Hostname(self):
+        """ Returns the server's hostname by querying the server config. """
         return self.getServerParam('hostname')
     @property
     def Port(self):
+        """ Returns the server's port by querying the server config. """
         return self.getServerParam('port')
     @property
     def Protocol(self):
+        """ Returns the protocol by which to connect to the server (http/https) by querying the server config. """
         return self.getServerParam('protocol')
     @property
     def UrlPostfix(self):
+        """ Returns the server's url postfix (e.g. /rpc/xmlrpc/ by querying the server config. """
         return self.getServerParam('urlpostfix') or ""
     @property
     def BaseUrl(self):
+        """ Returns the server's base url by querying the server config. """
         serverparams = self.Serverparams
         if 'baseurl' in serverparams:
             return serverparams['baseurl']
@@ -203,6 +212,7 @@ class AbstractServer(object):
         return url
     @property
     def AppUrl(self):
+        """ Returns the server's application url by querying the server config. """
         params = self.Serverparams
         url = params.get('appurl', None)
         if url:
@@ -216,7 +226,8 @@ class AbstractServer(object):
             return None
 
     @cached_property(ttl=30)
-    def CachedConnectStatus(self, ):
+    def CachedConnectStatus(self):
+        """ Cached connection status, returning result of self.test_connection. """
         return self.test_connection()
 
 
@@ -231,6 +242,7 @@ class AbstractServer(object):
         return False
 
     def setok(self):
+        """ Invoke to indicate that the serverproxy is properly connected. """
         if not self._connectionok:
             self._connectionok = True
             if self.Confighandler:
@@ -238,6 +250,7 @@ class AbstractServer(object):
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
         logger.debug( "Server: _connectionok is now: %s", self._connectionok)
     def notok(self):
+        """ Invoke to indicate that the serverproxy NOT is properly connected. """
         logger.debug("server.notok() invoked, earlier value of self._connectionok is: %s", self._connectionok)
         if self._connectionok is not False:
             self._connectionok = False
@@ -312,7 +325,7 @@ class AbstractServer(object):
                     self.notok()
                     logger.debug("%s: Autologin disabled. self._connectionok set to '%s'", self.__class__.__name__, self._connectionok)
             elif cause == 'TooManyFailedLogins':
-                self.display_message("Server ERROR, too many failed logins. Determined from exception: %s", e)
+                self.display_message("Server ERROR, too many failed logins. Determined from exception: %r" % e)
                 logger.warning("%s: Server ERROR, too many failed logins. Determined from exception: %s", self.__class__.__name__, e)
             elif cause == 'PageNotAvailable':
                 logger.info("PageNotAvailable: %s called with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
@@ -465,7 +478,7 @@ class AbstractServer(object):
 
 
 
-class ConfluenceXmlRpcServer(AbstractServer):
+class ConfluenceXmlRpcServerProxy(AbstractServer):
     """
 
 Note regarding long integer vs string for pageIds etc (from the docs):
@@ -502,10 +515,10 @@ to prevent the login token from expiring.
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
         #self.UI = ui # Is now a property that goes through confighandler.
         appurl = self.AppUrl
-        logger.info("%s - Making server with url: %s", self.__class__.__name__, appurl)
         if not appurl:
-            logger.warning("WARNING: Server's AppUrl is '%s'", appurl)
+            logger.warning("WARNING: Server's AppUrl is '%s', ABORTING init!", appurl)
             return None
+        logger.info("%s - Making server with url: %s", self.__class__.__name__, appurl)
         self.RpcServer = xmlrpclib.ServerProxy(appurl, use_datetime=True) # Note: xmlrpclib line 1613: Server = ServerProxy # for compatability.
         if self.AutologinEnabled:
             self.autologin()
@@ -650,10 +663,8 @@ to prevent the login token from expiring.
         if retry < 0:
             logger.debug("retry (%s) is less than zero, aborting...", retry)
             return
-        if username is None:
-            username = self.Username
-        if password is None:
-            password = self.Password
+        username = username or self.Username
+        password = password or self.Password
         if prompt is True:
             logger.debug("Calling login prompt...")
             username, password = self.promptForUserPass(username=username, msg=msg)
@@ -672,6 +683,8 @@ to prevent the login token from expiring.
             if doset:
                 logger.debug("Saving login token as server attribute (in memory).")
                 self.Logintoken = token
+                # If a succesful login is completed, set serverstatus to ok:
+                # This is not done by self._login, which does not use execute.
                 self.setok()
             if dopersist:
                 logger.debug("Persisting login token to config file.")
@@ -700,11 +713,8 @@ to prevent the login token from expiring.
             if prompt and int(retry)>0:
                 token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=err_msg)
             else:
-                logger.info(err_msg)
                 logger.info("server.login failed completely, prompt is '%s' and retry is %s.", prompt, retry)
                 return None
-        # If a succesful login is completed, set serverstatus to ok:
-        # This is not done by self._login, which does not use execute.
         return token
 
 
@@ -849,19 +859,19 @@ to prevent the login token from expiring.
         return self.execute(self.RpcServer.confluence2.getUser, username)
 
     def createUser(self, newuserinfo, newuserpasswd):
+        """ Creates a new user on the server using provided userinfo and password. """
         return self.execute(self.RpcServer.confluence2.addUser, newuserinfo, newuserpasswd)
 
     def getGroups(self):
-        # returns a list of all groups. Requires admin priviledges.
+        """ Returns a list of all groups. Requires admin priviledges. """
         return self.execute(self.RpcServer.confluence2.getGroups)
 
     def getGroup(self, group):
-        # returns a single group. Requires admin priviledges.
+        """ Returns a single group. Requires admin priviledges. """
         return self.execute(self.RpcServer.confluence2.getSpaces, group)
 
-
     def getActiveUsers(self, viewAll):
-        # returns a list of all active users.
+        """ Returns a list of all active users. """
         return self.execute(self.RpcServer.confluence2.getActiveUsers, viewAll)
 
 
@@ -921,7 +931,7 @@ current       Boolean whether the page is current and not deleted
         elif spaceKey and pageTitle:
             return self.execute(self.RpcServer.confluence2.getPage, spaceKey, pageTitle)
         else:
-            raise("Must specify either pageId or spaceKey/pageTitle.")
+            raise ValueError("Must specify either pageId or spaceKey/pageTitle.")
 
     def removePage(self, pageId):
         """
@@ -1017,11 +1027,11 @@ current       Boolean whether the page is current and not deleted
         return self.execute(self.RpcServer.confluence2.removeComment, commentId)
 
     def addComment(self, comment_struct):
-        # adds a comment to the page.
+        """ Adds a comment to the page."""
         return self.execute(self.RpcServer.confluence2.addComment, comment_struct)
 
     def editComment(self, comment_struct):
-        # Updates an existing comment on the page.
+        """ Updates an existing comment on the page. """
         return self.execute(self.RpcServer.confluence2.editComment, comment_struct)
 
 
@@ -1104,6 +1114,7 @@ Note: the return value can be null, if an error that did not throw an exception 
 
 
     def convertWikiToStorageFormat(self, wikitext):
+        """ Input wiki format, returns xhtml. """
         return self.execute(self.RpcServer.confluence2.convertWikiToStorageFormat, wikitext)
 
 
@@ -1120,11 +1131,11 @@ Note: the return value can be null, if an error that did not throw an exception 
         if pageId:
             pageId = str(pageId)
             if content:
-                return self.execute(self.RpcServer.confluence2.renderContent, pageId=pageId, content=content)
+                return self.execute(self.RpcServer.confluence2.renderContent, pageId, content)
             else:
-                return self.execute(self.RpcServer.confluence2.renderContent, pageId=pageId)
+                return self.execute(self.RpcServer.confluence2.renderContent, pageId)
         elif spaceKey and content:
-            return self.execute(self.RpcServer.confluence2.renderContent, spaceKey=pageId, content=content)
+            return self.execute(self.RpcServer.confluence2.renderContent, spaceKey, content)
         logger.warning("server.renderContent() :: Error, must pass either pageId (with optional content) or spaceKey and content.")
         return None
 
@@ -1164,8 +1175,145 @@ contributor:
             return self.execute(self.RpcServer.confluence2.search, query, maxResults)
 
 
+    def searchForWikiPage(self, spaceKey, pageTitle, required=None, optional=None, searchlevel=1):
+        """
+        Will only return a single match. Increasing <extended> will produce matches of decreasing
+        confidence.
+        Arguments:
+            <extended> is used to control how much search you want to do.
+            <required> dict of lists used to filter results. Any matching result must pass all criteria,
+                so if required={'title': ('RS123',), 'creator': ('scholer',)}
+                then the page MUST have RS123 in the title and 'scholer' as creator.
+            <optional> dict of optional elements. Will contribute to the final score.
+        Note that required elements can be either a string (matched by if elem in field)
+        or a compiled regex.
+        Optional elements are scored by len(elem)/len(field)/sqrt(<number of elem for field>);
+        a matching regex scores 1/sqrt(<number of elem for field>).
+        Search strategy:
+        1) Find page on wiki in space <spaceKey> with pageTitle matching pagetitle (exactly).
+        (if extended >= 1:)
+        2) Find pages in space with user as contributor and expid in title.
+           # If multiple results are returned, filter pages by parentId matching wiki_exp_root_pageId? No, would be found by #2.
+        4) Find pages in all spaces with user as contributor and ...?
+        5) Find pages in user's space without user as contributor and expid in title?
+        """
+
+        # Simple search by matching pagetitle and spacekey:
+        logger.info("Performing exact spacekey+pagetitle search on server...")
+        try:
+            # First try to find a wiki page with an exactly matching pageTitle.
+            pagestruct = self.getPage(spaceKey=spaceKey, pageTitle=pageTitle)
+            logger.debug("self.getPage returned pagestruct of type '%s'", type(pagestruct))
+            if pagestruct:
+                logger.info("Exact match in space '%s' found for page '%s'", spaceKey, pageTitle)
+                return pagestruct
+            else:
+                logger.debug(" pagestruct is empty: '%s'", pagestruct)
+        except xmlrpclib.Fault:
+            # Although execute() catches xmlrpclib.Fault exceptions, it will currently re-raise
+            # the exception if it is caused by a PageNotAvailable error.
+            logger.info("xmlrpclib.Fault raised, indicating that no exact match found for '%s' in space '%s', searching by query...", pageTitle, spaceKey)
+
+        user = self.Confighandler.get('wiki_username') or self.Confighandler.get('username')
+        def search_argument_generator(spaceKey, pageTitle, optional, required):
+            """ Yields a range of search arguments for search_filter_rank() """
+            params = dict(spaceKey=spaceKey, contributor=user, type='page')
+            searchlevel = 1
+            if optional:
+                if 'title' in optional:
+                    optional['title'] = list(optional['title']) + pageTitle.split()
+                else:
+                    optional['title'] = pageTitle.split()
+            else:
+                optional = dict(title=pageTitle.split())
+            yield (pageTitle, params, required, optional, searchlevel)
+            params = dict(contributor=user, type='page')
+            yield (pageTitle, params, required, optional, searchlevel)
+            params = dict(spaceKey=spaceKey, type='page')
+            yield (pageTitle, params, required, optional, searchlevel)
+
+        # Perform various searches on the wiki:
+        for query, params, required, optional, arglevel in search_argument_generator(spaceKey, pageTitle, optional, required):
+            if arglevel > searchlevel:
+                return None
+            logger.info("Performing slightly more extended search_filter_rank with query=%s, params=%s, required=%s, optional=%s",
+                        pageTitle, params, required, optional)
+            results = self.search_filter_rank(query, parameters=params, required=required, optional=optional)
+            logger.debug("len(results)=%s returned from search_filter_rank()", len(results))
+            if len(results) == 1:
+                pagestruct = results[0]
+                logger.info("pagestruct keys: %s", pagestruct.keys() )
+                # pagestruct keys returned for a server search is: 'id', 'title', 'type', 'url', 'excerpt'
+                logger.info("Experiment.searchForWikiPageWithQuery() :: A single hit found : '%s: %s: %s'",
+                              pagestruct['space'], pagestruct['id'], pagestruct['title'] )
+                return pagestruct
+            elif len(results) > 1:
+                logger.info("Many hits found, but only allowed to return a single match: %s",
+                [ u"{} ({})".format(page['title'], page['id']) for page in results ] )
+                return False
+        logger.debug("Unable to locate wiki page. Returning None...")
+        return None
 
 
+    def search_filter_rank(self, query, parameters, required=None, optional=None):
+        """
+        Will search on server using query and parameters, then filter the results
+        by required criteria and finally rank the results by optional criteria.
+        Arguments:
+            <query>     : string
+            <parameters>: dict with strings
+            <required>  : dict with tuples
+            <optional>  : dict with tuples
+
+        Search for wiki page using query <query> and parameters <parameters>.
+        These are used to obtain a list of results from the server.
+        The <required> argument is then used to filter the returned list.
+        The list is then scored by entries in <optional>.
+
+        # UNFORTUNATELY, server results only contains: title, url, excerpt, type, id.
+
+        Note that tuple elements in <required> and <optional> can be either strings
+        or compiled regex programs.
+        Note that this method may return a list with 0, 1 or more elements.
+        """
+        # pylint: disable-msg=C0111,W0613
+        def evaluate_criteria(criteria, value):
+            if isinstance(criteria, basestring):
+                if criteria in value:
+                    return len(criteria)/len(value)
+                else:
+                    #logger.debug("Criteria '%s' not in value '%s'", criteria, value)
+                    return 0
+            else:
+                # compiled regex prog:
+                return 1 if criteria.match(value) else 0
+        if not optional:
+            def score_result(result):
+                return 0
+        else:
+            def score_result(result):
+                return sum(evaluate_criteria(criteria, result[key])
+                                for key, criterias in optional.items()
+                                    for criteria in criterias)
+        if not required:
+            def result_passes_required(result):
+                return True
+        else:
+            logger.debug("Required filter: %s", required)
+            def result_passes_required(result):
+                return all(evaluate_criteria(criteria, result[key])
+                                for key, criterias in required.items()
+                                    for criteria in criterias)
+
+        results = self.search(query, 30, parameters)
+        logger.debug("Query and parameters returned %s results, filtering and ranking...", len(results))
+        if results:
+            if required:
+                if any(isinstance(value, basestring) for value in required.values()):
+                    logger.warning("Basestrings found directly in required dict and not as list/tuples as they should be! required = %s", required)
+                results = [page for page in results if result_passes_required(page) ]
+            return sorted(results, key=score_result, reverse=True)
+        return results
 
 
 
@@ -1193,6 +1341,8 @@ contributor:
         page = self.execute(self.RpcServer.confluence2.storePage, page_struct)
         return page
 
+
+ConfluenceXmlRpcServer = ConfluenceXmlRpcServerProxy
 
 # init: (host=None, url=None, port=None, username=None, password=None, logintoken=None, autologin=True, protocol=None, urlpostfix=None)
 

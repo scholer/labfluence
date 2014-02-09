@@ -37,6 +37,15 @@
 """
 This module provides a fake confluence server which can be used for testing (and offline access, I guess).
 
+This alternative is ubiqutously used as a server mock.
+
+In general, to mock a server, use either of the following alternatives:
+a) Use fake_server.FakeConfluenceServer in place of a normal ConfluenceXmlRpcServer(proxy) object.
+b) Replace the server.RpcServer attribute of a normal ConfluenceXmlRpcServerProxy server
+    with fake_xmlrpclib.FakeXmlRpcServerProxy.
+c) Replace the server.RpcServer.confluence2 attribute of a normal ConfluenceXmlRpcServerProxy server
+    with a FakeConfluence2Api object.
+
 """
 
 

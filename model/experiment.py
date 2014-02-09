@@ -1098,7 +1098,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             return None
 
 
-    def attachWikiPage(self, pageId=None, pagestruct=None, dosearch=1):
+    def attachWikiPage(self, pageId=None, pagestruct=None):
         """
         Searches the server for a wiki page using the experiment's metadata,
         if pageid is already stored in the Props, then using that, otherwise
@@ -1114,18 +1114,18 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         if (pageId is None and self._wikipage) or (self._wikipage and self._wikipage.PageId == pageId):
             logger.warning("attachWikiPage invoked, but no (new) pageId was provided, and existing wikipage already attached, aborting. If a wrong pageId is registrered, you need to remove it manually.")
             return
-        if not pageId and self.Server and dosearch:
-            logger.info("(exp with expid=%s), pageId is boolean false, invoking self.searchForWikiPage(%s)...", self.Expid, dosearch)
-            pagestruct = self.searchForWikiPage(dosearch)
+        if not pageId:
+            logger.info("(exp with expid=%s), pageId is boolean false, invoking self.searchForWikiPage()...", self.Expid)
+            pagestruct = self.searchForWikiPage()
             if pagestruct:
                 logger.debug("searchForWikiPage returned a pagestruct with id: %s", pagestruct['id'])
                 self.Props['wiki_pageId'] = pageId = pagestruct['id']
                 if self.SavePropsOnChange:
                     self.saveProps()
-        logger.debug("Params are: pageId: %s  server: %s   dosearch: %s   pagestruct: %s", pageId, self.Server, dosearch, pagestruct)
+        logger.debug("Params are: pageId: %s  server: %s   pagestruct: %s", pageId, self.Server, pagestruct)
         # Does it make sense to create a wikiPage without pageId? No. This check should take care of that:
         if not pageId:
-            logger.info("Notice - no pageId found for expid %s (dosearch=%s, self.Server=%s)...", self.Props.get('expid'), dosearch, self.Server)
+            logger.info("Notice - no pageId found for expid %s (self.Server=%s)...", self.Props.get('expid'), self.Server)
             return pagestruct
         self.WikiPage = wikipage = WikiPage(pageId, self.Server, pagestruct)
         # Update self.Props for offline access to the title of the wiki page:
@@ -1133,10 +1133,10 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
         return wikipage
 
-
-    def searchForWikiPage(self, extended=0):
+    def searchForWikiPage(self):
         """
-        extended is used to control how much search you want to do.
+        # TODO: These wiki page search methods should be moved to either the server module or the experimentmanager module.
+        Argument <extended> is used to control how much search you want to do.
         Search strategy:
         1) Find page on wiki in space with pageTitle matching self.Foldername.
         2) Query manager for CURRENT wiki experiment pages and see if there is one that has matching expid.
@@ -1149,26 +1149,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         would make it a lot easier for users with wikipages scattered in several spaces...?
         Also, for finding e.g. archived wikipages...
         """
-        callinfo = logger.findCaller()
-        method_repr = "{}.{}".format(self.__class__.__name__, callinfo[2])
-        logger.info("%s :: Searching on server...", method_repr)
-        spaceKey = self.Confighandler.get('wiki_exp_root_spaceKey')
-        pageTitle = self.Foldername or self.getFoldernameFromFmtAndProps() # No reason to make this more complicated...
-        user = self.Confighandler.get('wiki_username') or self.Confighandler.get('username')
-        try:
-            # First try to find a wiki page with an exactly matching pageTitle.
-            pagestruct = self.Server.getPage(spaceKey=spaceKey, pageTitle=pageTitle)
-            logger.debug("%s :: self.Server.getPage returned pagestruct of type '%s'", method_repr, type(pagestruct))
-            if pagestruct:
-                logger.info("%s :: Exact match in space '%s' found for page '%s'", method_repr, spaceKey, pageTitle)
-                return pagestruct
-            else:
-                logger.debug("%s :: pagestruct is empty: '%s'", method_repr, pagestruct)
-        except xmlrpclib.Fault:
-            # perhaps do some searching...?
-            # Edit, server.execute might catch xmlrpclib.Fault exceptions;
-            logger.info("%s :: xmlrpclib.Fault raised, indicating that no exact match found for '%s' in space '%s', searching by query...", method_repr, pageTitle, spaceKey)
-        # Query manager for current wiki pages:
+        # Start by querying manager's cache:
         expid = self.Expid  # uses self.Props
         if self.Manager:
             currentwikipagesbyexpid = self.Manager.CurrentWikiExperimentsPagestructsByExpid # cached_property
@@ -1176,78 +1157,21 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
                 return currentwikipagesbyexpid[expid]
         else:
             logger.warning("Experiment %s has no ExperimentManager.", expid)
-        # Perform various searches on the wiki:
-        if extended > 0:
-            params = dict(spaceKey=spaceKey, contributor=user)
-            params['type'] = 'page'
-            logger.info("%s :: performing slightly more extended search with intitle='%s' and params: %s", method_repr, expid, params)
-            result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
-            if result:
-                return result
-            elif result is 0 and extended > 1:
-                # searchForWikiPageWithQuery found zero matching pages, try to search all spaces:
-                params2 = params
-                params2.pop('spaceKey')
-                logger.debug("%s :: performing even more extended search with intitle='%s' and params: %s", method_repr, expid, params)
-                result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
-                if result:
-                    logger.debug("%s :: a single hit found of type '%s'", method_repr, result)
-                    return result
-                # and again, now excluding user as contributor (perhaps someone else wrote the entry...)
-                params2 = params
-                params2.pop('contributor')
-                logger.debug("%s :: performing next extended search with intitle='%s' and params: %s", method_repr, expid, params)
-                result = self.searchForWikiPageWithQuery(expid, parameters=params, intitle=expid)
-                if result:
-                    logger.debug("%s :: a single hit found of type '%s'", method_repr, result)
-                    return result
-            else:
-                # Too many results? Perhaps two or something?
-                logger.debug("Experiment.searchForWikiPage() :: Unable to find unique page result, aborting...")
-                return None
-        logger.debug("%s :: Unable to locate wiki page. Returning None...", method_repr)
 
-
-    def searchForWikiPageWithQuery(self, query, parameters, intitle=None, title_regex=None, content_regex=None, singleMatchOnly=True):
-        """
-        Unless singleMatchOnly is set to False, this method will return
-        no more than a single wikiPage, or fail with one of the following:
-        - 0 = Zero results found.
-        - False = More than one result found.
-
-        ## Todo: allow for 'required' and 'optional' arguments.
-        ## TODO: Enable title_regex search (must be done on client side)
-        ## TODO: Enable content regex search (must also be done on client side)
-        """
+        # Query server:
         server = self.Server
         if not server:
-            # Server might be None or a server instance with attribute _connectionok value of either
-            # of 'None' (not tested) or False (last connection failed) or True (last connection succeeded).
-            logger.info("searchForWikiPageWithQuery() > Server is None or not connected, aborting.")
-            return
-        results = server.search(query, 10, parameters)
-        # Unfortunately, server results only contains: title, url, excerpt, type, id.
-        if intitle:
-            results = [page for page in results if intitle in page['title'] ] # filter(lambda page: intitle in page['title'], results)
-        #if len(results) > 1:
-        #    logger.debug("Results before filtering by parentId: %s", len(results))
-        #    results = filter(lambda page: page['parentId']==preferparentid, results)
-        #    logger.debug("Results after filtering by parentId: %s", len(results))
-        if not singleMatchOnly:
-            return results
-        if len(results) > 1:
-            logger.info("Experiment.searchForWikiPageWithQuery() :: Many hits found, but only allowed to return a single match: %s",
-            [ u"{} ({})".format(page['title'], page['id']) for page in results ] )
-            return False
-        if len(results) < 1:
-            return 0
-        if len(results) == 1:
-            pagestruct = results[0]
-            logger.info("pagestruct keys: %s", pagestruct.keys() )
-            # pagestruct keys returned for a server search is: 'id', 'title', 'type', 'url', 'excerpt'
-            logger.info("Experiment.searchForWikiPageWithQuery() :: A single hit found : '%s: %s: %s'",
-                          pagestruct['space'], pagestruct['id'], pagestruct['title'] )
-            return pagestruct
+            logger.info("self.Server is: %s, ABORTING.", server)
+            return None
+        callinfo = logger.findCaller()
+        method_repr = "{}.{}".format(self.__class__.__name__, callinfo[2])
+        logger.info("%s :: Searching on server...", method_repr)
+        spaceKey = self.Confighandler.get('wiki_exp_root_spaceKey')
+        pageTitle = self.Foldername or self.getFoldernameFromFmtAndProps() # No reason to make this more complicated...
+        user = self.Confighandler.get('wiki_username') or self.Confighandler.get('username')
+        optional = {'creator': (user, ), 'modifier': (user, ) }
+        required = {'title': (expid, ) }
+        pagestruct = server.searchForWikiPage(spaceKey=spaceKey, pageTitle=pageTitle)
 
 
     def makeWikiPage(self, pagefactory=None):
@@ -1326,6 +1250,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
     # edit: cached_property makes the method a property and can no longer be used as a method.
     # I have moved the caching to the Attachments property instead...
     def listAttachments(self):
+        """ Returns a list of attachments from the associated wikipage. """
         return self.Filemanager.getAttachments()
 
     def getAttachmentList(self, fn_pattern=None, fn_is_regex=False, **filterdict):
@@ -1397,3 +1322,18 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             return self.getExpRepr()
         else:
             return default
+
+
+
+if __name__ == "__main__":
+    logfmt = "%(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s"
+    logging.basicConfig(level=logging.DEBUG, format=logfmt)
+    from confighandler import ExpConfigHandler
+    ch = ExpConfigHandler(pathscheme='test1')
+    from server import ConfluenceXmlRpcServer
+    serverparams = {'baseurl': 'http://10.14.40.245:8090', 'urlpostfix': '/rpc/xmlrpc'}
+    proxy = ConfluenceXmlRpcServer(confighandler=ch, serverparams=serverparams)
+    pagestruct1 = proxy.getPage(spaceKey='~scholer', pageTitle='RS102 Strep-col11 TR annealed with biotin')
+    print "pagestruct1: %s" % pagestruct1
+    pagestruct2 = proxy.getPage(spaceKey='~scholer', pageTitle='RS1022 Strep-col11 TR annealed with biotin')
+    print "pagestruct2: %s" % pagestruct2

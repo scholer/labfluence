@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,R0904,R0913,W0221,W0142
 # pylint: disable-msg=C0111,W0613
 # messages:
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
@@ -37,6 +37,21 @@
 """
 This module provides a fake confluence server which can be used for testing (and offline access, I guess).
 
+This alternative is used for testing the ConfluenceXmlRpcServerProxy class.
+
+In general, to mock a server, use either of the following alternatives:
+a) Use fake_server.FakeConfluenceServer in place of a normal ConfluenceXmlRpcServer(proxy) object.
+b) Replace the server.RpcServer attribute of a normal ConfluenceXmlRpcServerProxy server
+    with fake_xmlrpclib.FakeXmlRpcServerProxy.
+c) Replace the server.RpcServer.confluence2 attribute of a normal ConfluenceXmlRpcServerProxy server
+    with a FakeConfluence2Api object.
+
+In otherwords, a fake object can be inserted any place in the chain:
+
+Normal use:     Server          ---->   xmlrpclib.ServerProxy   ---->  (confluence2 xmlrpc API) ---->   (Java server)
+
+Replace with:   fake_server             fake_xmlrpclib                  fake_confluence2api
+                .FakeConfluenceServer   .FakeXmlRpcServerProxy          .FakeConfluence2Api
 """
 
 
@@ -52,12 +67,17 @@ class FakeConfluence2Api(FakeConfluenceServer):
     """
     A fake confluence API which can be used for testing.
     Can also work as a mimic for the persistance layer of a faked confluence RPC API.
+
+    The methods here are almost identical to those in fake_server. However,
     I had to subclass this from the FakeConfluenceServer
     because the API generally takes a token as first argument.
     The server(proxy) does not do that.
     So, generally, I need to make new 'API' methods for all methods that
     the real ConfluenceXmlRpcServer routes through execute().
     I.e. all, except login().
+
+    # TODO: Investigate whether the you can use a class decorator on fake_server.FakeConfluenceServer
+            to inject the 'token' parameter.
 
     One other thing is the login() method:
     - The API login() is quite different from server.login()
@@ -149,7 +169,7 @@ Attempt to log in user '%s' failed - incorrect username/password combination." %
         #return filter(lambda page: page['space']==spaceKey, self._workdata.get('pages', dict()).values() )
         return [ page for page in self._workdata.get('pages', dict()).values() if page['space'] == spaceKey ]
 
-    def getPage(self, token, pageId=None, spaceKey=None, pageTitle=None):
+    def getPage(self, token, pageId_or_spaceKey, pageTitle=None):
         """
         Wrapper for xmlrpc getPage method.
         Takes pageId as long (not int but string!).
@@ -157,16 +177,40 @@ Attempt to log in user '%s' failed - incorrect username/password combination." %
         be transmitted as strings, not native ints.
         If spaceKey and pageTitle are given, but no page found, then this method
         will raise xmlrpclib.Fault, just like ConfluenceXmlRpcServer.
+
+        Emulating API function signatures: (as positional arguments only!)
+            Page getPage(String token, Long pageId)
+            Page getPage(String token, String spaceKey, String pageTitle)
+
         """
+        if pageTitle:
+            spaceKey = pageId_or_spaceKey
+            pageId = None
+        else:
+            pageId = pageId_or_spaceKey
+            spaceKey = None
+        logger.debug("Trying to find page, pageId='%s', spaceKey='%s', pageTitle='%s'",
+                     pageId, spaceKey, pageTitle)
         if pageId:
             pageId = str(pageId) # getPage method takes a long int.
-            return self._workdata.get('pages', dict()).get(pageId)
+            try:
+                return self._workdata.get('pages', dict())[pageId]
+            except KeyError:
+                logger.debug("No page with pageId '%s'", pageId)
         elif spaceKey and pageTitle:
-            for page in self._workdata.get('pages', dict()).values():
-                if page['space'] == spaceKey and page['title'] == pageTitle:
-                    return page
-        else:
-            raise Fault(0, "Must specify either pageId or spaceKey/pageTitle.")
+            logger.debug("Trying to find a page matching for spaceKey: '%s' and pageTitle '%s'",
+                         spaceKey, pageTitle)
+            pages = (page for page in self._workdata.get('pages', dict()).values()
+                     if page['space'] == spaceKey and page['title'] == pageTitle)
+            try:
+                return next(pages)
+            except StopIteration:
+                pass
+            #for page in self._workdata.get('pages', dict()).values():
+            #    if page['space'] == spaceKey and page['title'] == pageTitle:
+            #        return page
+        logger.debug("No page found, raising xmlrpclib.Fault!")
+        raise Fault(0, "Must specify either pageId or spaceKey/pageTitle.")
 
     def removePage(self, token, pageId):
         """
@@ -407,7 +451,7 @@ It is likely that the page has been updated on the server since it was last retr
 
 
 
-    def search(self, token, query, maxResults, parameters=None):
+    def search(self, token, query, *args):
         """
 Parameters for Limiting Search Results
 spaceKey:   search a single space, Values: (any valid space key), Default: Search all spaces
@@ -416,25 +460,54 @@ type:       Limit the content types of the items to be returned in the search re
 modified:   Search recently modified content, Values: TODAY, YESTERDAY, LASTWEEK, LASTMONTH, Default: No limit
 contributor:The original creator or any editor of Confluence content. For mail, this is the person who imported the mail, not the person who sent the email message.
             * values: Username of a Confluence user, default: Results are not filtered by contributor
-        """
+
+        Note that the xmlrpc API does not allow keyword arguments, hence the use of *args
+        in place of parameters=None, maxResults=None
+        # Important note: The call profile looks as:
+        # Vector<SearchResult> search(String token, String query, int maxResults)
+        # Vector<SearchResult> search(String token, String query, Map parameters, int maxResults)
+        # Thus, the xmlrpc api makes use of java overloading. It is hard to achieve the same effect.
         #parameterToPageKeyMap = dict(spaceKey='space', ')
+        """
+        if len(args) == 1:
+            parameters, maxResults = None, args[0]
+        else:
+            parameters, maxResults = args
+        if parameters:
+            if 'type' in parameters:
+                logger.debug("'type' included as parameter in search, but FakeConfluenceServer only supports searching pages, ignoring...")
+            if 'modified' in parameters:
+                logger.debug("'modified' included as parameter in search, but this is not supported by FakeConfluenceServer, ignoring...")
         def includepage(page):
-            for k, v in parameters:
-                if k == 'spaceKey' and page['space'] != v:
+            if parameters:
+                for k, v in parameters.items():
+                    if k == 'spaceKey' and page['space'] != v:
+                        return False
+                    elif k == 'contributor' and v not in page['contributors']:
+                        return False
+                    elif k in ('type', 'modified'):
+                        pass
+            if query:
+                if not (query.lower() in page['excerpt'].lower() or query.lower() in page['title'].lower()):
                     return False
-                elif k == 'contributor' and v not in (page['creator'], page['modifier']):
-                    return False
-                elif k == 'type':
-                    logger.debug("'type' included as parameter in search, but FakeConfluenceServer only supports searching pages, ignoring...")
-                elif k == 'modified':
-                    logger.debug("'modified' included as parameter in search, but this is not supported by FakeConfluenceServer, ignoring...")
-            if query and not query.lower() in page['content'].lower():
-                return False
             return True
+        def makesearchresult(page):
+            """
+            A search result includes even less than a page summary, only:
+            title, url, excerpt, type, id.
+            """
+            return {'space' : page['space'],
+                    'id'    : page['id'],
+                    'title' : page['title'],
+                    'url'   : page['url'],
+                    'type'  : 'page',
+                    'excerpt': page['content'],
+                    'contributors': [page['creator'], page['modifier']],
+                    }
         #pages = filter(includepage, self._workdata.get('pages', dict()).values())
         # using list comprehension to please the BDFL (and pylint):
-        pages = [ page for page in self._workdata.get('pages', dict()).values()
-                        if includepage(page) ]
+        searchresults = (makesearchresult(page) for page in self._workdata.get('pages', dict()).values())
+        pages = [ result for result in searchresults if includepage(result) ][:maxResults]
         return pages
 
 

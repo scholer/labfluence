@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201,W0141
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201,W0141
 """
 experiment_manager module with ExperimentManager class,
 handles logic related to managing experiment objects.
@@ -477,6 +477,10 @@ class ExperimentManager(object):
         Returns a list of wiki pages directly below the page defined by config entry 'wiki_exp_root_pageId'.
         (as a list of PageSummary structs)
         PageSummary structs has keys: id, space, parentId, title, url, permissions.
+        Thus, the returned pagestructs does not have any 'content' field.
+        It should not be a problem to create a wikipage with a pagesummary dict, though,
+        since the wikipage object should try to re-load the full pagestruct if a content
+        field is not available.
         """
         if not self.Server:
             if self.Server is None:
@@ -528,7 +532,6 @@ class ExperimentManager(object):
                                 date=gd.get('date', gd.get('date1', gd.get('date2', None)))))
                     for page, gd in pagegds)
 
-
     def getCurrentWikiExperiments(self, ret='pagestruct'):
         """
         NOTICE: Implementation not final.
@@ -538,15 +541,19 @@ class ExperimentManager(object):
                     instantiating new experiment objects.
         store    :  Not implemented.
         ret      :  what kind of objects to return in the list.
-        'expriment-object'
-        'pagestruct'
-        'regex-match'
-        'groupdict'
-        'expid'
-        'tuple'
-        'display-tuple'     : (<display>, <identifier>, <full object>) tuples.
-        'pagestruct-by-expid': Returns dict with {expid: page} entries.
-
+            'expriment-object'
+            'pagestruct'
+            'regex-match'
+            'groupdict'
+            'expid'
+            'tuple'
+            'display-tuple'     : (<display>, <identifier>, <full object>) tuples.
+            'pagestruct-by-expid': Returns dict with {expid: page} entries.
+        Notes:
+          * Passing ret='experiment-object' might initialize a new/duplicate of experiments.
+            Only use this if you really know what you want. If unsure, it is generally better
+            to properly initialize self.ExperimentsById and update this with experiments
+            from the wiki using self.mergeCurrentWikiExperiments.
         Todo: Implement a cache system, so that repeated calls to this method will not cause
         repeated server queries. Possibly by routing through cached properties...
         """
@@ -557,7 +564,7 @@ class ExperimentManager(object):
         elif ret in ('pagestruct', 'pagestructs'):
             exps =  (tup[0] for tup in self.getCurrentWikiExpsPageMatchTuples())
         elif ret in ('pagestruct-by-expid', 'pagestructs-by-expid'): # the plural 's' is common mistake...
-            exps =  dict( (match.groupdict().get('expid'), page) for page, match in self.getCurrentWikiExpsPageMatchTuples() )
+            exps =  { match.groupdict().get('expid'): page for page, match in self.getCurrentWikiExpsPageMatchTuples() }
         elif ret in ('groupdict', 'groupdicts'):
             # Returns a generator with dicts, containing keys: title, expid, exp_titledesc, date or date1 or date2
             exps =  ( tup[1] for tup in self.getCurrentWikiExpsPageGroupdictTuples() )
@@ -760,3 +767,15 @@ class ExperimentManager(object):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+
+    logfmt = "%(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s"
+    logging.basicConfig(level=logging.DEBUG, format=logfmt)
+    from confighandler import ExpConfigHandler
+    ch = ExpConfigHandler(pathscheme='test1')
+    from server import ConfluenceXmlRpcServer
+    serverparams = {'baseurl': 'http://10.14.40.245:8090', 'urlpostfix': '/rpc/xmlrpc'}
+    proxy = ConfluenceXmlRpcServer(confighandler=ch, serverparams=serverparams)
+
+    exppages = proxy.getChildren('524296')
+    print "Experiment pages:"
+    print exppages

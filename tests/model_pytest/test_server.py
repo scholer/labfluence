@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0111,C0112,W0212,W0621
+# pylint: disable-msg=C0103,C0111,C0112,C0301,W0212,W0621
 """
 
 Most of this is done using the fake-server.
@@ -54,8 +54,8 @@ from model.model_testdoubles.fake_xmlrpclib import FakeXmlRpcServerProxy
 #from model.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
 
 
-@pytest.fixture
-def server_fake_ch_and_proxy(monkeypatch):
+@pytest.fixture(scope='module')
+def server_fake_ch_and_proxy():
     """
     Creates a testable server object that uses:
     - Fake ServerProxy from xmlrpclib
@@ -68,11 +68,28 @@ def server_fake_ch_and_proxy(monkeypatch):
     def prompt_mock(**kwargs):
         logger.info("Call to promptForUserPass with kwargs %s intercepted by monkeypatched attribute, returning 'fakeuser', 'fakepassword'", kwargs)
         return 'fakeuser', 'fakepassword'
-    monkeypatch.setattr(server, 'promptForUserPass', prompt_mock)
+    # No reason to use monkeypatch on the test object, should be a permanent change:
+    server.promptForUserPass = prompt_mock
     fake_proxy = FakeXmlRpcServerProxy('https://some.url')
-    monkeypatch.setattr(server, 'RpcServer', fake_proxy)
+    server.RpcServer = fake_proxy
     #monkeypatch.setattr(server, 'Logintoken', lambda x: 'avalidtoken23456')
     return server
+
+#@pytest.fixture
+#def server_fake_ch_and_proxy_fresh(server_fake_ch_and_proxy):
+#    s = server_fake_ch_and_proxy
+#    s.RpcServer._resetworkdata()
+#    return s
+
+
+def test_fixture(server_fake_ch_and_proxy):
+    s = server_fake_ch_and_proxy
+    assert s._connectionok is None
+    assert s.login() == None
+    # Edit: server.login() will currently login regardless of server's ._autologin attribute.
+    s._autologin = True # autologin must be set, otherwise the server will refuse to login automatically.
+    serverinfo = s.getServerInfo()
+    assert 'majorVersion' in serverinfo
 
 
 def test_promptForUserPass(server_fake_ch_and_proxy):
@@ -81,9 +98,9 @@ def test_promptForUserPass(server_fake_ch_and_proxy):
     assert (username, password) == ('fakeuser', 'fakepassword')
 
 
-
 def test_login(server_fake_ch_and_proxy):
     s = server_fake_ch_and_proxy
+    s._username = s._password = None # Make sure this is reset...
     assert s.login() is None
     assert s.login(prompt=True) == 'very_random_token'
 
@@ -94,6 +111,7 @@ def test_autologin(server_fake_ch_and_proxy):
     assert token == 'very_random_token'
     #assert s.autologin(prompt=True) == 'very_random_token'
 
+
 def test_getSpaces(server_fake_ch_and_proxy):
     s = server_fake_ch_and_proxy
     s._autologin = True
@@ -101,13 +119,68 @@ def test_getSpaces(server_fake_ch_and_proxy):
     print spaces
     assert {space['key'] for space in spaces} ==  {'ds', '~scholer', 'TSP'}
 
-def test_fixture(server_fake_ch_and_proxy):
+
+def test_search_filter_rank(server_fake_ch_and_proxy, monkeypatch):
     s = server_fake_ch_and_proxy
-    assert s._connectionok is None
-    assert s.login() == None
-    s._autologin = True # autologin must be set, otherwise the server will refuse to login automatically.
-    serverinfo = s.getServerInfo()
-    assert 'majorVersion' in serverinfo
+    s.RpcServer._resetworkdata()
+    s.Logintoken = 'allisok'
+    # the fake confluence api already implements a reasonable, mocked search.
+    query = "About Me "
+    params = None
+    required = None
+    optional = None
+    results = s.search_filter_rank(query, params, required, optional)
+    logger.info( "len(results)=%s", len(results) )
+    assert {result['space'] for result in results} ==  {'~scholer'}
+
+    query = "plan"
+    params = {'contributors': 'scholer'}
+    # Remember, list of requirements:
+    required = {'type': ('page', ), 'title': ('TR', )}
+    optional = None
+    results = s.search_filter_rank(query, params, required, optional)
+    logger.info( "len(results)=%s, titles: %s", len(results), [r['title'] for r in results])
+    assert {result['space'] for result in results} ==  {'~scholer'}
+    assert "RS102 Strep-col11 TR annealed with biotin" in {r['title'] for r in results}
+
+    query = "experiment"
+    params = {'contributor': 'scholer'}
+    # Remember, list of requirements:
+    required = {'type': ('page', ), 'title': ('TR', )}
+    optional = {'title': ('Peg-TR', 'AFM')}
+    results = s.search_filter_rank(query, params, required, optional)
+    logger.info( "len(results)=%s, titles: %s", len(results), [r['title'] for r in results])
+    assert results[0]['title'] == 'RS103 Strep-col11 TR anneal and AFM v2 plus Peg-TR'
+    assert {result['space'] for result in results} ==  {'~scholer'}
+    assert "RS102 Strep-col11 TR annealed with biotin" in {r['title'] for r in results}
+
+
+def test_searchForWikiPage(server_fake_ch_and_proxy, monkeypatch):
+    s = server_fake_ch_and_proxy
+    s.Logintoken = 'allisok'
+
+    logger.info(">>>>>>>>>>>> query set #1 >>>>>>>>>>>>>>>>>")
+    spaceKey = '~scholer'
+    pageTitle = testpagetitle = "RS102 Strep-col11 TR annealed with biotin"
+    required = None
+    optional = None
+    searchlevel = 0
+    p = s.searchForWikiPage(spaceKey, pageTitle, required, optional, searchlevel)
+    assert p['title'] == testpagetitle
+
+    logger.info(">>>>>>>>>>>> query set #2 >>>>>>>>>>>>>>>>>")
+    spaceKey = '~scholer'
+    pageTitle = "RS102 Strep-col11 TR annealed with"
+    required = None
+    optional = None
+    searchlevel = 0
+    p = s.searchForWikiPage(spaceKey, pageTitle, required, optional, searchlevel)
+    assert p == None
+    searchlevel = 1
+    required = {'title': 'RS102'}
+    p = s.searchForWikiPage(spaceKey, pageTitle, required, optional, searchlevel)
+    assert p['title'] == testpagetitle
+
 
 
 

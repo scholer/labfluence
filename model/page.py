@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904
 # messages:
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
 #   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
@@ -108,7 +108,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         self._confighandler = confighandler
         #self.Experiment = experiment # Experiment object, mostly used to get local-dir-aware config items, e.g. string formats and regexs.
         #self.Localdir = localdir     # localdir; only used if no experiment is available.
-        self._struct = pagestruct # Cached struct.
+        self._struct = pagestruct # Cached struct. Might be a page summary(!)
         if pagestruct is None:
             if lazyreload:
                 logger.debug("Delaying server reload, should happen lazily when needed...")
@@ -124,6 +124,10 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         Returns the page struct dict, lazily reloading from server if it is not retrieved.
         Consider having a cache with a defined time-to-live setting to automatically update.
+        Note: self._struct might be any of the following:
+         - None         : If no struct has been obtained (no attempt or no server available).
+         - PageStruct   : dict, complete.
+         - PageSummary  : dict, partial.
         """
         if not self._struct:
             self.reloadFromServer()
@@ -140,8 +144,18 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         Returns the content of self.Struct['content']
         """
-        if self.Struct:
-            return self.Struct.get('content')
+        struct = self.Struct
+        if not struct:
+            logger.warning("Content requested, but self.Struct is '%s', ABORTING.", struct)
+            return
+        if 'content' not in struct: # e.g. created with a pagesummary
+            logger.info("struct only has keys %s, no 'content' field. Reloading to obtain complete struct.", struct.keys())
+            self.reloadFromServer()
+        try:
+            return self.Struct['content']
+        except (TypeError, KeyError) as e:
+            logger.warning("%r obtained while returning self.Struct['content'], returning None instead!", e)
+            return None
     @Content.setter
     def Content(self, new_content):
         """
@@ -166,7 +180,6 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             logger.debug("Attribute Error while querying Confighandler for server singleton.")
             return None
 
-
     @property
     def Confighandler(self):
         """
@@ -181,6 +194,26 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         except AttributeError:
             logger.debug("Attribute Error while obtaining Confighandler via server, returning empty dict().")
             return dict()
+
+    def reloadFromServer(self):
+        """
+        Reloads page struct from server.
+        Returns True if successful, None if no server available and False if server call failed.
+        """
+        if self.Server is None:
+            logger.info("Page.reloadFromServer() :: self.Server is %s, aborting...!", self.Server)
+            return
+        ##if not self.Server and not self.Server.CachedConnectStatus:
+        #    logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
+        #    return
+        if not self.Server:
+            logger.info("Page.reloadFromServer() :: self.Server is not marked as connected (is: %s), but trying anyways...!", self.Server)
+        struct = self.Server.getPage(pageId=self.PageId)
+        if not struct:
+            logger.warning("Page.reloadFromServer() :: Something went wrong retrieving Page struct from server...!")
+            return False
+        self.Struct = struct
+        return True
 
 
     def getViewPageUrl(self):
@@ -235,26 +268,6 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             return list()
         return [att['fileName'] for att in att_structs]
 
-
-    def reloadFromServer(self):
-        """
-        Reloads page struct from server.
-        Returns True if successful, None if no server available and False if server call failed.
-        """
-        if self.Server is None:
-            logger.info("Page.reloadFromServer() :: self.Server is %s, aborting...!", self.Server)
-            return
-        ##if not self.Server and not self.Server.CachedConnectStatus:
-        #    logger.info("%s (%s) > Server is None or not connected, aborting...", self.__class__.__name__, self)
-        #    return
-        if not self.Server:
-            logger.info("Page.reloadFromServer() :: self.Server is not marked as connected (is: %s), but trying anyways...!", self.Server)
-        struct = self.Server.getPage(pageId=self.PageId)
-        if not struct:
-            logger.warning("Page.reloadFromServer() :: Something went wrong retrieving Page struct from server...!")
-            return False
-        self.Struct = struct
-        return True
 
     def minimumStruct(self):
         """

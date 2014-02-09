@@ -404,6 +404,9 @@ class ConfigHandler(object):
             return False
         config = self.Configs[cfgtype]
         outputfn = self.ConfigPaths[cfgtype]
+        if not outputfn:
+            logger.warning("Outputfn for configtype '%s' is '%s', ABORTING. ", cfgtype, outputfn)
+            return False
         logger.debug("Saving config %s using outputfn %s", cfgtype, outputfn)
         self._saveConfig(outputfn, config)
         return True
