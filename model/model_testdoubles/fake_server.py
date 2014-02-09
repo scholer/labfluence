@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0201,W0221,W0621
 # pylint: disable-msg=C0111,W0613
 # messages:
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
@@ -51,14 +51,41 @@ c) Replace the server.RpcServer.confluence2 attribute of a normal ConfluenceXmlR
 
 import os
 import yaml
+import random
 from datetime import datetime
 import copy
 import logging
-from xmlrpclib import Fault
+from xmlrpclib import Fault, Binary
 logger = logging.getLogger(__name__)
 
-
 from model.utils import login_prompt, display_message
+
+
+moduledir = os.path.dirname(os.path.realpath(__file__))
+testdatadir = os.path.join(moduledir, "testdouble_data")
+attachmentsdir = os.path.join(testdatadir, "attachments")
+
+# Load test data-set; loading once increases test-speed by a factor 10.
+def load_testdata():
+    try:
+        datafp = os.path.join(testdatadir, "fakeserver_testdata_large.yml")
+        logger.debug("Attempting to load data from: %s", datafp)
+        with open(datafp) as fd:
+            testdata = yaml.load(fd)
+        logger.debug("Data loaded, %s items", len(testdata))
+    except IOError as e:
+        logger.warning("Error while reading testdata: %r", e)
+        testdata = dict()
+    # Just create attachment data once - improves test run speed.
+    attachmentfps = (os.path.join(attachmentsdir, fn) for fn in os.listdir(attachmentsdir))
+    attachmentfps = (fp for fp in attachmentfps if os.path.isfile(fp))
+    try:
+        attachments = { os.path.basename(fp) : Binary(open(fp).read())
+                            for fp in attachmentfps }
+    except (OSError, IOError) as e:
+        logger.warning("%r while loading attachments")
+    return testdata, attachments
+testdata, attachments = load_testdata()
 
 
 
@@ -92,14 +119,9 @@ class FakeConfluenceServer(object):
         """
         self.Confighandler = confighandler
         logger.debug("FakeConfluenceServer initiated with kwargs (will not be used): %s", kwargs)
-        try:
-            datafp = os.path.join(os.path.dirname(__file__), "testdouble_data", "fakeserver_testdata_large.yml")
-            logger.debug("Attempting to load data from: %s", datafp)
-            self._loaded_data = yaml.load(open(datafp))
-            self._workdata = copy.deepcopy(self._loaded_data)
-        except IOError as e:
-            logger.warning(e)
-            self._workdata = dict()
+        self._loaded_data = testdata
+        self._workdata = copy.deepcopy(self._loaded_data)
+        self._attachmentsData = self._attachmentsData_org = copy.deepcopy(attachments)
         self.BaseUrl = "http://localhost:8090/"
         self._the_right_token = 'the_right_token'
         self._is_logged_in = True
@@ -124,6 +146,7 @@ class FakeConfluenceServer(object):
     def _resetworkdata(self, ):
         del self._workdata
         self._workdata = copy.deepcopy(self._loaded_data)
+        self._attachmentsData = copy.deepcopy(self._attachmentsData_org)
 
     def autologin(self, prompt='auto'):
         self.login()
@@ -378,16 +401,70 @@ class FakeConfluenceServer(object):
                             if attachment['pageId'] == pageId and attachment['fileName'] == fileName), None )
 
     def getAttachmentData(self, pageId, fileName, versionNumber=0):
-        pass
+        if fileName in self._attachmentsData:
+            logger.debug("Returning attachmentdata for fileName %s", fileName)
+            return self._attachmentsData[fileName]
+        logger.info("Could not find attachmentdata for fileName %s, keys are: %s",
+                     fileName, self._attachmentsData.keys())
+        #return self._attachmentsData['testdata.pdf']
 
     def addAttachment(self, contentId, attachment_struct, attachmentData):
-        pass
+        attachment = attachment_struct
+        try:
+            filename = attachment_struct['fileName']
+            self._workdata.setdefault('attachments', dict).setdefault(contentId, list()).append(attachment_struct)
+            self._attachmentsData[filename] = attachmentData
+        except KeyError as e:
+            logger.warning("%r while saving attachment, contentId=%s, attachment_struct=%s",
+                           e, contentId, attachment_struct)
+            return False
+        attachment.setdefault('id', random.randint(1, 1000000))
+        attachment.setdefault('pageId', contentId)
+        attachment.setdefault('title', filename)
+        attachment.setdefault('fileSize', len(attachmentData.data))
+        attachment.setdefault('created', datetime.now())
+        attachment.setdefault('creator', self.Username)
+        attachment.setdefault('url', self.BaseUrl)
+        attachment.setdefault('comment', "")
+        return attachment
 
     def removeAttachment(self, contentId, fileName):
-        pass
+        try:
+            del self._attachmentsData[fileName]
+        except KeyError as e:
+            logger.info("Could not remove data, %r", e)
+            #return False # currently, there might not be a file for every attachment.
+        structs = self._workdata.setdefault('attachments', dict).setdefault(contentId, list())
+        try:
+            struct = next(i for i, s in enumerate(structs) if s['fileName'] == fileName)
+            structs.pop(struct)
+        except StopIteration:
+            logger.info("Could not remove attachment struct, no fileName '%s' for contentId %s",
+                        fileName, contentId)
+            return False
+        return True
 
     def moveAttachment(self, originalContentId, originalName, newContentEntityId, newName):
-        pass
+        try:
+            structs = self._workdata['attachments'][originalContentId]
+            struct = next(s for s in structs if s['fileName'] == originalName)
+        except KeyError as e:
+            logger.warning("%r while locating structs for page %s", e, originalContentId)
+            return False
+        except StopIteration as e:
+            logger.info("%r while locating struct with filename '%s' on page %s",
+                        e, originalName, originalContentId)
+            return False
+        newpagestructs = self._workdata['attachments'].setdefault(newContentEntityId, list())
+        if any(s['fileName'] == newName for s in newpagestructs):
+            logger.warning("fileName %s already exist for page %s",
+                           newName, newContentEntityId)
+            return False
+        newpagestructs.append(struct)
+        structs.remove(struct)
+        struct['fileName'] = newName
+        return True
+
 
 
     ####################################

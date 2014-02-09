@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,W0402,W0201
 # pylint: disable-msg=C0111,W0613
 """
 Test module for fake server.
@@ -28,6 +28,7 @@ from model.model_testdoubles.fake_server import FakeConfluenceServer
 
 #import os
 import copy
+from xmlrpclib import Binary
 #from datetime import datetime
 import logging
 logger = logging.getLogger(__name__)
@@ -36,7 +37,6 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO, format=logfmt)
 #logging.getLogger("__main__").setLevel(logging.DEBUG)
 #logging.getLogger("model.model_testdoubles.fake_server").setLevel(logging.DEBUG)
-
 
 
 def test_fakeserver_basics():
@@ -72,14 +72,6 @@ def test_fakeserver_removepage():
     assert s.getPage(pid) == None
     assert s.removePage(pid) == False
 
-def test_fakeserver_getAttachments():
-    s = FakeConfluenceServer()
-    pid = '917518'
-    attachments = s.getAttachments(pid)
-    assert isinstance(attachments , list )
-    assert len(attachments) > 0
-    assert 'fileSize' in attachments[0]
-
 def test_fakeserver_getComments():
     s = FakeConfluenceServer()
     pid = '917518'
@@ -87,16 +79,6 @@ def test_fakeserver_getComments():
     assert isinstance(comments , list )
     assert len(comments) > 0
     assert 'id' in comments[0]
-
-def test_fakeserver_getAttachment():
-    s = FakeConfluenceServer()
-    #aid = '1081345'
-    pid = '917518'
-    fileName = '2013-11-15 12.00.32_2.jpg'
-    attachment = s.getAttachment(pid, fileName)
-    assert isinstance(attachment , dict )
-    assert len(attachment) > 0
-    assert 'fileSize' in attachment
 
 def test_fakeserver_getComment():
     s = FakeConfluenceServer()
@@ -126,6 +108,65 @@ def test_fakeserver_editComment():
     assert updated['content'] == "Edited content moy bueno."
     assert updated['id'] == '917540'
     assert updated['creator'] == 'scholer'
+
+
+def test_fakeserver_getAttachments():
+    s = FakeConfluenceServer()
+    pid = '917518'
+    attachments = s.getAttachments(pid)
+    assert isinstance(attachments , list )
+    assert len(attachments) > 0
+    assert 'fileSize' in attachments[0]
+
+def test_fakeserver_getAttachment():
+    s = FakeConfluenceServer()
+    #aid = '1081345'
+    pid = '917518'
+    fileName = '2013-11-15 12.00.32_2.jpg'
+    attachment = s.getAttachment(pid, fileName)
+    assert isinstance(attachment , dict )
+    assert len(attachment) > 0
+    assert 'fileSize' in attachment
+
+def test_fakeserver_getAttachmentData():
+    s = FakeConfluenceServer()
+    pid = '917518'
+    fn = 'testdata.pdf'
+    data = s.getAttachmentData(pid, fn)
+    assert hasattr(data, 'data')
+    assert len(data.data) == 3144
+
+def test_fakeserver_addAttachment():
+    s = FakeConfluenceServer()
+    pid = '917518'
+    fn = 'testdata.pdf'
+    binary_testfile = Binary("test string")
+    struct = dict(fileName=fn, contentType='text/csv')
+    attachment = s.addAttachment(pid, struct, binary_testfile)
+    assert set(attachment.keys()) == {'id', 'pageId', 'title', 'fileName', 'fileSize',
+                                        'contentType', 'created', 'creator', 'url', 'comment'}
+
+def test_fakeserver_removeAttachment():
+    s = FakeConfluenceServer()
+    pid = '917518'
+    fn = '2013-11-15 12.00.32_2.jpg'
+    success = s.removeAttachment(pid, fn)
+    assert success == True
+
+def test_fakeserver_moveAttachment():
+    s = FakeConfluenceServer()
+    pid = '917518'
+    fn = '2013-11-15 12.00.32_2.jpg'
+    newpid = '917519'
+    newfn = 'testdata2.pdf'
+    success = s.moveAttachment(pid, fn, newpid, newfn)
+    assert success == True
+
+
+def test_fakeserver_updatePage():
+    s = FakeConfluenceServer()
+    s.getAttachment
+
 
 
 def test_fakeserver_storePage():
