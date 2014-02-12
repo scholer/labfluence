@@ -142,6 +142,63 @@ class WikiLimsPage(WikiPage):
         return new_xhtml
 
 
+    def addEntries(self, entries, persistToServer=True):
+        """
+        Entry is dict with keys corresponding to headers of the lims table, i.e.
+            key : row-field value of new entry.
+        Implementation:
+        1) Get table header info by using the limstable regex.
+        2) Generate html row (string) looking up fields in entry.
+        3) Insert new xhtml row string between match headerrow and tablerows.
+        4) Persist page if persistToServer is requested.
+
+        Note: Will raise KeyError if the entry does not have a key for
+        every header in the table.
+        """
+        # self.Content is a property: probes self.Struct property,
+        # which invokes self.reloadFromServer() is self._struct is not boolean True.
+        self.reloadFromServer()
+        xhtml = self.Content
+        if not xhtml:
+            logger.error("xhtml is '%s', aborting...", xhtml)
+            return
+        logger.debug("Adding entries %s to xhtml with existing length %s", entries, len(xhtml))
+        match = self.LimstableRegexProg.match(xhtml)
+        if not match:
+            logger.warning("No match for re prog with pattern '%s' versus xhtml: '%s' - ABORTING", self.LimstableRegexProg.pattern, xhtml)
+            return
+        headers = self.getTableHeaders(match)
+        # Create a list of values with order corresponding to the order of the table headers:
+        try:
+            entries_vals = [[entry[field] for field in headers] for entry in entries]
+        except KeyError as e:
+            logger.info("KeyError '%s' while producing the entry_vals list, headers = %s, entry = %s", e, headers, entry)
+            entries_vals = [[entry.get(field, "") for field in headers] for entry in entries]
+            lostkeys = set(headers) - set(entries[0].keys())
+            logger.info("Defaulting to using empty string ('') for lost keys %s; entries_vals is now: %s", lostkeys, entries_vals)
+        if all(item=="" for entry_vals in entries_vals for item in entry_vals):
+            logger.info("All element items of all entries are empty strings, so aborting...! -- entries_vals list is: %s", entries_vals)
+            return False
+        else:
+            for i, entry_vals in enumerate(entries_vals):
+                if all(item=="" for item in entry_vals):
+                    logger.info("All elements are empty strings for entries_vals[%s]! -- entries_vals[%s] list is: %s", i, i, entry_vals)
+
+        entries_xhtml = u"\n".join( u"<tr>{}</tr>".format(
+            "".join(u"<td><p>{}</p></td>".format(val) for val in entry_vals ) )
+                                 for entry_vals in entries_vals if any(entry_vals))
+        insert_index = match.start('tablerows')
+        new_xhtml = xhtml[:insert_index] + entries_xhtml + xhtml[insert_index:]
+        logger.debug("Inserted entries_xhtml of length %s, new_xhtml page Content has length: %s ", len(entries_xhtml), len(new_xhtml))
+        self.Content = new_xhtml
+        if persistToServer:
+            versionComment = u"Entries {} added by Labfluence LimsPage.".format(
+                ", ".join('"{}"'.format(entry.get('Product', "")) for entry in entries ) )
+            self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=False)
+        logger.debug("Entry added, xhtml length %s", len(xhtml))
+        return new_xhtml
+
+
     def getTableHeaders(self, match=None, xhtml=None):
         """
         Returns a list of the headers found in match.group('headerrow')

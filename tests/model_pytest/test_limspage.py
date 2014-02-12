@@ -211,3 +211,41 @@ def test_addEntry(limspage_nodeps, xhtml_teststring):
     new_xhtml = page.addEntry(entry_dict)
     print new_xhtml
     assert expected_xhtml == new_xhtml
+
+
+#@pytest.mark.skipif(True, reason="Temporary disabled.")
+def test_addEntries(limspage_nodeps, xhtml_teststring):
+    page = limspage_nodeps
+    expected_xhtml = """
+<p>This page is used to keep track of things that we have bought (inventory management). For information on&nbsp;<em>how</em> to purchase items for the JK lab, please refer to&nbsp;<ac:link><ri:page ri:content-title="Orders and Purchases how-to" /></ac:link>.</p>
+<p>Here we can keep a list of all the things we have purchased, so as to make it easier for all people in the lab to see what reagents we have in the lab.</p>
+<table><tbody>
+<tr>
+<th><p>Date (yyyymmdd)</p></th>
+<th><p>Compound name</p></th>
+<th><p>Amount</p></th>
+<th><p>Price (dkk)</p></th>
+<th><p>Ordered by</p></th>
+<th><p>Manufacturer / distributor</p></th>
+<th><p>Comments</p></th>
+</tr><tr><td><p>20131224</p></td><td><p>Christmas present</p></td><td><p>1 pcs</p></td><td><p>1000</p></td><td><p>Mommy</p></td><td><p>Santa</p></td><td><p>Red is preferred</p></td></tr>
+<tr><td><p>20131225</p></td><td><p>Birthday present</p></td><td><p>2 packs</p></td><td><p>99</p></td><td><p>Wife</p></td><td><p>Easter bunny</p></td><td><p></p></td></tr>
+<tr><td><p>20110911</p></td><td><p>Quartz cuvette, Hellma QS105.201</p></td><td><p>1 stk</p></td><td><p>1400</p></td><td><p>scholer</p></td><td><p>Hellma / VWR</p></td><td><p>Arrived. For 100 ul. 10 mm LP.</p></td></tr>
+<tr><td><p>20110920</p></td><td><p>N-Methyl-2-Pyrrolidinone (NMP)</p></td><td><p>1 L</p></td><td><p>&nbsp;</p></td><td><p>scholer</p></td><td><p>Sigma</p></td><td><p>Arrived and opened. Anhydrous, using sure-seal.</p></td></tr><tr><td><p>20110920</p></td><td><p>Dimethylacetamide (DMA)</p></td><td><p>1 L</p></td><td><p>191</p></td><td><p>scholer</p></td><td><p>BDH Prolabo / VWR</p></td><td><p>&nbsp;</p></td></tr><tr><td><p>20110919</p></td><td><p>1-Propanol</p></td><td><p>1 L</p></td><td><p>&nbsp;</p></td><td><p>scholer</p></td><td><p>BDH Prolabo / VWR</p></td><td><p>Arrived and opened</p></td></tr><tr><td><p>20111012</p></td><td><p>Brown &quot;crimp cap&quot; injection vials for HPLC</p></td><td><p>1000 pcs</p></td><td><p>1033</p></td><td><p>scholer</p></td><td><p>VWR</p></td><td><p>0.3 ml micro vial, PP, amber, snap ring, 32 x 11.6 mm<br class="atl-forced-newline" /> cat.no. 548-0454</p></td></tr><tr><td colspan="1">20121029</td><td colspan="1">EL-USB-TC-LCD</td><td colspan="1">1 stk</td><td colspan="1">750</td><td colspan="1">scholer</td><td colspan="1">Lascar / Microtec</td><td colspan="1">Temperature data logger</td></tr>
+</tbody></table>
+"""
+    headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
+    test_entries  = [   ['20131224', 'Christmas present', '1 pcs', '1000', 'Mommy', 'Santa', 'Red is preferred'],
+                        ['20131225', 'Birthday present', '2 packs', '99', 'Wife', 'Easter bunny', ''],
+                        ['' for _ in headers]
+                    ]
+    entries = [ dict( zip(headers, values) ) for values in test_entries ]
+    new_xhtml = page.addEntries(entries)
+    print new_xhtml
+    #logger.debug(new_xhtml)
+    assert expected_xhtml == new_xhtml
+    headers = ['Date (yyyymmdd)', 'Compound name', 'Amount', 'Price (dkk)', 'Ordered by', 'Manufacturer / distributor', 'Comments']
+    test_entries  = [['' for _ in headers] for _ in range(3) ]
+    entries = [ dict( zip(headers, values) ) for values in test_entries ]
+    new_xhtml = page.addEntries(entries)
+    assert new_xhtml == False

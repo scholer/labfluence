@@ -78,6 +78,7 @@ import Tkinter as tk
 # Other standard lib modules:
 #import socket
 import os
+import yaml
 from datetime import datetime
 from collections import OrderedDict
 import xmlrpclib
@@ -152,8 +153,9 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         self.FilesToAdd = filestoadd or list()
         self.FilesAdded = list()
         self._filegenerator = None # Created when needed. self.nextFileGenerator()
-        self.PersistForEveryFile = False
+        self.PersistPageForEveryEntry = False # If this is set to True, the wikipage is updated for every entry. Default should be false = add all entries with single update.
         self.AddedEntries = list()
+        self.EntriesToAdd = list()
         # These fields does not correspond to the LIMS table, but only fields for the UI prompt.
         self.FilepathField = 'Path to order file'
         self.AttachmentNameField = 'Attachment name'
@@ -165,6 +167,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         logger.debug("Making LimsTkRoot...")
         self.Tkroot = LimsTkRoot(self, self.Confighandler, title=title)
         self.Confighandler.Singletons['ui'] = self.Tkroot
+        self.SaveEntriesToFile = os.path.expanduser('~/.labfluence/limsentries.yml')
         logger.debug("LimsTkRoot created and registrered in the singletons, creating fields...")
         # ugh... calling e.g. the prompt before the main loop has started causes some weird issues.
         # Maybe I can defer this to the start() method?
@@ -182,7 +185,6 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         if self._filegenerator is None:
             self._filegenerator = (filepath for filepath in self.FilesToAdd)
         return next(self._filegenerator, None)
-
 
     @property
     def Server(self):
@@ -207,6 +209,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         """ Returns all used attachment names. """
         attachmentstructs = self.Attachments + self._newAttachments
         return {attachment['fileName'] for attachment in attachmentstructs}
+
 
     def getLimsFields(self):
         """
@@ -344,6 +347,7 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         Essentially, this makes it impossible to do any advanced stuff (like hash
         checking -- unless you feel like downloading all attachments every time.)
         """
+        self.WikiLimsPage.keep_alive() # With this, we don't have to worry as much about server timeouts.
         entry_info = self.Tkroot.get_result()
         logger.debug("entry_info : %s", entry_info)
         if not entry_info:
@@ -365,11 +369,11 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
             try:
                 att_info = self.WikiLimsPage.addAttachment(attachmentInfo, attachmentData)
                 self._newAttachments.append(att_info)
+                self.FilesAdded.append(fp)
             except xmlrpclib.Fault as e:
                 logger.error("Error uploading file: %s; attachmentInfo is: %s; attachmentData has length: %s; Error is: %s",
                              fp, attachmentInfo, len(str(attachmentData)), e)
-                raise e
-            self.FilesAdded.append(fp)
+                #raise e
         else:
             logger.debug("No filepath provided, is: %s...", fp)
             att_info = None
@@ -384,21 +388,26 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
                 entry_info[self.AttachmentField] = ""
 
         # Add entry:
-        logger.debug("Adding entry to limspage content, persistToServer=%s...", self.PersistForEveryFile)
-        self.WikiLimsPage.addEntry(entry_info, persistToServer=self.PersistForEveryFile)
-        # list of product names... if no product name, use list index...
-        self.AddedEntries.append(entry_info[self.ResetEntryFields['productname']] if 'productname' in self.ResetEntryFields
-                                    else len(self.AddedEntries)+1)
-        logger.debug("Added entries: %s", u", ".join(unicode(item) for item in self.AddedEntries))
+        logger.debug("Adding entry %s to list of entries.", entry_info)
+        if self.PersistPageForEveryEntry:
+            logger.debug("Adding entry to limspage content and persisting page to server.")
+            self.WikiLimsPage.addEntry(entry_info, persistToServer=True)
+        else:
+            self.EntriesToAdd.append(entry_info)
+            logger.debug("Entry added to self.EntriesToAdd list, current length = %s", len(self.EntriesToAdd))
+
+        ## list of product names... if no product name, use list index...
+        #self.AddedEntries.append(entry_info[self.ResetEntryFields['productname']] if 'productname' in self.ResetEntryFields
+        #                            else len(self.AddedEntries)+1)
 
         # Inform the user:
-        # form disappear already here.
         self.set_entry_added_message(entry_info, att_info)
 
-        # If addNewEntryWithSameFile:
         if not addNewEntryWithSameFile:
-            self.next_entry()
+            # The user pressed "OK (Clear)"
+            self.next_entry() # Will go to next input orderfile or saves and close the app.
         else:
+            # The user pressed "OK (Keep)"
             logger.debug("addNewEntryWithSameFile is True; will only add new entry if a new filename was provided.")
         logger.debug("add_entry complete (addNewEntryWithSameFile=%s", addNewEntryWithSameFile)
 
@@ -411,28 +420,74 @@ you should probably set the wiki_lims_pageid config entry, in one of the config 
         2) Returns to the tk ui prompt.
         (the tk ui will then either call add_entry, which will call this after completion.)
 
-        If there are no more files: persist the LimsPage, close tk root and exits.
+        If there are no more files: ensure entries are saved, close tk root and exit.
         """
         # Notice: The tkroot mainloop might not have been started yet!
         nextfp = self.nextfile()
         if nextfp:
-            # pressing 'ok' makes the form disappear, already at this point...
             self.repopulatePrompt(nextfp)
             #self.Tkroot.deiconify()
             logger.debug("Next entry, filepath is '%s', returning to tk root (form/prompt).", nextfp)
             return
         else:
             # Persist limspage if an entry has been added.
-            if not self.PersistForEveryFile and self.AddedEntries:
-                versionComment = "Added entries: " + u", ".join(unicode(item) for item in self.AddedEntries)
-                minorEdit = False
-                logger.debug("Persisting LIMS page, versionComment is: %s", versionComment)
-                self.WikiLimsPage.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
+            if not self.PersistPageForEveryEntry:
+                logger.debug("Flushing cache (number of entries to add: %s)", len(self.EntriesToAdd))
+                self.flush_entries_cache()
+                #versionComment = "Added entries: " + u", ".join(unicode(item) for item in self.AddedEntries)
+                #minorEdit = False
+                #logger.debug("Persisting LIMS page, versionComment is: %s", versionComment)
+                #self.WikiLimsPage.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
             # close tk root:
             self.destroy_tkroot()
             # exit:
             logger.debug("Exiting application loop.")
             return
+
+
+    def flush_entries_cache(self):
+        """ Adds all entries in self.EntriesToAdd and resets. """
+        if self.EntriesToAdd:
+            logger.debug("Adding %s entries to wiki lims page.", len(self.EntriesToAdd))
+            self.WikiLimsPage.addEntries(self.EntriesToAdd)
+            self.save_entries()
+            self.EntriesToAdd = list()
+            return True
+        else:
+            logger.info("self.EntriesToAdd = %s, not doing anything!", self.EntriesToAdd)
+            return False
+
+
+    def save_entries(self):
+        """ Saves entries to file. """
+        if not self.SaveEntriesToFile:
+            logger.info("self.SaveEntriesToFile = %s, not saving entries (they will be forgotten).", self.SaveEntriesToFile)
+            return False
+        if not os.path.isdir(os.path.dirname(self.SaveEntriesToFile)):
+            try:
+                os.makedirs(os.path.dirname(self.SaveEntriesToFile))
+                logger.info("Created dir: %s", os.path.dirname(self.SaveEntriesToFile))
+            except OSError as e:
+                logger.warning("Error creating dir, %r - ABORTING...", e)
+                return False
+        if os.path.isfile(self.SaveEntriesToFile):
+            try:
+                history = yaml.load(open(self.SaveEntriesToFile))
+                logger.debug("%s previous entries loaded from file %s", len(history), self.SaveEntriesToFile)
+            except (IOError, OSError) as e:
+                logger.warning("Error loading entries history: %r - using empty list.", e)
+                history = list()
+        else:
+            history = list()
+        history.append(self.EntriesToAdd)
+        try:
+            with open(self.SaveEntriesToFile, 'wb') as fd:
+                yaml.dump(history, fd)
+        except (IOError, OSError) as e:
+            logger.warning("Error saving entries history, %r", e)
+            return False
+        return True
+
 
     def destroy_tkroot(self):
         """

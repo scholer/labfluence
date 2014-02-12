@@ -124,7 +124,7 @@ class AbstractServer(object):
                 self.Confighandler.get(self.CONFIG_FORMAT.format('loginpromptoptions'), None) or \
                 self.Confighandler.get('app_loginpromptoptions', self._defaultpromptoptions)
     @property
-    def AutologinEnabled(self, ):
+    def AutologinEnabled(self):
         """ Boolean property returning whether autologin should be used. """
         serverparams = self.Serverparams
         if 'autologin_enabled' in serverparams:
@@ -138,7 +138,7 @@ class AbstractServer(object):
             return True
 
     @property
-    def UI(self, ):
+    def UI(self):
         """ Property; Returns the registrered UI to use from the confighandler. """
         if self.Confighandler:
             return self.Confighandler.getSingleton("ui")
@@ -678,8 +678,10 @@ to prevent the login token from expiring.
                 self.saveToken(token, username=username)
             if prompt:
                 if self.Loginpromptoptions.get('save_username_inmemory', True):
+                    logger.debug("Saving username in memory.")
                     self._username = username
                 if self.Loginpromptoptions.get('save_password_inmemory', True):
+                    logger.debug("Saving password in memory.")
                     self._password = password
             logger.info("Logged in as '%s', received token of length %s", username, len(token))
         except xmlrpclib.Fault as err:
