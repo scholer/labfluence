@@ -269,6 +269,20 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         return [att['fileName'] for att in att_structs]
 
 
+
+    def keep_alive(self):
+        """
+        Keeps the connection alive.
+        """
+        if self.Server is None:
+            logger.info("Page.reloadFromServer() :: self.Server is %s, aborting...!", self.Server)
+            return False
+        if not self.Server:
+            logger.info("Page.reloadFromServer() :: self.Server is not marked as connected (is: %s), but trying anyways...!", self.Server)
+        info = self.Server.getServerInfo()
+        return bool(info)
+
+
     def minimumStruct(self):
         """
         Returns a minimum struct, used for updating, etc.
