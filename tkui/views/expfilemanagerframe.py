@@ -18,7 +18,7 @@
 # python 2.7:
 import Tkinter as tk
 import ttk
-import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+# import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 from collections import OrderedDict
 import os
 import time
@@ -27,11 +27,13 @@ logger = logging.getLogger(__name__)
 
 #from subentrieslistbox import SubentriesListbox
 from explistboxes import SubentriesListbox, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
-from shared_ui_utils import HyperLink, ExpFrame
+from shared_ui_utils import ExpFrame
 
 
 class ExpFilemanagerFrame(ExpFrame):
     """
+    UI class for viewing file-related info for an experiment,
+    both local files and wiki attachments.
     """
     #def __init__(self, parent, experiment, confighandler, **options):
     #    classopt = dict(borderwidth=5, relief='solid')

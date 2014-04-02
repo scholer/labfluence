@@ -14,9 +14,11 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-
+# pylint: disable-msg=C0103,W0142,R0901,R0904
+"""
+Module with various UI-related utility classes and methods.
+"""
 # python 2.7:
-import Tkinter as tk
 import ttk
 import webbrowser
 import logging
@@ -101,13 +103,12 @@ class HyperLink(ttk.Label):
     state can be controlled as configure(state='disabled)
     """
 
-    def __init__(self, parent, uri=None, experiment=None, **options):
+    def __init__(self, parent, uri=None, **options):
         #defaults = dict(foreground="blue") # text color is not a property of the font, as far as I can tell.
         #options = dict(defaults, **options)
         ttk.Label.__init__(self, parent, **options)
         self.URI = uri
-        self.Experiment = experiment
-        if self.getUrl():
+        if self.get_url():
             self.configure(foreground="blue")
         self.bind('<Enter>', self.on_enter)
         self.bind('<Leave>', self.on_leave) # Enter=Mouse cursor hovering over widget; Return=Return key is pressed.
@@ -119,33 +120,55 @@ class HyperLink(ttk.Label):
         e.g. initialized by a FontManager object.
         """
         #self = event.widget
-        if self.getUrl():
+        if self.get_url():
             lbl = event.widget
             lbl.configure(font='hyperlink_active', cursor="hand2")
 
     def on_leave(self, event):
-        """ Bound to <Leave> virtual event """
-        event.widget.configure(font='hyperlink_inactive', cursor="")
+        """
+        Bound to <Leave> virtual event.
+        event.widget should equal self.
+        """
+        self.configure(font='hyperlink_inactive', cursor="")
 
-    def getUrl(self):
+    def get_url(self):
         """ Returns a browser-openable URL """
-        if self.URI:
-            url = self.URI
-        elif self.Experiment:
-            url = self.Experiment.getUrl()
-        else:
-            url = None
-        return url
+        return self.URI
 
     def open_uri(self, event):
         """
         Based on http://stackoverflow.com/questions/8742644/python-2-7-tkinter-open-webbrowser-click
         """
         # self should equal event.widget
-        url = event.widget.getUrl()
+        url = self.get_url()
         if not url:
             logger.debug("No url available! url='%s', self.Experiment='%s'", url, self.Experiment)
             return
         logger.debug("Opening '%s'", url)
         # Perhaps check what protocol to use first, and open in webbrowser/filebrowser/ftpclient/?
         webbrowser.open_new(url)
+
+
+class ExperimentLink(HyperLink):
+    """
+    A hyperlink related to a particular experiment (and thus page).
+    Can create links to a particular experiment page, a subentry on that page
+    or an edit-link to the page.
+    """
+
+    def __init__(self, parent, uri=None, experiment=None, urlmode='view', **options):
+        #defaults = dict(foreground="blue") # text color is not a property of the font, as far as I can tell.
+        #options = dict(defaults, **options)
+        # HyperLink.__init__() calls get_url() which is ExperimentLink.get_url() which will use self.Experiment.
+        # Thus, you *must* set the attributes that self.get_url() uses *before* calling HyperLink.__init__()
+        self.Experiment = experiment
+        self.UrlMode = urlmode
+        HyperLink.__init__(self, parent, uri, **options)
+
+    def get_url(self):
+        """
+        Returns a browser-openable URL.
+        Obtains url by self.Experiment.getUrl(mode=self.UrlMode)
+        (unless self.URI is set).
+        """
+        return self.URI or self.Experiment.getUrl(mode=self.UrlMode)

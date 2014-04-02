@@ -207,7 +207,7 @@ class AbstractServer(object):
         except KeyError:
             return None
         port = serverparams.get('port', None)
-        if port:
+        if port and port not in (80, 443):
             url += ":{}".format(port)
         return url
     @property
@@ -1227,6 +1227,7 @@ contributor:
             else:
                 optional = dict(title=pageTitle.split())
             yield (pageTitle, params, required, optional, searchlevel)
+            searchlevel = 2
             params = dict(contributor=user, type='page')
             yield (pageTitle, params, required, optional, searchlevel)
             params = dict(spaceKey=spaceKey, type='page')

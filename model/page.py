@@ -215,6 +215,17 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         self.Struct = struct
         return True
 
+    def getUrl(self, mode='view', anchor=None):
+        """
+        Calls make_page_url() with self.Server.BaseUrl, self.PageId
+        to obtain a url for the correct mode:
+        - 'view' : Return a url to view the experiment's wiki page in a browser (default).
+        - 'edit' : Returns link to edit page rather than just view it.
+        - 'pageinfo' : Return a link to view the page's information.
+        - 'pagehistory' : Return a link to view the page's history.
+        - 'attachments' : Return a link to view the page's attachments.
+        """
+        return make_page_url(self.Server.BaseUrl, self.PageId, mode, anchor)
 
     def getViewPageUrl(self):
         """
@@ -222,34 +233,29 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         Note: This should also be obtainable from self.Struct['url'].
         However, generating the urls manually eliminates the need to query the server for page struct.
         """
-        urlfmt = "{}/pages/viewpage.action?pageId={}"
-        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+        return self.getUrl(mode='view')
 
     def getEditPageUrl(self):
         """ Returns a url to edit the page in a browser. """
-        urlfmt = "{}/pages/editpage.action?pageId={}"
-        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+        return self.getUrl(mode='edit')
 
     def getViewAttachmentsUrl(self):
         """
         Returns a url to view the page in a browser.
         """
-        urlfmt = "{}/pages/viewpageattachments.action?pageId={}"
-        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+        return self.getUrl(mode='attachments')
 
     def getViewPageInfoUrl(self):
         """
         Returns a url to view the page in a browser.
         """
-        urlfmt = "{}/pages/viewinfo.action?pageId={}"
-        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+        return self.getUrl(mode='pageinfo')
 
     def getViewPageHistoryUrl(self):
         """
         Returns a url to view the page in a browser.
         """
-        urlfmt = "{}/pages/viewpreviousversions.action?pageId={}"
-        return urlfmt.format(self.Server.BaseUrl, self.PageId)
+        return self.getUrl(mode='pagehistory')
 
     def getAttachmentLinkXhtml(self, fileName):
         """
@@ -275,10 +281,12 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         """
         keys = ('id', 'space', 'title', 'content', 'version', 'parentId', 'permissions')
         struct = self.Struct
-        new_struct = dict( (k, v) for k, v in struct.items() if k in keys )
+        new_struct = {k : v for k, v in struct.items() if k in keys}
         return new_struct
 
     def validate_xhtml(self, xhtml):
+        """
+        My own simple xhtml validation implementation...
             # http://lxml.de/1.3/validation.html
             # http://www.amnet.net.au/~ghannington/confluence/readme.html
             # https://confluence.atlassian.com/display/DOC/Confluence+Storage+Format
@@ -286,8 +294,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             # https://jira.atlassian.com/browse/CONF-24884 - currently, no published DTD, XSD  or similar...
             # http://www.w3schools.com/xml/xml_dtd.asp
             # Damn, I cannot figure out even how to ressolve the 'namespace prefix ac not defined issue...
-
-        """ My own simple validation... """
+        """
         surplus = 0
         for i, char in enumerate(xhtml):
             if char == '<':
@@ -298,7 +305,6 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
                 logger.info("xhtml failed at index %s", i)
                 return False
         return True
-
 
 
     def updatePage(self, content=None, title=None, versionComment="", minorEdit=True, struct_from='cache', base='minimal'):
@@ -898,6 +904,40 @@ class WikiPageFactory(object):
         #print subentry_template_struct
 
 
+
+def make_page_url(baseurl, pageid, mode='view', anchor=None):
+    """
+    Produce a url to a page using pageid, baseurl (server url).
+    If anchor is specified, this will be appended to the url.
+    Mode can be either of:
+    - 'view' : Return a url to view the experiment's wiki page in a browser (default).
+    - 'edit' : Returns link to edit page rather than just view it.
+    - 'pageinfo' : Return a link to view the page's information.
+    - 'pagehistory' : Return a link to view the page's history.
+    - 'attachments' : Return a link to view the page's attachments.
+    """
+    urlfmts = {'view' : "{}/pages/viewpage.action?pageId={}",
+               'edit' : "{}/pages/editpage.action?pageId={}",
+               'pageinfo' : "{}/pages/viewinfo.action?pageId={}",
+               'pagehistory' : "{}/pages/viewpreviousversions.action?pageId={}",
+               'attachments' : "{}/pages/viewpageattachments.action?pageId={}"
+               }
+    try:
+        urlfmt = urlfmts[mode]
+    except KeyError as e:
+        logger.error("Error making page url for mode '%s': %s", mode, e)
+        return
+    url = urlfmt.format(baseurl, pageid)
+    if anchor:
+        url += "#{}".format(anchor)
+    return url
+
+def make_subentry_anchor(pagetitle, subentryheader):
+    """
+    Takes a page title and subentry header and produces a confluence-specific anchor.
+    """
+    anchor = "-".join((pagetitle, subentryheader)).replace(' ', '')
+    return anchor
 
 
 

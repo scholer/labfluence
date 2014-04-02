@@ -23,7 +23,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from shared_ui_utils import HyperLink, ExpFrame
+from shared_ui_utils import ExpFrame
 
 
 class ExpOverviewFrame(ExpFrame):
