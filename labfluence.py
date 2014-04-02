@@ -31,8 +31,13 @@ import logging
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
 
-from __init__ import init_logging
+try:
+    import readline, rlcompleter
+except ImportError:
+    print("readline module not available...")
+    readline = None
 
+from __init__ import init_logging
 
 ### MODEL IMPORT ###
 from model.confighandler import ExpConfigHandler
@@ -147,6 +152,7 @@ if __name__ == '__main__':
         except socket.error as e:
             logger.error( "Socket error during server init ('%s'). This should not happen; autologin is shielded by try-clause.", e)
             server = None
+
     confighandler.Singletons['server'] = server
     logger.debug(" >>>>>> Server instantiated, initiating ExperimentManager... >>>>>> ")
     manager = ExperimentManager(confighandler=confighandler, autoinit=('localexps', ))
@@ -180,12 +186,27 @@ if __name__ == '__main__':
     else:
         logger.info("No active experiments(?) - app.ActiveExperiments = %s", exps)
 
+    if readline:
+        readline.parse_and_bind("tab: complete")
     logger.debug("Invoking app.start()")
+    print("Note: If starting in interactive mode (e.g. with python -i), please do not exit() until you have closed the tk application.")
     app.start()
     # After initiating start_loop, it will not go further until tkroot is destroyed.
 
+    # If this script was invoked with python -i, then the interpreter will be available
+    # for interactive inspection after the script has completed:
+    print("Main application run complete!")
+
 
 """
+
+For interactive mode, enable readline with:
+    import readline, rlcompleter
+    readline.parse_and_bind("tab: complete")
+
+If this is run from e.g. inside a function, you may want to specify the namespace manually:
+    ns = globals().update(locals())
+    readline.set_completer(rlcompleter.Completer(ns).complete)
 
 
 REFS:

@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=R0901,R0924
+# pylint: disable-msg=R0901,R0902,C0103,R0904,W0201,W0613
 """
 Module with a tk frame for displaying and editing an experiment's wiki page journal.
 """
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 #from subentrieslistbox import SubentriesListbox
 from explistboxes import SubentriesListbox #, FilelistListbox, LocalFilelistListbox, WikiFilelistListbox
-from shared_ui_utils import HyperLink, ExpFrame
+from shared_ui_utils import ExperimentLink, ExpFrame
 from dialogs import Dialog
 from journalviewerframe import JournalViewer
 
@@ -56,12 +56,12 @@ class ExpJournalFrame(ExpFrame):
         self.Fonts = self.getFonts()
         # Init StringVars:
         v = ('wiki', 'cache', 'input', 'autoflush_interval', 'wiki_titledesc')
-        self.Variables = dict( (k, tk.StringVar()) for k in v )
+        self.Variables = dict((k, tk.StringVar()) for k in v )
         self.Variables['autoflush_interval'].set(self.Experiment.getConfigEntry('app_autoflush_interval', '10'))
         # Init BooleanVars:
         v = ('autoflush', )
         self.Boolvars = dict()# (k, tk.BooleanVar(value=False)) for k in v )
-        self.Boolvars['autoflush'] = tk.BooleanVar( value=self.Experiment.getConfigEntry('app_autoflush_on', False) )
+        self.Boolvars['autoflush'] = tk.BooleanVar(value=self.Experiment.getConfigEntry('app_autoflush_on', False))
         #self.Labels = dict()
         #self.Entries = dict()
         self.AutoflushAfterIdentifiers = list()
@@ -89,8 +89,8 @@ class ExpJournalFrame(ExpFrame):
         self.subentries_listbox = SubentriesListbox(self.controlframe, self.Experiment)
         #self.journalwiki_view = tk.Text(self.journalwikiframe, state='disabled', height=14)
         #self.journalcache_view = tk.Text(self.journalcacheframe, state='disabled', height=10)
-        self.journalwiki_view  = JournalViewer(self.journalwikiframe, self.Experiment, textopts=dict(height=10, width=60) )
-        self.journalcache_view = JournalViewer(self.journalcacheframe, self.Experiment, textopts=dict(height=6, width=60) )
+        self.journalwiki_view = JournalViewer(self.journalwikiframe, self.Experiment, textopts=dict(height=10, width=60))
+        self.journalcache_view = JournalViewer(self.journalcacheframe, self.Experiment, textopts=dict(height=6, width=60))
         #viewprops = dict(state='normal', bg='white', justify=tk.LEFT)
         #self.journalwiki_view = tk.Label(self.journalwikiframe, height=10, textvariable=self.Variables['wiki'], **viewprops)
         #self.journalcache_view = tk.Label(self.journalcacheframe, height=10, textvariable=self.Variables['cache'], **viewprops)
@@ -104,9 +104,9 @@ class ExpJournalFrame(ExpFrame):
         self.cacheview_header = ttk.Label(self.cachecontrolsframe, text="Local cache:", font=font_h3, justify=tk.LEFT)
         #if 'url' in self.Experiment.Props:
         #    label = ttk.Label(self.cachecontrolsframe, text="Local cache:", font=font_h3, justify=tk.LEFT)
-        self.wikiview_description = HyperLink(self.journalwikiframe, textvariable=self.Variables['wiki_titledesc'],
-                                              #uri=self.Experiment.Props.get('url', None) )
-                                              experiment=self.Experiment)
+        logger.debug("Creating wiki page link, self.Experiment=%s", self.Experiment)
+        self.wikiview_description = ExperimentLink(self.journalwikiframe, textvariable=self.Variables['wiki_titledesc'],
+                                                   experiment=self.Experiment, urlmode='subentry')
 
         # Buttons:
         self.flush_btn = ttk.Button(self.cachecontrolsframe, text="Flush cache!", command=self.flushcache)
@@ -247,6 +247,9 @@ class ExpJournalFrame(ExpFrame):
 
 
     def on_subentry_select(self, event):
+        """
+        Called when the user selects a subentry in the subentry list.
+        """
         selectedsubentries = self.subentries_listbox.getSelectedSubentryIdxs()
         if not selectedsubentries:
             logger.debug("No subentries selected: %s", selectedsubentries)
@@ -317,7 +320,7 @@ class ExpJournalFrame(ExpFrame):
         Called when the autoflush interval value is changed to update the config.
         """
         self.autoflush_reset()
-        self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get() )
+        self.Experiment.setConfigEntry('app_autoflush_interval', self.Variables['autoflush_interval'].get())
         self.Experiment.setConfigEntry('app_autoflush_on', bool(self.Boolvars['autoflush'].get()))
         self.Experiment.Confighandler.saveConfigForEntry('app_autoflush_on') # Probably not required, should be saved on normal app exit.
 
@@ -403,7 +406,6 @@ class ExpJournalFrame(ExpFrame):
         props['subentry_date'] = "{:%Y%m%d}".format(datetime.now())
         props['makefolder'] = True
         props['makewikientry'] = True
-        kwargs = dict(subentry_idx=idx, makefolder=False, makewikientry=False)
         #items are: variable, description, entry widget, kwargs for widget
         entries = ( ('expid', "Experiment ID"),
                     ('subentry_idx', "Subentry index"),
@@ -421,18 +423,15 @@ class ExpJournalFrame(ExpFrame):
         fieldvars['expid'][2]['state'] = 'disabled'  # This is the third element, the dict.
         dia = Dialog(self, "Create new subentry", fieldvars)
         logger.debug("Dialog result: %s", dia.result)
-        #subentry_titledesc, subentry_idx=None, subentry_date=None, ):
-        #self.Experiment.addNewSubentry()
         if dia.result:
             # will be None if the 'ok' button was not pressed.
-            # def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None, extraprops=None, makefolder=False, makewikientry=False)
             dia.result.pop('expid')
             self.Experiment.addNewSubentry(**dia.result)
 
+        # I'm not sure how much clean-up should be done? Do I need to e.g. destroy the dialog completely when I'm done?
         self.Parent.updatewidgets() # will also invoke self.updatewidgets()
 
 
-        # I'm not sure how much clean-up should be done? Do I need to e.g. destroy the dialog completely when I'm done?
 
     def insert_section_for_selected_subentry(self):
         """

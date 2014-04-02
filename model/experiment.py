@@ -100,7 +100,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from page import WikiPage, WikiPageFactory
+from page import WikiPage, WikiPageFactory, make_page_url, make_subentry_anchor
 from journalassistant import JournalAssistant
 from filemanager import Filemanager
 from utils import increment_idx, idx_generator, asciize
@@ -252,7 +252,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """Should always be located one place and one place only: self.Props."""
         return self.Props.get('wiki_pagetitle')
     @property
-    def PageId(self, ):
+    def PageId(self):
         """
         Should be located only as a property of self.WikiPage
         Uhm... should calling self.PageId trigger attachment of wiki page, with all
@@ -385,14 +385,37 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         return self.Status == 'recent'
 
     ## Non-property getters:
-    def getUrl(self):
-        """get wikipage url"""
-        url = self.Props.get('url', None)
-        if not url:
-            # Note: self.WikiPage will trigger attachWikipage including possible server search for wiki page.
-            # Using self._wikipage will not do this.
-            if self.WikiPage:
-                url = self.WikiPage.getViewPageUrl()
+    def getUrl(self, mode="view"):
+        """
+        Returns a url to the wikipage.
+        New argument mode, can be any of:
+        - 'view' : Return a url to view the experiment's wiki page in a browser (default).
+        - 'edit' : Returns link to edit page rather than just view it.
+        - 'pageinfo' : Return a link to view the page's information.
+        - 'pagehistory' : Return a link to view the page's history.
+        - 'attachments' : Return a link to view the page's attachments.
+        - 'subentry' : Return a link with an anchor to the currently selected subentry.
+        """
+        # Shortcut for the most ubuqutous use-case:
+        if mode == 'view':
+            url = self.Props.get('url', None)
+            if url:
+                return url
+        if self.Server is None:
+            return
+        baseurl = self.Server.BaseUrl
+        pageId = self.PageId
+        anchor = None
+        if mode == 'subentry':
+            mode = 'view'
+            pagetitle = self.Wiki_pagetitle
+            # This will only work if the format has not been changed since the subentry was created on the page:
+            subentryheader = self.getSubentryRepr(subentry_idx='current')
+            if subentryheader:
+                anchor = make_subentry_anchor(pagetitle, subentryheader)
+        url = make_page_url(baseurl, pageId, mode, anchor)
+        logger.debug("url obtained from (baseurl, pageId, mode, anchor) = (%s, %s, %s, %s): %s",
+                     baseurl, pageId, mode, anchor, url)
         return url
 
 
@@ -904,8 +927,10 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             subentries.setdefault(idx, dict()).update(gd)
         return subentries
 
+
     def parseSubentriesFromWikipage(self, wikipage=None, xhtml=None, return_subentry_xhtml=False):
         """
+        # TODO: Move to experimentpage (currently only two methods, so stays here for now...)
         Arguments:
           wikipage  : the wikipage (object) to parse
           xhtml     : parse directly this xhtml
@@ -988,7 +1013,6 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         return True
 
 
-
     def getNewSubentryIdx(self):
         """
         Returns the next subentry idx, e.g.:
@@ -997,8 +1021,6 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         if not self.Subentries:
             return 'a'
         return increment_idx(sorted(self.Subentries.keys())[-1])
-
-
 
 
     ###
@@ -1059,7 +1081,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         Get xhtml for wikipage.
         """
         if not self.WikiPage or not self.WikiPage.Struct:
-            logger.warning("Experiment.getWikiSubentryXhtml() > WikiPage or WikiPage.Struct is None, aborting...")
+            logger.warning("WikiPage or WikiPage.Struct is None, aborting...")
             logger.warning("-- %s is %s", 'self.WikiPage.Struct' if self.WikiPage else self.WikiPage, self.WikiPage.Struct if self.WikiPage else self.WikiPage)
             return
         content = self.WikiPage.Struct['content']
@@ -1068,10 +1090,11 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
 
     def getWikiSubentryXhtml(self, subentry=None):
         """
+        # TODO: Move to experimentpage
         Get xhtml (journal) for a particular subentry on the wiki page.
         subentry defaults to self.JournalAssistant.Current_subentry_idx.
         """
-        subentry = subentry or getattr(self.JournalAssistant, 'Current_subentry_idx', None)
+        subentry = subentry or self.getCurrentSubentryIdx()
         if not subentry:
             logger.info("No subentry set/selected/available, aborting...")
             return None
@@ -1096,6 +1119,12 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             logger.debug("No subentry xhtml found matching regex_pat '%s', derived from regex_pat_fmt '%s'. len(self.WikiPage.Struct['content']) is: %s",
                          regex_pat, regex_pat_fmt, len(self.WikiPage.Struct['content']) )
             return None
+
+    def getCurrentSubentryIdx(self):
+        """
+        Returns current subentry index (which is held and managed by the JournalAssistant...)
+        """
+        return getattr(self.JournalAssistant, 'Current_subentry_idx', None)
 
 
     def attachWikiPage(self, pageId=None, pagestruct=None):
@@ -1128,23 +1157,23 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             logger.info("Notice - no pageId found for expid %s (self.Server=%s)...", self.Props.get('expid'), self.Server)
             return pagestruct
         self.WikiPage = wikipage = WikiPage(pageId, self.Server, pagestruct)
+        struct = wikipage.Struct
         # Update self.Props for offline access to the title of the wiki page:
-        if wikipage.Struct:
-            self.Props['wiki_pagetitle'] = self.WikiPage.Struct['title']
+        if struct:
+            logger.debug("Setting experiment props['wiki_pagetitle'] = %s", struct['title'])
+            self.Props['wiki_pagetitle'] = struct['title']
+        else:
+            logger.info("Wiki page struct obtained with pageId %s is: %s", pageId, struct)
         return wikipage
 
     def searchForWikiPage(self):
         """
-        # TODO: These wiki page search methods should be moved to either the server module or the experimentmanager module.
         Argument <extended> is used to control how much search you want to do.
         Search strategy:
         1) Find page on wiki in space with pageTitle matching self.Foldername.
         2) Query manager for CURRENT wiki experiment pages and see if there is one that has matching expid.
         3) Query exp manager for ALL wiki experiment pages and see if there is one that has matching expid.
         3) Find pages in space with user as contributor and expid in title.
-           # If multiple results are returned, filter pages by parentId matching wiki_exp_root_pageId? No, would be found by #2.
-        4) Find pages in all spaces with user as contributor and ...?
-        5) Find pages in user's space without user as contributor and expid in title?
         Hmm... being able to define list with multiple spaceKeys and wiki_exp_root_pageId
         would make it a lot easier for users with wikipages scattered in several spaces...?
         Also, for finding e.g. archived wikipages...
@@ -1157,21 +1186,19 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
                 return currentwikipagesbyexpid[expid]
         else:
             logger.warning("Experiment %s has no ExperimentManager.", expid)
-
         # Query server:
         server = self.Server
         if not server:
             logger.info("self.Server is: %s, ABORTING.", server)
             return None
-        callinfo = logger.findCaller()
-        method_repr = "{}.{}".format(self.__class__.__name__, callinfo[2])
-        logger.info("%s :: Searching on server...", method_repr)
         spaceKey = self.Confighandler.get('wiki_exp_root_spaceKey')
         pageTitle = self.Foldername or self.getFoldernameFromFmtAndProps() # No reason to make this more complicated...
         user = self.Confighandler.get('wiki_username') or self.Confighandler.get('username')
         optional = {'creator': (user, ), 'modifier': (user, ) }
         required = {'title': (expid, ) }
-        pagestruct = server.searchForWikiPage(spaceKey=spaceKey, pageTitle=pageTitle)
+        logger.info("Searching for page with title=%s, space=%s on server...", pageTitle, spaceKey)
+        pagestruct = server.searchForWikiPage(spaceKey, pageTitle, required, optional)
+        return pagestruct
 
 
     def makeWikiPage(self, pagefactory=None):
@@ -1300,6 +1327,8 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         formatted according to config entry 'exp_subentry_dir_fmt'
         Is used to create new subentry folders, and display subentries in e.g. lists, etc.
         """
+        if subentry_idx == 'current':
+            subentry_idx = self.getCurrentSubentryIdx()
         if subentry_idx:
             subentry = self.Subentries.get(subentry_idx, None)
             if subentry:

@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=R0901,R0924
+# pylint: disable-msg=R0901,C0103,R0904,W0201
 
 """
 Module with a primitive JournalViewer frame.
@@ -39,7 +39,8 @@ logger = logging.getLogger(__name__)
 
 class JournalViewer(ExpFrame):
     """
-    Frame for viewing a wiki page journal.
+    Frame for viewing a wiki page journal, displaying the page's xhtml content
+    in a text widget, either as raw html or rendered.
     """
 
     #def __init__(self, parent, experiment, **frameopts):
