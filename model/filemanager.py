@@ -24,6 +24,10 @@ Implemented as a single class which has a 1:1:1 relationship as
                         Experiment
                        /          \
             Filemanager             WikiPage
+           /
+SatelliteMgr
+           \
+            SatelliteLocation
 """
 from __future__ import print_function
 import os

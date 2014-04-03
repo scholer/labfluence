@@ -1,0 +1,206 @@
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE
+2014_Aarhus/RS191 HCav annealing screen1
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot
+2014_Aarhus/RS195 HCav6V Assembly for MV
+2014_Aarhus/RS196 HPLC analysis for AV and LH
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis
+2014_Aarhus/RS198 Peg5k10k TR staples TdT
+2014_Aarhus/RS199 PEGylated 5k 10k TR Origami for mice
+2014_Aarhus/RS200 PEG-TR mice circulation vs qPCR
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test
+2014_Aarhus/RS202 Various HPLC assists
+2014_Aarhus/windirstructure.txt
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/.labfluence.yml
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189a Pipetting TR SS MBL staples for MV (20140109)
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189b Pipetting TR ss-col410-bg staples with Anders (20140108)
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189c Pipetting TR.SS cols with new IDT_Jan14 staples (20140115)
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189c Pipetting TR.SS cols with new IDT_Jan14 staples (20140115)/epmotion-cmd-templates.yml
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189c Pipetting TR.SS cols with new IDT_Jan14 staples (20140115)/TR.SS.i-4T.colormap
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189c Pipetting TR.SS cols with new IDT_Jan14 staples (20140115)/TR.SS.i-4T.csv.smmc.sorted
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189c Pipetting TR.SS cols with new IDT_Jan14 staples (20140115)/TR.SS.i-4T.modulestopipet
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189c Pipetting TR.SS cols with new IDT_Jan14 staples (20140115)/TR_SS-allcols_pip2.dws
+2014_Aarhus/RS189 Pipetting TR SS staples for MBL and col410/RS189c Pipetting TR.SS cols with new IDT_Jan14 staples (20140115)/TR_SS-allcols_pip2.report.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence.yml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190c Phenol chloroform purification incl biotin-RNA (20140115)
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190d Biotin-RNA purification of NC annealed HCav Delfin and Box (20140115)
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190e EDTA NaCl purification of NC annealed HCav Delfin and Box (20140115)
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/b_journal.flushed.bak
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/b_journal.flushed.xhtml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/b_journal.txt.lastflush
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/c_journal.flushed.bak
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/c_journal.flushed.xhtml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/c_journal.txt.lastflush
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/d_journal.flushed.bak
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/d_journal.flushed.xhtml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/d_journal.txt.lastflush
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/e_journal.flushed.bak
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/e_journal.flushed.xhtml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/.labfluence/e_journal.txt.lastflush
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_dataanalysis.py
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_Delfin_only.csv
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_Delfin_only.xlsx
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export2.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export2.txt~
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export3.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export3_figure.png
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export3_renamed.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export3_renamed.txt~
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export3_renamed_protk_last.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export4.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export_renamed.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_export_renamed.txt~
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_samplenames.txt
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190b DLS monitored NC annealing HCav Delfin Box (20140114)/RS190b_DLS_samplenames.txt~
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_20140120_520V0-10k.png
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_20140120_520V0-40k.png
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_20140120_600V0-17k.png
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_20140120_600V0-20k.png
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_20140120_600V0-50k.png
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_agarose_sybrsafe520v_2.1dxml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_agarose_sybrsafe520v_2.gel
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/rs190f_agarose_sybrsafe520v_2r.1dxml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/rs190f_agarose_sybrsafe520v_2r.gel
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_agarose_sybrsafe600v.1dxml
+2014_Aarhus/RS190 NC folded TR Box HCav6V with RNA pur DLS and AGE/RS190f Agarose GE analysis of NC annealed origamis (20140116)/RS190f_agarose_sybrsafe600v.gel
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence.yml
+2014_Aarhus/RS191 HCav annealing screen1/RS191a Thermal screen1 (20140114)
+2014_Aarhus/RS191 HCav annealing screen1/RS191b HCav Mg screen1 (20140114)
+2014_Aarhus/RS191 HCav annealing screen1/RS191c Agarose GE analysis (20140115)
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/a_journal.flushed.bak
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/a_journal.flushed.xhtml
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/a_journal.txt.lastflush
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/b_journal.flushed.bak
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/b_journal.flushed.xhtml
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/b_journal.txt.lastflush
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/c_journal.flushed.bak
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/c_journal.flushed.xhtml
+2014_Aarhus/RS191 HCav annealing screen1/.labfluence/c_journal.txt.lastflush
+2014_Aarhus/RS191 HCav annealing screen1/RS191c Agarose GE analysis (20140115)/RS191c_Agarose_20140115_600V0-50k.png
+2014_Aarhus/RS191 HCav annealing screen1/RS191c Agarose GE analysis (20140115)/RS191c_Agarose_20140115_600V0-90k.png
+2014_Aarhus/RS191 HCav annealing screen1/RS191c Agarose GE analysis (20140115)/RS191c_Agarose_600V.1dxml
+2014_Aarhus/RS191 HCav annealing screen1/RS191c Agarose GE analysis (20140115)/RS191c_Agarose_600V.gel
+2014_Aarhus/RS191 HCav annealing screen1/RS191c Agarose GE analysis (20140115)/rs191c_agarose_600v_rc.1dxml
+2014_Aarhus/RS191 HCav annealing screen1/RS191c Agarose GE analysis (20140115)/rs191c_agarose_600v_rc.gel
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence.yml
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/For RSS 12_5mM.7z
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192a Biotin-UTP TdT of pre-foldF 4-lbl staples (20140121)
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192b EtOH precip of biotin lbl pre-foldF 4L (20140121)
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192d biotin FRET Box mix anneal (20140122)
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/a_journal.flushed.bak
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/a_journal.flushed.xhtml
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/a_journal.txt.lastflush
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/b_journal.flushed.bak
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/b_journal.flushed.xhtml
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/b_journal.txt.lastflush
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/c_journal.flushed.bak
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/c_journal.flushed.xhtml
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/c_journal.txt.lastflush
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/d_journal.flushed.bak
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/d_journal.flushed.xhtml
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/.labfluence/d_journal.txt.lastflush
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RS192c_20140122_550V0-70k.png
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RS192c_PAGE_550V480V.dir
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RS192c_PAGE_550V480V.ds
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RSNNNx_20140122_480V0-30k.png
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RS192c_PAGE_550V480V.dir/RS192c_PAGE_550V480V.1dxml
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RS192c_PAGE_550V480V.dir/RS192c_PAGE_550V480V.ds
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RS192c_PAGE_550V480V.dir/UNSEP1.gel
+2014_Aarhus/RS192 Biotin-FRET Box for MJ sm-FRET/RS192c PAGE of biotin lbl staples (20140122)/RS192c_PAGE_550V480V.dir/UNSEP2.gel
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/.labfluence
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/.labfluence.yml
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/RS193a Pipetting amino col410 TR staples (20140122)
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/RS193b Cy5-NHS conj to amino ss-col410 staples (20140122)
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/RS193c EtOH precip of Cy5-lbl ss-col410 TR staples (20140122)
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/RS193d RP-HPLC of TR ss-col410-4xCy5 staples from b (20140123)
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/RS193e UVvis quant of HPLC fractions (20140127)
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/RS193f PAGE analysis of fractions (20140127)
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/.labfluence/b_journal.txt
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/.labfluence/d_journal.flushed.bak
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/.labfluence/d_journal.flushed.xhtml
+2014_Aarhus/RS193 Cy5 coupling to TR ss-col410 4xCy5/.labfluence/d_journal.txt.lastflush
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence.yml
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194a TR-ZZ ss-cy5-col410 mix and anneal (20140128)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194b S400 pur of TR-col410-cy5 (20140128)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194c Macrophage transfection (by Anders) (20140211)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194d Flow cytometry (by Anders) (20140129)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194e Cell counter and confocal microscopy (by Anders) (20140201)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194f New TR-ZZ ss-col410-cy5 S400 purification (20140211)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194g Amicon upconcentration of S400 elu2-5 (20140211)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194h Macrophage transfection of TR-ZZ-ss-col410-cy (20140214)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194i Confocal microscopy of macrophages from h (20140214)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194j Flow cytometry of macrophages from h (20140214)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/RS194k Agarose analysis of TR-ZZ-ss-col410-cy5 (20140214)
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/b_journal.flushed.bak
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/b_journal.flushed.xhtml
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/b_journal.txt.lastflush
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/f_journal.flushed.bak
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/f_journal.flushed.xhtml
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/f_journal.txt.lastflush
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/g_journal.flushed.bak
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/g_journal.flushed.xhtml
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/g_journal.txt.lastflush
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/k_journal.flushed.bak
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/k_journal.flushed.xhtml
+2014_Aarhus/RS194 Cy5-col410 TR for macrophage pilot/.labfluence/k_journal.txt.lastflush
+2014_Aarhus/RS195 HCav6V Assembly for MV/.labfluence
+2014_Aarhus/RS195 HCav6V Assembly for MV/.labfluence.yml
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195a HCav6V annealing using RS190a1 (20140128)
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)
+2014_Aarhus/RS195 HCav6V Assembly for MV/.labfluence/a_journal.txt
+2014_Aarhus/RS195 HCav6V Assembly for MV/.labfluence/b_journal.flushed.bak
+2014_Aarhus/RS195 HCav6V Assembly for MV/.labfluence/b_journal.flushed.xhtml
+2014_Aarhus/RS195 HCav6V Assembly for MV/.labfluence/b_journal.txt.lastflush
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)/good
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)/RS190f2prime_1.tif
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)/RS190f2prime_2.tif
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)/RS190f2prime_3.tif
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)/RS190f2prime_4.tif
+2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)/RS190f2prime_5.tif
+2014_Aarhus/RS196 HPLC analysis for AV and LH/.labfluence.yml
+2014_Aarhus/RS196 HPLC analysis for AV and LH/RS196a HPLC analysis of AVs SMCC N002 oligo (20140305)
+2014_Aarhus/RS196 HPLC analysis for AV and LH/RS196b HPLC analysis of Lines aptamer (20140305)
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence.yml
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/RS197a NHS conjugation (20140313)
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/RS197b HyperSep C18 RP pur (20140314)
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/RS197c HPLC of HyperSep fractions (20140316)
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/RS197d HPLC ana of b1-2 fractions 3-7 and nb c1-2 (20140317)
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence/a_journal.flushed.bak
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence/a_journal.flushed.xhtml
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence/a_journal.txt.lastflush
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence/c_journal.flushed.bak
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence/c_journal.flushed.xhtml
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/.labfluence/c_journal.txt.lastflush
+2014_Aarhus/RS197 PEG5k PEG10k-dUTP and DBCO-ddUTP synthesis/RS197b HyperSep C18 RP pur (20140314)/TEAA-MeCN-gradient-mix-simulation.xlsx
+2014_Aarhus/RS198 Peg5k10k TR staples TdT/.labfluence.yml
+2014_Aarhus/RS198 Peg5k10k TR staples TdT/RS198a TR zz-cols-uneven staple pooling (20140317)
+2014_Aarhus/RS198 Peg5k10k TR staples TdT/RS198b Peg-dUTP TR staples TdT (20140317)
+2014_Aarhus/RS198 Peg5k10k TR staples TdT/RS198c RS198c PAGE of Peg-dUTP TdT (20140318)
+2014_Aarhus/RS198 Peg5k10k TR staples TdT/RS198d DEAE pur of PEG 5k 10k staples (20140318)
+2014_Aarhus/RS198 Peg5k10k TR staples TdT/RS198e Amicon upconc and buffer exchange (20140318)
+2014_Aarhus/RS199 PEGylated 5k 10k TR Origami for mice/.labfluence.yml
+2014_Aarhus/RS199 PEGylated 5k 10k TR Origami for mice/RS199a TR Origami mix and anneal (20140318)
+2014_Aarhus/RS200 PEG-TR mice circulation vs qPCR/.labfluence.yml
+2014_Aarhus/RS200 PEG-TR mice circulation vs qPCR/RS200a Origami injections mice 1-7 (20140319)
+2014_Aarhus/RS200 PEG-TR mice circulation vs qPCR/RS200b Origami injections mice 8-16 (20140320)
+2014_Aarhus/RS200 PEG-TR mice circulation vs qPCR/RS200c qPCR analysis v1 (20140328)
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/.labfluence
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/.labfluence.yml
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/RS201a Oligo-Alkyne N3-lipid click reaction (20140325)
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/RS201b PAGE analysis of a (20140326)
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/RS201c HPLC ana and prep of reaction from a (20140327)
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/RS201d HPLC control analysis of click reagents (20140401)
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/RS201e HPLC of non-binding fractions from c (20140402)
+2014_Aarhus/RS201 HCav Alkyne-oligo azide-lipid click test/.labfluence/a_journal.txt
+2014_Aarhus/RS202 Various HPLC assists/.labfluence.yml
+2014_Aarhus/RS202 Various HPLC assists/RS202a Helping Steffen with SEC HPLC of RNA structure T0 T1 (20140326)
