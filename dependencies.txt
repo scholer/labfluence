@@ -1,0 +1,12 @@
+# Install with pip install -U <package>
+# If your python distribution/installation is managed by an alternative package manager, use that, e.g.
+# Ubuntu/Debian: sudo apt-get python-<package>
+# For OS X, use the package manager that you also used to install python. Darwin/Fink, MacPorts or Homebrew.
+# For windows, I recommend installing Anaconda or another "managed" python distribution.
+# Although pip can be used to install some packages, many packages with C-code will require you to have a C-compiler installed - which should generally be the same as the compiler used to compile your python (typically Microsoft Visual Studio 2005 for Python 2).
+# To install a package with Anaconda (running the prompt as administrator): conda install <package>
+# Some distributions (Enthought Canopy, WinPython) also have a GUI-enabled package manager...
+
+# The required packages for labfluence are:
+pyyaml
+pycrypto
