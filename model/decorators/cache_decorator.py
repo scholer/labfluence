@@ -14,29 +14,67 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable=W0212,R0903,C0103,W0201
+
+"""
+
+A minor note about python decorators:
+They are defined as though they were classes.
+They implement e.g. __init__ , __call__
+(similar to what you could do in a normal object -- although you usually only override __init__)
+and __get__
+Example (PS: only works for new-style objects; uses mixin I think...)
 
 
+"""
 
 #
 # © 2011 Christopher Arndt, MIT License
 # From https://wiki.python.org/moin/PythonDecoratorLibrary#Cached_Properties
 
 import time
+import logging
+logger = logging.getLogger(__name__)
 
 class cached_property(object):
-    '''Decorator for read-only properties evaluated only once within TTL period.
+    '''
+    Decorator for making cached properties with read/write/expire ability.
+    The property is evaluated only once within TTL period, unless specifically
+    expired or re-set.
 
-    It can be used to created a cached property like this::
+    Based on the original cached_property by Christopher Arndt, but with a few additions:
 
-        import random
+    *   I could never remember how to expire a cache, so I've implemented __del__ to do
+        this now. To expire the cache, simply invoke
+            del obj.MyCachedProperty
+        where CachedProperty is the attribute on your object obj, as per the example below:
 
-        # the class containing the property must be a new-style class
-        class MyClass(object):
-            # create property whose value is cached for ten minutes
-            @cached_property(ttl=600)
-            def randint(self):
-                # will only be evaluated every 10 min. at maximum.
-                return random.randint(0, 100)
+    *   I would like to be able to re-set the property if I do the calculations somewhere else.
+        (However, this is probably usually Not A Good Idea (tm)).
+
+    *   Setting ttl to a negative value should disable caching (it will always be expired).
+
+    This decorator can be used to created a cached property like this::
+
+            # the class containing the property must be a new-style class
+            class MyClass(object):
+                # create property whose value is cached for ten minutes
+                @cached_property(ttl=600)   # Set cache time to 600 seconds
+                def MyCachedProperty(self):
+                    # will only be evaluated every 10 min.
+                    return really_long_calculation()
+            obj = MyClass()
+            print obj.MyCachedProperty  # Slow first time.
+            print obj.MyCachedProperty  # Fast
+            newval = calculation_from_alternative_source()
+            obj.MyCachedProperty = newval   # Re-set property with new value.
+            print obj.MyCachedProperty  # Fast
+            del obj.MyCachedProperty    # Expire the cache (does not actually delete the attribute)
+            print obj.MyCachedProperty  # Slow.
+
+    Alternatively, the cached property can be expired manually by deleting the cache entry:
+
+        del obj._cache[<property name>]
 
     The value is cached  in the '_cache' attribute of the object instance that
     has the property getter method wrapped by this decorator. The '_cache'
@@ -49,9 +87,19 @@ class cached_property(object):
     The default time-to-live (TTL) is 300 seconds (5 minutes). Set the TTL to
     zero for the cached value to never expire.
 
-    To expire a cached property value manually just do::
+    Note that, unlike the property decorator, this decorator must be instantiated
+    before it is used to wrap a method. This is because here the decoration is
+    done by passing the method-to-be-wrapped to __call__, while in the property
+    decorator the method-to-be-wrapped is passed to __init__ during instantiation.
+    For this decorator, __init__ is used to customize the decorator, setting
+    ttl and (in theory) other attributes.
 
-        del instance._cache[<property name>]
+    Thus, to use this property you MUST do:
+        @cached_property()  # Notice the parenthesis
+        def mymethod(...)
+    this will NOT work:
+        @cached_property    # Will not work without parenthesis;
+        def mymethod        # since mymethod will then be passed to __init__
 
     '''
     def __init__(self, ttl=300):
@@ -65,16 +113,51 @@ class cached_property(object):
         return self
 
     def __get__(self, inst, owner):
+        ## Note: putting now = time.time() at the top will make the cache behavior dependent on the calculation time.
+        ## You could argue the cache time-to-live should be calculated from _after_ the calculation
+        ## has finished, not from when it was started.
+        ## (This is only important if calculation time (self.fget) is comparable to self.ttl)
         now = time.time()
         try:
             value, last_update = inst._cache[self.__name__]
-            if self.ttl > 0 and now - last_update > self.ttl:
+            if self.ttl != 0 and now - last_update > self.ttl:
                 raise AttributeError
         except (KeyError, AttributeError):
             value = self.fget(inst)
             try:
                 cache = inst._cache
             except AttributeError:
-                cache = inst._cache = {}
-            cache[self.__name__] = (value, now)
+                cache = inst._cache = {} # empty dict.
+            cache[self.__name__] = (value, now) # Consider calling for another time.time() ?
         return value
+
+    def __set__(self, inst, value):
+        """
+        Descriptor protocol:
+            __set__(self, instance, value) --> None
+        I override __set__ to ensure that the property is not automatically
+        overwritten, e.g. if someone does:
+        (class MyObj, instance myobj):
+        @def cached_property
+            def mycachedattr(self):
+                return random.randint(0, 99)
+        then later:
+            myobj.mycachedattr = 2
+        """
+        logger.debug("__set__ invoked with inst '%s' and value '%s'", inst, value)
+        now = time.time()
+        try:
+            cache = inst._cache
+        except AttributeError:
+            cache = inst._cache = {} # empty dict.
+            logger.debug("No existing cache, created a new...")
+        cache[self.__name__] = (value, now)
+
+    def __delete__(self, inst):
+        logger.debug("Deleting cache for property '%s'", self.__name__)
+        try:
+            del inst._cache[self.__name__]
+        except AttributeError as e:
+            logger.debug("inst '%s' doesn't have a _cache so nothing to delete. (%s)", inst, e)
+        except KeyError as e:
+            logger.debug("No key '%s' for _cache of inst '%s' so nothing to delete.", e, inst)
