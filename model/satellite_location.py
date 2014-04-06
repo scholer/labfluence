@@ -131,33 +131,17 @@ class SatelliteLocation(object):
         self._manager = manager
         self._fulldirectoryset = set()
         self._regexpats = None
-        self._subentryfoldersbyexpidsubidx = None
+        # self._subentryfoldersbyexpidsubidx = None # Is now a cached property; the cache value should only be located in one place and that is not here.
         self._subentryfolderset = set()
         self._expidsubidxbyfolder = None
+        self._cache = dict()
+
+    def __repr__(self):
+        return "sl> {}".format(self.Name or self.Description or self.URI)
 
     #########################
-    ### Cached properties ###  ## Not tested yet....
+    ### Properties ##########
     #########################
-    @cached_property(ttl=60)
-    def SubentryfoldersByExpidSubidx(self):
-        """
-        I guess this should really be the other way around.
-        But currently, update_expsubfolders() takes care of resetting the cache items.
-        """
-        self.update_expsubfolders()
-        return self._subentryfoldersbyexpidsubidx
-    @cached_property(ttl=60)
-    def Subentryfoldersset(self):
-        """
-        """
-        self.update_expsubfolders()
-        return self._subentryfolderset
-    @cached_property(ttl=60)
-    def ExpidSubidxByFolder(self):
-        """
-        """
-        self.update_expsubfolders()
-        return self._expidsubidxbyfolder
 
     @property
     def LocationManager(self):
@@ -235,36 +219,85 @@ class SatelliteLocation(object):
         self._regexpats = {key : re.compile(regex) if isinstance(regex, basestring) else regex for key, regex in regexs.items()}
         logger.debug("self._regexpats set to {}".format(self._regexpats))
 
+    ##################################
+    ## Not-used/diabled properties ###
+    ##################################
 
+    # Some of these should probably be implemented differently, they are just here for the concept.
+
+    #@property
+    #def FoldersByExpSub(self):
+    #    """
+    #    Return a dict-dict datastructure:
+    #    [<expid>][<subentry_idx>] = folderpath.
+    #    With this, it is easy to find a satellite folderpath for a particular experiment subentry.
+    #    """
+    #    return self.getSubentryfoldersByExpidSubidx()
+    #
+    #@property
+    #def FolderStructureStat(self):
+    #    """
+    #    Returns a dict datastructure:
+    #    [folderpath] = stat
+    #    I'm not sure how much it costs to stat() a file/folder on a network share vs just listing the contents.
+    #    """
+    #    pass
+    #
+    #@property
+    #def Fulldirectoryset(self):
+    #    """
+    #    Returns a set of all files in the datastructure.
+    #    This would be very easy to compare for new files and folders:
+    #    """
+    #    return self._fulldirectoryset
+
+
+    #####################################
+    #- Properties for subentryfolders  -#
+    #####################################
+
+    @cached_property(ttl=60)
+    def SubentryfoldersByExpidSubidx(self):
+        """
+        I guess this should really be the other way around.
+        But currently, update_expsubfolders() takes care of resetting the cache items.
+        self.update_expsubfolders() will calculate:
+        self._expidsubidxbyfolder = expidsubidxbyfolder
+        self._subentryfolderset = subentryfoldersset
+        """
+        logger.debug("Getting foldersbyexpidsubidx with self.getSubentryfoldersByExpidSubidx(), [%s]", time.time())
+        foldersbyexpidsubidx = self.getSubentryfoldersByExpidSubidx()
+        logger.debug("-- foldersbyexpidsubidx obtained with %s items, [%s]", foldersbyexpidsubidx if foldersbyexpidsubidx is None else len(foldersbyexpidsubidx), time.time())
+        logger.debug("Invoking self.update_expsubfolders(foldersbyexpidsubidx=foldersbyexpidsubidx) [%s]", time.time())
+        self.update_expsubfolders(foldersbyexpidsubidx=foldersbyexpidsubidx)
+        return foldersbyexpidsubidx
     @property
-    def FoldersByExpSub(self):
+    def ExpidSubidxByFolder(self):
         """
-        Return a dict-dict datastructure:
-        [<expid>][<subentry_idx>] = folderpath.
-        With this, it is easy to find a satellite folderpath for a particular experiment subentry.
+        ExpidSubidxByFolder[<folderpath] --> (expid, subidx)
         """
-        return self.getSubentryFoldersByExpIdSubIdx()
-
+        if not self._subentryfolderset:
+            logger.debug("Invoking self.update_expsubfolders(), %s", time.time())
+            self.update_expsubfolders()
+        return self._expidsubidxbyfolder
     @property
-    def FolderStructureStat(self):
+    def Subentryfoldersset(self):
         """
-        Returns a dict datastructure:
-        [folderpath] = stat
-        I'm not sure how much it costs to stat() a file/folder on a network share vs just listing the contents.
+        set(<list of subentry folders>)
         """
-        pass
+        if not self._subentryfolderset:
+            logger.debug("Invoking self.update_expsubfolders(), %s", time.time())
+            self.update_expsubfolders()
+        return self._subentryfolderset
 
-    @property
-    def Fulldirectoryset(self):
-        """
-        Returns a set of all files in the datastructure.
-        This would be very easy to compare for new files and folders:
-        """
-        return self._fulldirectoryset
+    #def subentryfoldersupdated(self):
+    #    """
+    #    Call this to invalidate the stored cache:
+    #    Probably not the best thing to do.
+    #    """
+    #    self._expidsubidxbyfolder = None
+    #    self._subentryfolderset = None
 
-
-    def __repr__(self):
-        return "sl> {}".format(self.Name or self.Description or self.URI)
 
 
     def getConfigEntry(self, cfgkey, default=None):
@@ -273,96 +306,28 @@ class SatelliteLocation(object):
         """
         ch = self.Confighandler
         if ch:
-            return ch.get(cfgkey)
+            return ch.get(cfgkey, default)
 
 
-    def findSubentries(self, regexpat, basepath='.', folderscheme=None):
-        """
-        First primitive attempt. Finds subentry folders matching regexpat.
-        Returns a list of the subentry folders.
-        """
-        if folderscheme is None:
-            folderscheme = self.Folderscheme
-        if isinstance(regexpat, basestring):
-            regexpat = re.compile(regexpat)
-        basepath = self.getRealPath(basepath)
-        if folderscheme == './experiment/subentry/':
-            subentryfolders = ( (subentry, self.join(basepath, experiment, subentry))
-                     for experiment in self.listdir(basepath) if self.isdir(self.join(basepath, experiment))
-                        for subentry in self.join(basepath,experiment) if self.isdir(self.join(basepath, experiment, subentry)) )
-        else: # e.g. if self.FolderScheme == './subentry/':
-            subentryfolders = ( (subentry, self.join(basepath, subentry)) for subentry in self.listdir(basepath) )
+    #def findSubentries(self, regexpat, basepath='.', folderscheme=None):
+    #    """
+    #    First primitive attempt. Finds subentry folders matching regexpat.
+    #    Returns a list of the subentry folders.
+    #    """
+    #    if folderscheme is None:
+    #        folderscheme = self.Folderscheme
+    #    if isinstance(regexpat, basestring):
+    #        regexpat = re.compile(regexpat)
+    #    basepath = self.getRealPath(basepath)
+    #    if folderscheme == './experiment/subentry/':
+    #        subentryfolders = ((subentry, self.join(basepath, experiment, subentry))
+    #                 for experiment in self.listdir(basepath) if self.isdir(self.join(basepath, experiment))
+    #                    for subentry in self.join(basepath, experiment) if self.isdir(self.join(basepath, experiment, subentry)))
+    #    else: # e.g. if self.FolderScheme == './subentry/':
+    #        subentryfolders = ((subentry, self.join(basepath, subentry)) for subentry in self.listdir(basepath))
+    #    dirs = [path for foldername, path in subentryfolders if regexpat.match(foldername)]
+    #    return dirs
 
-        dirs = [path for foldername, path in subentryfolders if regexpat.match(foldername) ]
-        return dirs
-
-    def genPathmatchTupsByPathscheme(self, regexs=None, basedir=None, folderscheme=None, includefiles=False):
-        """
-        Returns a sequnce/generator of two-item 'matchtuples':
-            (folderpath, match-items-dict)
-        where each match-items-dict has keys matching each scheme item in folderscheme
-        and each value is a regex match found during traversal at that scheme level.
-        For a very deep pathscheme of 'year/experiment/subentry/filename'
-            {'year': <year match>, 'experiment': <exp-match>, 'subentry': <subentry-match>, 'filename' : <fn-match>}
-        (Usually, you do not want to include <filename> in the folderscheme, but perhaps
-        parse that separately if required...)
-        Question: Do you save for all levels, or only for the final part? Only the last part.
-
-        """
-        regexs = regexs or self.Regexs
-        basedir = basedir or self.Rootdir
-        basepath = self.getRealPath(basedir)
-        folderscheme = folderscheme or self.Folderscheme
-        schemekeys = [key for key in folderscheme.split('/') if key and key != '.']
-
-        logger.debug("Making pathmatchtuples from pathscheme %s with regexs: %s", folderscheme, regexs)
-        def genitems(schemekeys, basefolder, basematch=None):
-            """
-            schemekeys are the remaining items in the pathscheme, starting
-            from basefolder. basematch is a dict with matches for the basefolder.
-            If pathscheme is ./year/experiment/subentry and we are at ./2013/RS160.../
-            then basematch will be a dict : {'year': <year match>, 'experiment': <exp match>}
-            Since we are using a generator, creating dicts should not be a big memory issue.
-            And, since the pathscheme should only go two maybe three steps deep,
-            recursing shouldn't be an issue either.
-            Returns a sequnce/generator of two-item 'matchtuples':
-                (folderpath, match-items-dict)
-            """
-            # slicing does not raise indexerrors:
-            schemekey, remainingschemekeys = schemekeys[0], schemekeys[1:]
-            regexpat = regexs[schemekey]
-            logger.debug("Running genitems for schemekey '%s', remaining items is: %s", schemekey, remainingschemekeys)
-            logger.debug("basefolder is '%s', regex '%s', matching against directory elements: %s",
-                         basefolder, regexpat.pattern, self.listdir(basefolder))
-            # if schemekey is 'experiment' and remaining items is ['subentry'],
-            # then basefolder should be e.g. ./2014/.
-            # Produce list of folders (or files, if includefiles=True):
-            foldernames = (foldername for foldername in self.listdir(basefolder)
-                            if foldername not in self.IgnoreDirs and (includefiles or self.isdir(self.join(basefolder, foldername))))
-            # Make tuples with folder path and regex match
-            pathmatchtup = ((self.join(basefolder, foldername), regexpat.match(foldername))
-                                    for foldername in foldernames)
-            #logger.debug("Number of folders matched:  %s", len(pathmatchtup))#, pathmatchtup)
-            # Filter out tuples where regex match is None (= no match)
-            foldertups = ((folderpath, dict(basematch, **{schemekey: match})) # alternatively basematch.copy().update({schemekey: match})
-                            for folderpath, match in pathmatchtup if match)
-            #logger.debug("Number of matching matched: %s", len(foldertups))
-            if remainingschemekeys:
-                matchitems = (subfoldertup
-                              for folderpath, matchdict in foldertups
-                                for subfoldertup in genitems(remainingschemekeys, folderpath, matchdict))
-                #logger.debug("Received matching items from remainingschemekeys: %s", len(matchitems))
-            else:
-                #logger.debug("No remaining items, returning foldertups at this level.")
-                matchitems = foldertups
-            return matchitems
-
-        foldermatchtups = genitems(schemekeys, basepath, basematch=dict())
-        return foldermatchtups
-
-
-
-    #
     #def genSubentryFolderMatches(self, regexs=None, basedir=None, folderscheme=None):
     #    """
     #    Generate a sequence of tuples:
@@ -412,11 +377,78 @@ class SatelliteLocation(object):
     #    #return subentrymatch_gen()
 
 
-    def getSubentryFoldersByExpIdSubIdx(self, regexs=None, basedir=None, folderscheme=None):
+    def genPathmatchTupsByPathscheme(self, regexs=None, basedir=None, folderscheme=None, includefiles=False):
+        """
+        Returns a sequnce/generator of two-item 'matchtuples':
+            (folderpath, match-items-dict)
+        where each match-items-dict has keys matching each scheme item in folderscheme
+        and each value is a regex match found during traversal at that scheme level.
+        For a very deep pathscheme of 'year/experiment/subentry/filename'
+            {'year': <year match>, 'experiment': <exp-match>, 'subentry': <subentry-match>, 'filename' : <fn-match>}
+        (Usually, you do not want to include <filename> in the folderscheme, but perhaps
+        parse that separately if required...)
+        Question: Do you save for all levels, or only for the final part? Only the last part.
+
+        """
+        regexs = regexs or self.Regexs
+        basedir = basedir or self.Rootdir
+        basepath = self.getRealPath(basedir)
+        folderscheme = folderscheme or self.Folderscheme
+        schemekeys = [key for key in folderscheme.split('/') if key and key != '.']
+
+        logger.debug("Making pathmatchtuples from pathscheme %s with regexs: %s", folderscheme, regexs)
+        def genitems(schemekeys, basefolder, basematch=None):
+            """
+            schemekeys are the remaining items in the pathscheme, starting
+            from basefolder. basematch is a dict with matches for the basefolder.
+            If pathscheme is ./year/experiment/subentry and we are at ./2013/RS160.../
+            then basematch will be a dict : {'year': <year match>, 'experiment': <exp match>}
+            Since we are using a generator, creating dicts should not be a big memory issue.
+            And, since the pathscheme should only go two maybe three steps deep,
+            recursing shouldn't be an issue either.
+            Returns a sequnce/generator of two-item 'matchtuples':
+                (folderpath, match-items-dict)
+            """
+            # slicing does not raise indexerrors:
+            schemekey, remainingschemekeys = schemekeys[0], schemekeys[1:]
+            regexpat = regexs[schemekey]
+            # logging disabled: produces A LOT of output
+            #logger.debug("Running genitems for schemekey '%s', remaining items is: %s", schemekey, remainingschemekeys)
+            #logger.debug("basefolder is '%s', regex '%s', matching against directory elements: %s", basefolder, regexpat.pattern, self.listdir(basefolder))
+            # if schemekey is 'experiment' and remaining items is ['subentry'],
+            # then basefolder should be e.g. ./2014/.
+            # Produce list of folders (or files, if includefiles=True):
+            foldernames = (foldername for foldername in self.listdir(basefolder)
+                            if foldername not in self.IgnoreDirs and (includefiles or self.isdir(self.join(basefolder, foldername))))
+            # Make tuples with folder path and regex match
+            pathmatchtup = ((self.join(basefolder, foldername), regexpat.match(foldername))
+                                    for foldername in foldernames)
+            #logger.debug("Number of folders matched:  %s", len(pathmatchtup))#, pathmatchtup)
+            # Filter out tuples where regex match is None (= no match)
+            foldertups = ((folderpath, dict(basematch, **{schemekey: match})) # alternatively basematch.copy().update({schemekey: match})
+                            for folderpath, match in pathmatchtup if match)
+            #logger.debug("Number of matching matched: %s", len(foldertups))
+            if remainingschemekeys:
+                matchitems = (subfoldertup
+                              for folderpath, matchdict in foldertups
+                                for subfoldertup in genitems(remainingschemekeys, folderpath, matchdict))
+                #logger.debug("Received matching items from remainingschemekeys: %s", len(matchitems))
+            else:
+                #logger.debug("No remaining items, returning foldertups at this level.")
+                matchitems = foldertups
+            return matchitems
+
+        foldermatchtups = genitems(schemekeys, basepath, basematch=dict())
+        return foldermatchtups
+
+
+
+    def getSubentryfoldersByExpidSubidx(self, regexs=None, basedir=None, folderscheme=None):
         """
         Return datastructure:
             [expid][subentry_idx] = <filepath relative to basedir/rootdir>
         """
+        # logger.debug("getSubentryfoldersByExpidSubidx(regexs=%s, basedir='%s', folderscheme='%s')", regexs, basedir, folderscheme)
         subentryfoldermatchtuples = self.genPathmatchTupsByPathscheme(regexs, basedir, folderscheme, includefiles=False)
         foldersbyexpidsubidx = dict()
         self.Matchpriorities = {'expid' : ('experiment', 'subentry'), #'filename'), # folderscheme looks for subentries, so there will not be a file.
@@ -441,12 +473,12 @@ class SatelliteLocation(object):
                                 (elem for elem in self.Matchpriorities['subentry_idx'] if elem in matchdict)
                             ) if subentry_idx)
             foldersbyexpidsubidx.setdefault(expid, dict())[subentry_idx] = folderpath
-        logger.debug("expsubfolders: %s", foldersbyexpidsubidx)
+        logger.debug("expsubfolders expids: %s", foldersbyexpidsubidx.keys())
         return foldersbyexpidsubidx
 
 
 
-    def update_expsubfolders(self):
+    def update_expsubfolders(self, clearcache=False, foldersbyexpidsubidx=None):
         """
         Updates the catalog of experiment subentry folders and the complementing
         _subentryfolderset and _expidsubidxbyfolder.
@@ -462,34 +494,52 @@ class SatelliteLocation(object):
         NOTICE: Can NOT be used to check for updates to files within a folder; only
                 for changes to subentry foldernames / paths.
         """
-        foldersbyexpidsubidx = self.getSubentryFoldersByExpIdSubIdx()
+        logger.debug("update_expsubfolders(clearcache=%s, foldersbyexpidsubidx='%s')",
+                     clearcache, foldersbyexpidsubidx)
+        # Avoid premature optimizations:
+        # self.getSubentryfoldersByExpidSubidx() is the only calculation expected to be slow,
+        # so only make a cached_property for this.
+        if clearcache:
+            logger.debug("Clearing cache for self.SubentryfoldersByExpidSubidx")
+            del self.SubentryfoldersByExpidSubidx # Note: This will delete most references to the SubentryfoldersByExpidSubidx
+        if foldersbyexpidsubidx is None:
+            logger.debug("Obtaining foldersbyexpidsubidx = self.SubentryfoldersByExpidSubidx")
+            foldersbyexpidsubidx = self.SubentryfoldersByExpidSubidx
+            logger.debug("foldersbyexpidsubidx obtained")
+
+        # Perform calculations
         expidsubidxbyfolder = {subentryfolder : (expid, subidx)
                                     for expid, expdict in foldersbyexpidsubidx.items()
                                         for subidx, subentryfolder in expdict.items()}
-        subentryfoldersset = {expidsubidxbyfolder.keys()}
+        subentryfoldersset = set(expidsubidxbyfolder.keys())
         newsubentryfolders = subentryfoldersset - self._subentryfolderset
         removedsubentryfolders = self._subentryfolderset - subentryfoldersset
         newexpsubidx = {expidsubidxbyfolder[folder] for folder in newsubentryfolders}
 
-        self._subentryfoldersbyexpidsubidx = foldersbyexpidsubidx
-        self._subentryfolderset = subentryfoldersset
+        #self._subentryfoldersbyexpidsubidx = foldersbyexpidsubidx
         self._expidsubidxbyfolder = expidsubidxbyfolder
+        self._subentryfolderset = subentryfoldersset
+        #self._newexpsubidxsincelastupdate = newexpsubidx
+        #self._newsubentryfolderssincelastupdate = newsubentryfolders
+        #self._removedsubentryfolderssincelastupdate = removedsubentryfolders
 
-        # Update the cache:
-        now = time.time()
-        toupdate = (('SubentryfoldersByExpidSubidx', foldersbyexpidsubidx),
-                    ('Subentryfoldersset', subentryfoldersset),
-                    ('ExpidSubidxByFolder', expidsubidxbyfolder))
-        for cachename, value in toupdate:
-            self._cache['cachename'] = (value, now)
+        ## Update the cache:
+        ## Edit: Not required;
+        #now = time.time()
+        #toupdate = (('SubentryfoldersByExpidSubidx', foldersbyexpidsubidx),
+        #            ('Subentryfoldersset', subentryfoldersset),
+        #            ('ExpidSubidxByFolder', expidsubidxbyfolder))
+        #for cachename, value in toupdate:
+        #    self._cache['cachename'] = (value, now)
 
         return (newexpsubidx, newsubentryfolders, removedsubentryfolders)
 
 
 
-
     def getFilepathsByExpIdSubIdx(self, regexs=None, basedir=None, pathscheme=None):
         """
+        Equivalent to getSubentryfolderssByExpIdSubIdx, but for files rather than
+        subentryfolders. Probably not as useful, but implemented because I got the idea.
         Returns datastructure:
             [expid][subentry_idx] = list of filenames/filepaths for subentry relative to basedir/rootdir.
 
@@ -525,34 +575,65 @@ class SatelliteLocation(object):
         logger.debug("pathsbyexpidsubidx: %s", pathsbyexpidsubidx)
         return pathsbyexpidsubidx
 
+
     def renameexpfolder(self, folderpath, newbasename):
         """
         If you use this method to rename folders, it will take care of keeping the database intact.
         """
-        print "Not implemented"
+        logger.debug("INVOKED renameexpfolder(%s, %s, %s)", self, folderpath, newbasename)
+        logger.warning("Not implemented")
 
     def renamesubentryfolder(self, folderpath, newbasename):
         """
         If you use this method to rename folders, it will take care of keeping the database intact.
         """
-        if self.path.basename(folderpath) == self.path.basename(newbasename):
-            print "folderpath and newbasename has same basename: '%s' vs '%s'." % (folderpath, newbasename)
+        if self.path.dirname(newbasename) and self.path.dirname(folderpath) != self.path.dirname(newbasename):
+            logger.warning("Called renamesubentryfolder(%s, %s), but the parent dirname does not match, aborting.",
+                           folderpath, newbasename)
+            raise OSError("Called renamesubentryfolder(%s, %s), but the parent dirname does not match." %
+                           folderpath, newbasename)
+        newbasename = self.path.basename(newbasename)
+        # Check if a rename is superflouos:
+        if self.path.basename(folderpath) == newbasename:
+            logger.warning("folderpath and newbasename has same basename: '%s' vs '%s'.", folderpath, newbasename)
+        # See if folderpath is in the database:
+        SubentryfoldersByExpidSubidx = self.SubentryfoldersByExpidSubidx
+        ExpidSubidxByPath = self.ExpidSubidxByFolder
+        if folderpath not in ExpidSubidxByPath:
+            logger.warning("Called renamesubentryfolder(%s, %s), but folderpath is not in self._expidsubidxbyfolder",
+                           folderpath, newbasename)
+            return
+        # Try to perform filesystem rename:
         try:
+            # os.rename returns None if rename operations succeeds. We should do the same.
             self.rename(folderpath, newbasename)
         except OSError as e:
-            print e
-            return
-        if folderpath not in self._expidsubidxbyfolder:
-            self.update_expsubfolders()
-            if folderpath not in self._expidsubidxbyfolder:
-                logger.warning("Called renamesubentryfolder(%s, %s), but folderpath is not in self._expidsubidxbyfolder",
-                               folderpath, newbasename)
-            return
-        expid, subidx = self._expidsubidxbyfolder[folderpath]
+            logger.error("Error while trying to rename '%s' to '%s' --> %s", folderpath, newbasename, e)
+            raise ValueError("Error while trying to rename '%s' to '%s' --> %s" % (folderpath, newbasename, e))
+
+        parentfolder = self.path.dirname(folderpath)
+        newfolderpath = self.path.normpath(self.path.join(parentfolder, newbasename))
+
+        # Update the database:
+        # self.SubentryfoldersByExpidSubidx (cached property)
+        # ExpidSubidxByPath = self._expidsubidxbyfolder = self.Expidsubidxbyfolder
+        # self._subentryfolderset = None
+        # Update ExpidSubidxByFolder:
+        expid, subidx = ExpidSubidxByPath.pop(folderpath)   # remove old path
+        ExpidSubidxByPath[newfolderpath] = (expid, subidx)  # insert new path
+        # Update SubentryfoldersByExpidSubidx (by overwriting old value):
+        SubentryfoldersByExpidSubidx[expid][subidx] = newfolderpath
+        if self._subentryfolderset:
+            self._subentryfolderset.discard(folderpath)
+            self._subentryfolderset.add(newfolderpath)
+
+        return newfolderpath
+
 
 
     def ensuresubentryfoldername(self, expid, subidx, subentryfoldername):
         """
+        Can be used to ensure that a subentry-folder is correctly named.
         Returns:
             None if expid/subidx is not found in this datastore,
             None if no foldername already matches,
@@ -562,14 +643,15 @@ class SatelliteLocation(object):
         subentryfoldername = self.path.basename(subentryfoldername)
         subentryfoldersbyexpidsubidx = self.SubentryfoldersByExpidSubidx
         if expid not in subentryfoldersbyexpidsubidx:
-            print "Expid '%s' not present in this satellite store." % (expid, )
+            logger.warning("Expid '%s' not present in this satellite store.", expid)
             return
         if subidx not in subentryfoldersbyexpidsubidx[expid]:
-            print "Subentry '%s' for experiment '%s' not present in this satellite store." % (subidx, expid)
+            logger.warning("Subentry '%s' for experiment '%s' not present in this satellite store.", subidx, expid)
             return
         currentfolderpath = subentryfoldersbyexpidsubidx[expid][subidx]
         currentfolderbasename = self.path.basename(currentfolderpath)
         if currentfolderbasename == subentryfoldername:
+            logger.info("currentfolderbasename == subentryfoldername : '%s' == '%s'", currentfolderbasename, subentryfoldername)
             return
         try:
             self.rename(currentfolderpath, subentryfoldername)
@@ -581,11 +663,9 @@ class SatelliteLocation(object):
 
 
     def rename(self, path, newname):
+        """ Override in filesystem/ressource-dependent subclass. """
         raise NotImplementedError("rename() not implemented for base class - something is probably wrong.")
 
-    #
-    #def findDirs(self, regexpat, basepath='.'):
-    #    return self.findSubentries(regexpat=regexpat, basepath=basepath, folderscheme='./subentry/')
 
 
 
@@ -633,9 +713,11 @@ class SatelliteFileLocation(SatelliteLocation):
         return errorcode
 
     def isMounted(self):
+        """ Tests if a location is mounted (by checking if it is non-empty)."""
         return len(os.listdir(self.getRealRootPath()))
 
     def getRealRootPath(self):
+        """ Returns self.getRealPath('.') """
         return self.getRealPath()
 
     def getRealPath(self, path='.'):
@@ -646,17 +728,21 @@ class SatelliteFileLocation(SatelliteLocation):
         return os.path.normpath(os.path.join(self.URI, self.Rootdir, path))
 
     def listdir(self, path):
+        """ Implements directory listing with os.listdir(...) """
         return os.listdir(os.path.join(self.getRealRootPath(), path))
 
     def join(self, *paths):
+        """ Joins filesystem path elements with os.path.join(*paths) """
         return os.path.join(*paths)
 
     def isdir(self, path):
+        """ os.path.isdir(...) """
         res = os.path.isdir(os.path.join(self.getRealRootPath(), path))
         logger.debug("SatelliteFileLocation.isdir(%s) returns %s", path, res)
         return res
 
     def rename(self, path, newname):
+        """ Renames basename of path to newname using os.rename(path, newname) """
         os.rename(path, newname)
 
 
@@ -682,7 +768,7 @@ class SatelliteFileLocation(SatelliteLocation):
         foldername = os.path.basename(satellitepath)
         # If the folder does not exists in localpath destination, just use copytree:
         if not os.path.exists(os.path.join(localpath, foldername)):
-            print u"shutil.copytree({}, os.path.join({},{}))".format(realpath, localpath, foldername)
+            logger.warning(u"shutil.copytree('%s', os.path.join('%s', '%s'))", realpath, localpath, foldername)
             shutil.copytree(realpath, os.path.join(localpath, foldername))
             return True
         # foldername already exists in local directory, just recurse for each item...
@@ -695,36 +781,35 @@ class SatelliteFileLocation(SatelliteLocation):
         Syncs a file to local dir.
         """
         if not os.path.isdir(localpath):
-            print "\nSatelliteFileLocation.syncFileToLocalDir() :: localpath '{}' is not a directory, skipping...".format(localpath)
-            """Consider perhaps overwriting instead..."""
+            logger.info("SatelliteFileLocation.syncFileToLocalDir() :: localpath '%s' is not a directory, skipping...", localpath)
+            ## Consider perhaps creating destination instead...?
             return
         srcfilepath = self.getRealPath(satellitepath)
         if not os.path.isfile(srcfilepath):
-            print "\nSatelliteFileLocation.syncFileToLocalDir() :: file '{}' is not a file, skipping...".format(srcfilepath)
+            logger.info("SatelliteFileLocation.syncFileToLocalDir() :: file '%s' is not a file, skipping...", srcfilepath)
             return
         filename = os.path.basename(srcfilepath)
         destfilepath = os.path.join(localpath, filename)
         if not os.path.exists(destfilepath):
-            print "syncFileToLocalDir() :: shutil.copy2(\n{},\n{})".format(srcfilepath, destfilepath)
+            logger.info("syncFileToLocalDir() :: shutil.copy2(\n'%s',\n'%s')", srcfilepath, destfilepath)
             return shutil.copy2(srcfilepath, destfilepath)
-            return
-        print "\nSatelliteFileLocation.syncFileToLocalDir() :: NOTICE, destfile exists: '{}' ".format(destfilepath)
+        logger.info("SatelliteFileLocation.syncFileToLocalDir() :: NOTICE, destfile exists: '%s' ", destfilepath)
         if os.path.isdir(destfilepath):
-            print "\nSatelliteFileLocation.syncFileToLocalDir() :: destfilepath '{}' is a directory in localpath, skipping...".format(destfilepath)
+            logger.info("SatelliteFileLocation.syncFileToLocalDir() :: destfilepath '%s' is a directory in localpath, skipping...", destfilepath)
             return
         if not os.path.isfile(destfilepath):
-            print "\nSatelliteFileLocation.syncFileToLocalDir() :: destfilepath '{}' exists but is not a file, skipping...".format(destfilepath)
+            logger.info("SatelliteFileLocation.syncFileToLocalDir() :: destfilepath '%s' exists but is not a file, skipping...", destfilepath)
             return
         # destfilepath is a file, determine if it should be overwritten...
         if os.path.getmtime(srcfilepath) > os.path.getmtime(destfilepath):
-            print "\nSatelliteFileLocation.syncFileToLocalDir() :: srcfile '{}' is newer than destfile '{}', overwriting destfile...".format(srcfilepath, destfilepath)
-            print "shutil.copy2({}, {})".format(srcfilepath, destfilepath)
+            logger.info("SatelliteFileLocation.syncFileToLocalDir() :: srcfile '%s' is newer than destfile '%s', overwriting destfile...", srcfilepath, destfilepath)
+            logger.info("shutil.copy2(%s, %s)", srcfilepath, destfilepath)
             shutil.copy2(srcfilepath, destfilepath)
         else:
-            print "\nSatelliteFileLocation.syncFileToLocalDir() :: srcfile '{}' is NOT newer than destfile '{}', NOT overwriting destfile...".format(srcfilepath, destfilepath)
-        print "\n".join( "-- {} last modified: {}".format(f, modtime)
-                        for f, modtime in ( ('srcfile ', time.ctime(os.path.getmtime(srcfilepath))),
-                                            ('destfile', time.ctime(os.path.getmtime(destfilepath))) ) )
+            logger.info("SatelliteFileLocation.syncFileToLocalDir() :: srcfile '%s' is NOT newer than destfile '%s', NOT overwriting destfile...", srcfilepath, destfilepath)
+        logger.info("\n".join("-- {} last modified: {}".format(f, modtime)
+                        for f, modtime in (('srcfile ', time.ctime(os.path.getmtime(srcfilepath))),
+                                           ('destfile', time.ctime(os.path.getmtime(destfilepath))))))
 
 
 
@@ -740,11 +825,15 @@ class SatelliteFtpLocation(SatelliteLocation):
     and use the SatelliteFileLocation class to manipulate this location.
 
     Other resources that might be interesting to implement:
+    (probably by interfacing with helper libraries)
+    - NFS
     - http
     - webdav
     - ...
     """
-    pass
+    def rename(self, path, newpath):
+        raise NotImplementedError("rename() not implemented for FTP class.")
+
 
 
 

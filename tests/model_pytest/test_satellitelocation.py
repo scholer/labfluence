@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
+##    Copyright 2013-2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
@@ -14,16 +14,27 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable=C0103
+# pylint: disable=C0103,C0111,W0212
 
 import pytest
 import os
+import sys
 import yaml
 import logging
 logger = logging.getLogger(__name__)
 # Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
+from pathutils import walkup
 
+approotdir = os.path.join(walkup(os.path.realpath(__file__), 3))
+modeldir = os.path.join(approotdir, 'model')
+testsdir = os.path.join(approotdir, 'tests')
+testdatadir = os.path.join(testsdir, 'test_data')
+sys.path.append(approotdir)
+sys.path.append(modeldir)
+
+
+#### SUT ####
 
 from model.satellite_location import SatelliteFileLocation
 
@@ -33,15 +44,12 @@ from model.model_testdoubles.fake_server import FakeConfluenceServer as Confluen
 
 from directorymockstructure import DirectoryMockstructure
 
-# /tests/model_pytest/test_satellitelocation.py
-testdatadir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'test_data')
-
 
 #from confighandler import ExpConfigHandler
 #ch = ExpConfigHandler(pathscheme='default1')
 #satpath = "/home/scholer/Documents/labfluence_satellite_tests/cdnaafm_cftp"
 #sfl = SatelliteFileLocation(satpath, ch)
-#
+
 
 testconfig = yaml.load(r"""
 exp_folder_regexs:
@@ -130,17 +138,135 @@ def test_genPathmatchTupsByPathscheme(satellitelocation_standalone_fswinmock):
         assert set(pathmatchtup[1].keys()) == set("year/experiment/subentry".split('/'))
     assert pathmatchnumbers > 0
 
-def test_getSubentryFoldersByExpIdSubIdx(satellitelocation_standalone_fswinmock):
+def test_getSubentryfoldersByExpidSubidx(satellitelocation_standalone_fswinmock):
     """
-    getSubentryFoldersByExpIdSubIdx
-    expsubfolders is dict-based datastructure:
-        expsubfolders[<expid>][<subentry_idx>] = subentry folderpath
+    getSubentryfoldersByExpidSubidx
+    subentryfoldersbyexpidsubidx is dict-based datastructure:
+        subentryfoldersbyexpidsubidx[<expid>][<subentry_idx>] = subentry folderpath
     e.g.
-        expsubfolders['RS195']['b'] = '2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+        subentryfoldersbyexpidsubidx['RS195']['b'] = '2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
     """
     sl = satellitelocation_standalone_fswinmock
-    expsubfolders = sl.getSubentryFoldersByExpIdSubIdx()
-    assert expsubfolders['RS195']['b'] == './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+    subentryfoldersbyexpidsubidx = sl.getSubentryfoldersByExpidSubidx()
+    assert subentryfoldersbyexpidsubidx['RS195']['b'] == './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+
+flagchanged = 0
+
+def test_SubentryfoldersByExpidSubidx(satellitelocation_standalone_fswinmock, monkeypatch):
+    """
+    SubentryfoldersByExpidSubidx, cached property.
+    subentryfoldersbyexpidsubidx is dict-based datastructure:
+        subentryfoldersbyexpidsubidx[<expid>][<subentry_idx>] = subentry folderpath
+    e.g.
+        subentryfoldersbyexpidsubidx['RS195']['b'] = '2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+    """
+    sl = satellitelocation_standalone_fswinmock
+    subentryfoldersbyexpidsubidx = sl.SubentryfoldersByExpidSubidx
+    assert subentryfoldersbyexpidsubidx['RS195']['b'] == './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+    flagchanged = list()
+    def dummymethod(*args, **kwargs):
+        #flagchanged += 1
+        logger.info("Intercept by dummy method!")
+        flagchanged.append(1)
+    sl.update_expsubfolders = dummymethod
+    # Just creating dummymethod does not work, -- edit: yes it does, if you use a pointer-variable, e.g. a list.
+    # the environment in which dummymethod is run does not find flagchanged variable.
+    # This does not work either:
+#def createdummy():
+#    #flagchanged = list()
+#    def dummymethod(*args, **kwargs):
+#        flagchanged += 1
+#    return dummymethod
+    #sl.update_expsubfolders = createdummy()
+    # This does not work either:
+    # monkeypatch.setattr(sl, 'update_expsubfolders', dummymethod)
+    # To do this you have two options, either make a closure (returning a closure)
+    # or use/modify dummymethod.func_globals
+    #dummymethod.func_globals['flagchanged'] = flagchangedchang
+    ### AHHH, it is because doing
+    #       flagchanged += 1      creates a new variable, i.e. it does work with a pointer but creates a new reference instead.
+    # To overcome this, modify a list instead.
+    subentryfoldersbyexpidsubidx2 = sl.SubentryfoldersByExpidSubidx
+    assert flagchanged == []
+    assert subentryfoldersbyexpidsubidx2 == subentryfoldersbyexpidsubidx
+    del sl._cache['SubentryfoldersByExpidSubidx']
+    expsubfolders3 = sl.SubentryfoldersByExpidSubidx
+    assert flagchanged == [1]
+    assert expsubfolders3 == subentryfoldersbyexpidsubidx
+
+
+def test_renamesubentryfolder(satellitelocation_standalone_fswinmock, monkeypatch):
+    """
+    renamesubentryfolder
+    """
+    sl = satellitelocation_standalone_fswinmock
+    subentryfoldersbyexpidsubidx = sl.SubentryfoldersByExpidSubidx # map [expid][subidx] = path
+
+    # Test using newname with only basename:
+    firstpath = './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+    newname = 'RS195b TEM of HCav6V NEW NEW NEW'
+    expected = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V NEW NEW NEW')
+    assert subentryfoldersbyexpidsubidx['RS195']['b'] == firstpath
+    assert sl.ExpidSubidxByFolder[firstpath] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
+    assert firstpath in sl.Subentryfoldersset
+    assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == firstpath # assert that we do not make a new map
+    # Perform rename
+    sl.renamesubentryfolder(firstpath, newname)
+    # And check:
+    assert subentryfoldersbyexpidsubidx['RS195']['b'] == expected #
+    assert sl.ExpidSubidxByFolder[expected] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
+    assert expected in sl.Subentryfoldersset
+    assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == expected #
+    assert firstpath not in sl.ExpidSubidxByFolder  # Reverse map: path --> (expid, subidx)
+    assert firstpath not in sl.Subentryfoldersset
+
+
+def test_caching(satellitelocation_standalone_fswinmock):
+    """
+    Test property caching of slow SubentryfoldersByExpidSubidx property
+    which invokes getSubentryfoldersByExpidSubidx() method.
+    """
+    sl = satellitelocation_standalone_fswinmock
+    updateinvocations = list()
+    getfolderbyid_invocations = list()
+    def update_dummymethod(*args, **kwargs):
+        logger.info("Intercept by update_dummymethod dummy method!")
+        updateinvocations.append(1)
+        sl.update_expsubfolders(*args, **kwargs)
+    # IMPORTANT: THIS WILL NOT WORK. It will start a recursive loop where
+    # when it invokes sl.getSubentryfoldersByExpidSubidx it invokes it self.
+    def getfolderbyid_method(*args, **kwargs):
+        logger.info("Intercept by getfolderbyid_method dummy method!")
+        getfolderbyid_invocations.append(1)
+        sl.getSubentryfoldersByExpidSubidx(*args, **kwargs)
+    ## INSTEAD, use a standard decorator-like closure:
+    def method_log_counter_decorator(method, invocationcounter=None):
+        def replacementmethod(*args, **kwargs):
+            logger.info("%s(*args=%s, **kwargs=%s) method routed through log_counter_decorator.",
+                        method.__name__, args, kwargs)
+            invocationcounter.append(1)
+            return method(*args, **kwargs) # remember the return...
+        return replacementmethod
+
+    oldupdatemethod = sl.update_expsubfolders
+    oldgetfolderbyidmethod = sl.getSubentryfoldersByExpidSubidx
+    #monkeypatch.setattr(sl, 'update_expsubfolders', dummymethod)
+    sl.update_expsubfolders = method_log_counter_decorator(sl.update_expsubfolders, invocationcounter=updateinvocations)
+    sl.getSubentryfoldersByExpidSubidx = method_log_counter_decorator(sl.getSubentryfoldersByExpidSubidx, invocationcounter=getfolderbyid_invocations)
+    logger.debug(" >>> Getting sl.SubentryfoldersByExpidSubidx >>> ")
+    subentryfoldersbyexpidsubidx2 = sl.SubentryfoldersByExpidSubidx
+    logger.debug(" <<< sl.SubentryfoldersByExpidSubidx received <<< ")
+    logger.debug(" >>> Getting sl.ExpidSubidxByFolder >>> ")
+    expidsubidxbyfolder = sl.ExpidSubidxByFolder # Reverse map: path --> (expid, subidx)
+    logger.debug(" <<< sl.ExpidSubidxByFolder received <<< ")
+    logger.debug(" >>> Getting sl.Subentryfoldersset >>> ")
+    subentryfoldersset = sl.Subentryfoldersset
+    logger.debug(" <<< sl.Subentryfoldersset received <<< ")
+
+    assert updateinvocations == [1]
+    assert getfolderbyid_invocations == [1]
+
+
 
 
 @pytest.mark.skipif(True, reason="Not ready yet")
@@ -170,7 +296,6 @@ def test_findSubentries():
     print "<<<<< completed test_findSubentries() -------"
 
 
-
 @pytest.mark.skipif(True, reason="Not ready yet")
 def test_syncToLocalDir1():
     print "\n>>>>> test_syncToLocalDir1() -----------------"
@@ -195,10 +320,3 @@ def test_syncFileToLocalDir():
     sfl.syncFileToLocalDir("20130222 RS115g Dry-AFM of transferin TR/RS115g_c5-grd1_TRctrl_130222_105519.mi",
                 "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1/20130222 RS115g Dry-AFM of transferin TR (old)")
     print "<<<<< completed test_syncFileToLocalDir() -------"
-
-
-
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_test():
-    pass
