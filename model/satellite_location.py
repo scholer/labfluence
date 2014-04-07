@@ -392,9 +392,13 @@ class SatelliteLocation(object):
         """
         regexs = regexs or self.Regexs
         basedir = basedir or self.Rootdir
+        basedir = os.path.normpath(basedir)
         basepath = self.getRealPath(basedir)
         folderscheme = folderscheme or self.Folderscheme
         schemekeys = [key for key in folderscheme.split('/') if key and key != '.']
+        logger.debug("genPathmatchTupsByPathscheme invoked running with, regexs=%s, basedir=%r, folderscheme=%r, includefiles=%s",
+                     regexs, basedir, folderscheme, includefiles)
+
 
         logger.debug("Making pathmatchtuples from pathscheme %s with regexs: %s", folderscheme, regexs)
         def genitems(schemekeys, basefolder, basematch=None):
@@ -425,7 +429,7 @@ class SatelliteLocation(object):
                                     for foldername in foldernames)
             #logger.debug("Number of folders matched:  %s", len(pathmatchtup))#, pathmatchtup)
             # Filter out tuples where regex match is None (= no match)
-            foldertups = ((folderpath, dict(basematch, **{schemekey: match})) # alternatively basematch.copy().update({schemekey: match})
+            foldertups = ((self.path.normpath(folderpath), dict(basematch, **{schemekey: match})) # alternatively basematch.copy().update({schemekey: match})
                             for folderpath, match in pathmatchtup if match)
             #logger.debug("Number of matching matched: %s", len(foldertups))
             if remainingschemekeys:
@@ -587,11 +591,13 @@ class SatelliteLocation(object):
         """
         If you use this method to rename folders, it will take care of keeping the database intact.
         """
+        folderpath = self.path.normpath(folderpath)
+        newbasename = self.path.normpath(newbasename)
         if self.path.dirname(newbasename) and self.path.dirname(folderpath) != self.path.dirname(newbasename):
             logger.warning("Called renamesubentryfolder(%s, %s), but the parent dirname does not match, aborting.",
                            folderpath, newbasename)
             raise OSError("Called renamesubentryfolder(%s, %s), but the parent dirname does not match." %
-                           folderpath, newbasename)
+                           (folderpath, newbasename))
         newbasename = self.path.basename(newbasename)
         # Check if a rename is superflouos:
         if self.path.basename(folderpath) == newbasename:
@@ -630,7 +636,6 @@ class SatelliteLocation(object):
         return newfolderpath
 
 
-
     def ensuresubentryfoldername(self, expid, subidx, subentryfoldername):
         """
         Can be used to ensure that a subentry-folder is correctly named.
@@ -654,11 +659,13 @@ class SatelliteLocation(object):
             logger.info("currentfolderbasename == subentryfoldername : '%s' == '%s'", currentfolderbasename, subentryfoldername)
             return
         try:
-            self.rename(currentfolderpath, subentryfoldername)
+            # self.rename(currentfolderpath, subentryfoldername)
+            # Make sure you use the encapsulated rename to update the database...
+            self.renamesubentryfolder(currentfolderpath, subentryfoldername)
         except OSError as e:
             logger.warning("OSError while renaming '%s' to '%s' :: '%s", currentfolderpath, subentryfoldername, e)
             return False
-        subentryfoldersbyexpidsubidx[expid][subidx] = subentryfoldername
+        # subentryfoldersbyexpidsubidx[expid][subidx] = subentryfoldername # Uh... this should be the path... but updating in self.renamesubentryfolder
         return True
 
 

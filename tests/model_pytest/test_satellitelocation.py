@@ -44,11 +44,25 @@ from model.model_testdoubles.fake_server import FakeConfluenceServer as Confluen
 
 from directorymockstructure import DirectoryMockstructure
 
+#logging.getLogger('directorymockstructure').setLevel(logging.INFO)
+#logging.getLogger('tests.model_pytest.directorymockstructure').setLevel(logging.INFO)
+logging.getLogger('labfluence.tests.model_pytest.directorymockstructure').setLevel(logging.INFO) # this works...
+
+
 
 #from confighandler import ExpConfigHandler
 #ch = ExpConfigHandler(pathscheme='default1')
 #satpath = "/home/scholer/Documents/labfluence_satellite_tests/cdnaafm_cftp"
 #sfl = SatelliteFileLocation(satpath, ch)
+
+def method_log_counter_decorator(method, invocationcounter=None):
+    def replacementmethod(*args, **kwargs):
+        logger.info("%s(*args=%s, **kwargs=%s) method routed through log_counter_decorator.",
+                    method.__name__, args, kwargs)
+        invocationcounter.append(1)
+        return method(*args, **kwargs) # remember the return...
+    return replacementmethod
+
 
 
 testconfig = yaml.load(r"""
@@ -118,10 +132,6 @@ def test_basics(monkeypatch):
     sl.Regexs = testconfig['exp_folder_regexs']
 
 
-logging.getLogger('directorymockstructure').setLevel(logging.INFO)
-logging.getLogger('tests.model_pytest.directorymockstructure').setLevel(logging.INFO)
-logging.getLogger('labfluence.tests.model_pytest.directorymockstructure').setLevel(logging.INFO) # this works...
-
 
 
 def test_genPathmatchTupsByPathscheme(satellitelocation_standalone_fswinmock):
@@ -148,9 +158,9 @@ def test_getSubentryfoldersByExpidSubidx(satellitelocation_standalone_fswinmock)
     """
     sl = satellitelocation_standalone_fswinmock
     subentryfoldersbyexpidsubidx = sl.getSubentryfoldersByExpidSubidx()
-    assert subentryfoldersbyexpidsubidx['RS195']['b'] == './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+    expected = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)')
+    assert subentryfoldersbyexpidsubidx['RS195']['b'] == expected
 
-flagchanged = 0
 
 def test_SubentryfoldersByExpidSubidx(satellitelocation_standalone_fswinmock, monkeypatch):
     """
@@ -162,7 +172,8 @@ def test_SubentryfoldersByExpidSubidx(satellitelocation_standalone_fswinmock, mo
     """
     sl = satellitelocation_standalone_fswinmock
     subentryfoldersbyexpidsubidx = sl.SubentryfoldersByExpidSubidx
-    assert subentryfoldersbyexpidsubidx['RS195']['b'] == './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+    expected = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)')
+    assert subentryfoldersbyexpidsubidx['RS195']['b'] == expected
     flagchanged = list()
     def dummymethod(*args, **kwargs):
         #flagchanged += 1
@@ -203,10 +214,28 @@ def test_renamesubentryfolder(satellitelocation_standalone_fswinmock, monkeypatc
     subentryfoldersbyexpidsubidx = sl.SubentryfoldersByExpidSubidx # map [expid][subidx] = path
 
     # Test using newname with only basename:
-    firstpath = './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)'
+    firstpath = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)')
     newname = 'RS195b TEM of HCav6V NEW NEW NEW'
     expected = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V NEW NEW NEW')
-    assert subentryfoldersbyexpidsubidx['RS195']['b'] == firstpath
+    assert os.path.normpath(subentryfoldersbyexpidsubidx['RS195']['b']) == os.path.normpath(firstpath)
+    assert sl.ExpidSubidxByFolder[firstpath] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
+    assert firstpath in sl.Subentryfoldersset
+    assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == firstpath # assert that we do not make a new map
+    # Perform rename
+    sl.renamesubentryfolder(firstpath, newname)
+    # And check:
+    assert os.path.normpath(subentryfoldersbyexpidsubidx['RS195']['b']) == expected #
+    assert sl.ExpidSubidxByFolder[expected] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
+    assert expected in sl.Subentryfoldersset
+    assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == expected #
+    assert firstpath not in sl.ExpidSubidxByFolder  # Reverse map: path --> (expid, subidx)
+    assert firstpath not in sl.Subentryfoldersset
+
+    # Test using newname with full path:
+    firstpath = expected
+    newname = './2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V NEW 2'
+    expected = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V NEW 2')
+    assert os.path.normpath(subentryfoldersbyexpidsubidx['RS195']['b']) == firstpath
     assert sl.ExpidSubidxByFolder[firstpath] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
     assert firstpath in sl.Subentryfoldersset
     assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == firstpath # assert that we do not make a new map
@@ -220,6 +249,48 @@ def test_renamesubentryfolder(satellitelocation_standalone_fswinmock, monkeypatc
     assert firstpath not in sl.ExpidSubidxByFolder  # Reverse map: path --> (expid, subidx)
     assert firstpath not in sl.Subentryfoldersset
 
+def test_ensuresubentryfoldername(satellitelocation_standalone_fswinmock, monkeypatch):
+    """
+    ensuresubentryfoldername
+    """
+    sl = satellitelocation_standalone_fswinmock
+    subentryfoldersbyexpidsubidx = sl.SubentryfoldersByExpidSubidx # map [expid][subidx] = path
+    rename_invocations = list()
+    sl.rename = method_log_counter_decorator(sl.rename, rename_invocations)
+
+    # Test using newname that matches existing name:
+    expid, subidx = 'RS195', 'b'
+    firstpath = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V from a (20140210)')
+    newname = 'RS195b TEM of HCav6V from a (20140210)'
+    # Check that state is correct before:
+    expected = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V NEW NEW NEW')
+    assert os.path.normpath(subentryfoldersbyexpidsubidx['RS195']['b']) == os.path.normpath(firstpath)
+    assert sl.ExpidSubidxByFolder[firstpath] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
+    assert firstpath in sl.Subentryfoldersset
+    assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == firstpath # assert that we do not make a new map
+    # Perform ensuresubentryfoldername(expid, subidx, subentryfoldername)
+    sl.ensuresubentryfoldername(expid, subidx, newname)
+    # And check:
+    assert rename_invocations == []
+    assert sl.ExpidSubidxByFolder[firstpath] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
+    assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == firstpath # assert that we do not make a new map
+
+
+    # Test using a new newname:
+    newname = 'RS195b TEM of HCav6V NEW NEW NEW'
+    expected = os.path.normpath('./2014_Aarhus/RS195 HCav6V Assembly for MV/RS195b TEM of HCav6V NEW NEW NEW')
+    # Perform ensuresubentryfoldername(expid, subidx, subentryfoldername)
+    sl.ensuresubentryfoldername(expid, subidx, newname)
+    # And verify:
+    assert rename_invocations == [1]
+    assert os.path.normpath(subentryfoldersbyexpidsubidx['RS195']['b']) == expected #
+    assert sl.ExpidSubidxByFolder[expected] == ('RS195', 'b')  # Reverse map: path --> (expid, subidx)
+    assert expected in sl.Subentryfoldersset
+    assert sl.SubentryfoldersByExpidSubidx['RS195']['b'] == expected #
+    assert firstpath not in sl.ExpidSubidxByFolder  # Reverse map: path --> (expid, subidx)
+    assert firstpath not in sl.Subentryfoldersset
+
+
 
 def test_caching(satellitelocation_standalone_fswinmock):
     """
@@ -229,24 +300,13 @@ def test_caching(satellitelocation_standalone_fswinmock):
     sl = satellitelocation_standalone_fswinmock
     updateinvocations = list()
     getfolderbyid_invocations = list()
-    def update_dummymethod(*args, **kwargs):
-        logger.info("Intercept by update_dummymethod dummy method!")
-        updateinvocations.append(1)
-        sl.update_expsubfolders(*args, **kwargs)
-    # IMPORTANT: THIS WILL NOT WORK. It will start a recursive loop where
-    # when it invokes sl.getSubentryfoldersByExpidSubidx it invokes it self.
-    def getfolderbyid_method(*args, **kwargs):
-        logger.info("Intercept by getfolderbyid_method dummy method!")
-        getfolderbyid_invocations.append(1)
-        sl.getSubentryfoldersByExpidSubidx(*args, **kwargs)
+    ## IMPORTANT: THIS WILL NOT WORK. It will start a recursive loop where
+    ## when it invokes sl.getSubentryfoldersByExpidSubidx it invokes it self.
+    #def getfolderbyid_method(*args, **kwargs):
+    #    logger.info("Intercept by getfolderbyid_method dummy method!")
+    #    getfolderbyid_invocations.append(1)
+    #    return sl.getSubentryfoldersByExpidSubidx(*args, **kwargs)
     ## INSTEAD, use a standard decorator-like closure:
-    def method_log_counter_decorator(method, invocationcounter=None):
-        def replacementmethod(*args, **kwargs):
-            logger.info("%s(*args=%s, **kwargs=%s) method routed through log_counter_decorator.",
-                        method.__name__, args, kwargs)
-            invocationcounter.append(1)
-            return method(*args, **kwargs) # remember the return...
-        return replacementmethod
 
     oldupdatemethod = sl.update_expsubfolders
     oldgetfolderbyidmethod = sl.getSubentryfoldersByExpidSubidx

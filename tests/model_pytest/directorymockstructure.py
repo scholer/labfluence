@@ -34,6 +34,7 @@ class DirectoryMockstructure(object):
         You could do something so that directories are dicts and files are something else, e.g. a string.
         """
         self._directorydictstructure = dict()
+        self.path = os.path # Current implementation; makes it easy to overwrite if needed...
 
     def reloadFromYaml(self, filepath):
         with open(filepath) as f:
@@ -80,13 +81,14 @@ class DirectoryMockstructure(object):
         Returns all nodes form the root to the 'dirpath' branch.
         Raises KeyError if dirpath does not exists.
         """
-        pathitems = dirpath.split('/')
-        #logger.debug("Getting dirdict for path '%s', separate items = %s", dirpath, pathitems)
+        # Edit: os.path.split will only split ONCE to yield --> head, tail items of path.
+        pathitems = self.split(self.path.normpath(dirpath))
+        logger.debug("Getting dirdict for path '%s', separate items = %s", dirpath, pathitems)
         dictnodes = [self._directorydictstructure]
         nodenames = ['<root>', ]
         for item in pathitems:
             #logger.debug("Fetching dict node for item '%s', current dictnode keys = %s", item, f.keys())
-            if item == ".":
+            if item in " .":
                 #logger.debug("Item is '%s', staying in place.", item)
                 continue
             elif item == '..':
@@ -99,8 +101,8 @@ class DirectoryMockstructure(object):
             except KeyError as e:
                 logger.debug("KeyError encountered: %s; len(dictnodes) = %s, dictnodes[-1].keys() = %s; nodenames = %s",
                              e, len(dictnodes), dictnodes[-1].keys(), nodenames)
-                raise ValueError("KeyError encountered: %s; len(dictnodes) = %s, dictnodes[-1].keys() = %s; nodenames = %s",
-                             e, len(dictnodes), dictnodes[-1].keys(), nodenames)
+                raise ValueError("KeyError encountered: %s; len(dictnodes) = %s, dictnodes[-1].keys() = %s; nodenames = %s" %(
+                             e, len(dictnodes), dictnodes[-1].keys(), nodenames))
         logger.debug("Returning dictnode for dirpath '%s', nodenames = %s; depth (number of dictnodes) = %s;\
 last dictnode has %s child notes (subfolders/files).", dirpath, nodenames, len(dictnodes), len(dictnodes[-1]))
         return dictnodes, nodenames
@@ -135,22 +137,28 @@ last dictnode has %s child notes (subfolders/files).", dirpath, nodenames, len(d
         #logger.debug("Dirpath '%s' IS a folder.", dirpath)
         return True
 
-    def getRealPath(self, basedir=''):
+    @staticmethod
+    def getRealPath(basedir=''):
         #if basedir[0] == '/':
         #    raise ValueError("During testings with this mock datastructure, all filepaths must be relative!")
         # Assume basedir is '2014_Aarhus/RS191 HCav annealing screen1', then just return if.
         # If it is anything else, there is not really anything we can do...
         return basedir
 
-    def join(self, *paths):
-        return "/".join(paths)
+    @staticmethod
+    def join(*paths):
+        return os.path.join(*paths)
+
+    @staticmethod
+    def split(path):
+        return path.replace('\\', '/').split('/')
 
     def rename(self, currentpath, newbasename):
         """
         This only works for changing the basename, not the whole tree.
         (That is also how the os.rename works -- os.renames is the super version...)
         """
-        logger.debug("Renaming '%s' to '%s'...", currentpath, newbasename)
+        logger.info("Renaming '%s' to '%s'...", currentpath, newbasename)
         dictnodes, nodenames = self.getdirdictnodes(currentpath)
         # returns list of dicts, one dict for each node, e.g.
         #   2014/RS190_something/RS190c_much_else  --> should give nodes,
@@ -158,14 +166,16 @@ last dictnode has %s child notes (subfolders/files).", dirpath, nodenames, len(d
         if not dictnodes:
             # Was not found:
             raise OSError("Path '%s' does not exists", currentpath)
-        parentnode = dictnodes[-2]
-        currentbasename = nodenames[-1]
+        parentnode = dictnodes[-2]      # second-last element
+        currentbasename = nodenames[-1] # last element
         if currentbasename == newbasename:
             print "currentbasename == newbasename: ('%s' == '%s'), not doing anything..." % (currentbasename, newbasename)
             return
         if newbasename in parentnode:
             raise OSError("A node with name '%s' already exists!", newbasename)
         # pop the last path from the dictnodes tree-branch:
+        logger.info("Popping node %r from parentnode with items %s, and re-inserting the node as key %r",
+                    currentbasename, parentnode.keys(), newbasename)
         currentnode = parentnode.pop(currentbasename)
         # re-insert with new key name:
         parentnode[newbasename] = currentnode
