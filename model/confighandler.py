@@ -234,7 +234,10 @@ class ConfigHandler(object):
         return val
 
     def set(self, key, value):
-        """ Alias for setkey (I can never remember that one...)
+        """
+        Alias for setkey (I can never remember that one...).
+        However, like a normal dict, set(key, value) will always return None,
+        while setkey returns the config-type where the config entry (key) was found.
         """
         self.setkey(key, value)
 
@@ -418,7 +421,12 @@ class ConfigHandler(object):
         Can be easily mocked or overridden by fake classes to enable safe testing environments.
         """
         try:
-            yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False)
+            # default_flow_style=False -> make the output "prettier" (block style)
+            # width=-1 -> disables line-wrapping in Ruby, but doesn't work for PyYAML,
+            # because yaml.dumper.Emitter checks if width > self.best_indent*2 (and reverts to 80 otherwise)
+            # setting width=400 to only wrap very long lines...
+            # line_break is the line-termination (EOL) character.
+            yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False, width=400)
             logger.info("Config saved to file: %s", outputfn)
             return True
         except IOError, e:
@@ -463,25 +471,51 @@ class ConfigHandler(object):
 
     def registerEntryChangeCallback(self, configentry, function, args=None, kwargs=None, pass_newvalue_as=False):
         """
-        Registers a callback for a particular entry (name).
-        Actually, this can be used as a simple, general-purpose callback manager, across all objects
-        that have access to the Confighandler singleton. The 'configentry' key does not have to
-        correspond to an actual configentry, it can just be a name that specifies that particular
-        callback by concention.
-        Of cause, this is not quite as powerfull as using qt's QObject and signal connections and
-        emitting, but is is ok for simple callbacks, especially for singleton-like objects and variables.
-        (see http://pyqt.sourceforge.net/Docs/PyQt4/qobject.html for more info on QObject's abilities.)
-        Note: I see no reason to add a 'registerConfigChangeCallback' method.
-        Although this could provide per-config callbacks (e.g. an experiment that could subscribe to
-        changes only for that experiment), I think it is better to code for this situation directly.
+        Registers a callback for a particular config entry (key).
 
         If a callback sets pass_newvalue_as=<key>, this will cause the new config value to be passed to the
         callback in the kwargs, as:
             kwargs['pass_newvalue_as'] = new_configentry_value
-        Note that there is currently no guarantee that whoever calls invoke
-            invokeEntryChangeCallback(self, configentry=None, new_configentry_value=None)
-        will actually set the new_configentry_value. I might add a 'if-set', option,
-        but since None is also commonly used as a 'not specified' value for kwargs, I think it is ok.
+
+        Use case:
+          - objectA displays a list of ActiveExperimentIds, which is saved as the app_active_experiments config entry (key).
+            and would like to be informed if app_activeexperimentids changes.
+            Specifically, it would like to be invoked as objectA.activeExpidsChanged(updatedlist=<new list of activeexpids>)
+            It thus registers as:
+                confighandler.registerEntryChangeCallback('app_active_experiments', self.activeExpidsChanged, pass_newvalue_as='updatedlist')
+
+          - Now, when objectB has changes app_active_experiments (e.g. indirectly by .append(<new expid>)-ing a new value to the list),
+            objectB can invoke
+                confighandler.invokeEntryChangeCallbacks('app_active_experiments', new_configentry_value=<new expids list>),
+            which will call
+                objectA.activeExpidsChanged(updatedlist=<new expids list>)
+
+            Note that there is currently no guarantee that whoever calls
+                invokeEntryChangeCallback(self, configentry=None, new_configentry_value=None)
+            will actually set the new_configentry_value kwarg. I might add a 'if-set', option,
+            but since None is also commonly used as a 'not specified' value for kwargs, I think it is ok.
+
+        Currently, a callback is NOT invoked immediately when a config key is changed
+        with e.g. setkey(cfgkey, value). Rather, the key is added to the ChangedEntriesForCallbacks list.
+        It is then up to the modifying object to call invokeEntryChangeCallback() when complete.
+        I have kept it that way for two reasons: Firstly so that multiple configentries can be
+        modified before invoking callbacks. Secondly, to remind the user that invokeEntryChangeCallback()
+        is not called automatically.
+        It is vital to remember this, since many (most?) config entries are not modified directly,
+        but rather indirectly as lists or dicts (e.g. ActiveExperimentIds, as well as all experiment-related stuff).
+
+
+        ########################
+        ## THOUGHTS AND NOTES: #
+        ########################
+
+        Note: I see no reason to add a 'registerConfigChangeCallback' method.
+        Although this could provide per-config callbacks (e.g. an experiment that could subscribe to
+        changes only for that experiment), I think it is better to code for this situation directly.
+
+        Note that I am CURRENTLY CONSIDERING A NEW ARGUMENT, pass_newvalue_as_first_arg.
+        If this is set to True, the new config value will be passed as the first argument:
+            function(new_configentry_value, *args, **kwargs)
 
         Note that changes are not registrered automatically. It is really not possible to see if
         entries changes, e.g. dicts and lists which are mutable from outside the control of this confighandler.
@@ -500,6 +534,81 @@ class ConfigHandler(object):
             objC -> figues it might be a good idea to call ch.invokeEntryChangeCallback() with no args.
             ch   -> searches through the ChangedEntriesForCallbacks set for changes since last callback.
             ch   -> calls updateListWidget.
+
+        ## NOTE REGARDING IMPLEMENTAITON OF A GENERARAL-PURPOSE CALLBACK SYSTEM ##
+        This can be used as a simple, general-purpose callback manager, across all objects
+        that have access to the Confighandler singleton. The 'configentry' key does not have to
+        correspond to an actual configentry, it can just be a name that specifies that particular
+        callback by convention.
+        Of cause, this is not quite as powerfull as using qt's QObject and signal connections and
+        emitting, but is is ok for simple callbacks, especially for singleton-like objects and variables.
+        (see http://pyqt.sourceforge.net/Docs/PyQt4/qobject.html for more info on QObject's abilities.)
+
+        Edit: If you want a general-purpose callback system, this should probably NOT be crammed
+        into the config handler.
+
+        Instead, if you really want to implement a callback system in the model domain (which by the way
+        sounds dangerously complex and in violation with MVC patterns) it might be better to
+        implement a callback observer pattern as a generic mixin class (or class decorator?).
+
+        (The callback system as I use it here already shares some similar traits with Kivy's callback system
+        used to bind different widgets via the setter(<key>) --> key_setter_method )
+
+        This could perhaps be done with a property-like decorator, where the setter checks if the new
+        value is different from the old, and if it is, it (the setter method) looks in e.g.
+            instance._propertiesCallbacks[self.__name__]
+        for registrered callbacks -- which can now be called similarly to the system here in confighandler,
+        but where the new value can actually be guaranteed to be passed.
+
+        This could like something like:
+            objA    registers   em.bind(ActiveExperimentIds, objA.activeExpidsChanged, pass_newvalue_as='updatedlist')
+            objB    changes     em.ActiveExperimentIds
+            em      calls       all callbacks registered for ActiveExperimentIds.
+
+        However, this still would not call the callbacks if changed via em.ActiveExperimentIds.append('new expid')
+        If you really want this, you would need to use a callback/event-aware list object,
+        which would be able to invoke callbacks when modified. However, that really seems out of scope -- to modify
+        basic list objects... It could be done by em making a hash whenever it returned the list, and
+        then the next time it would return the list, it could check if the hash had changed.
+        That would induce a "one-call delay", but might ensure that the callback was "eventually" called.
+
+        One conclusion might be that you should completely stay away from implementing an in-model callback system.
+
+        Another might be that you should *not* try to roll your own, but instead sub-class your model and
+        implement a GUI-dependent callback system.
+        For instance, Qt has a QList object, and Kivy has a SimpleListAdaptor, both of which might be used
+        to add a callback system.
+
+        Is it needed? Well, probably not. It is mostly because I find it more convenient to work in the model domain,
+        and then have the UI update itself automatically to reflect changes to the model data.
+        There are plenty of examples where data is updated in the model domain, without it being immediately
+        obvious which UI widgets to update.
+        For instance, if an experiment attaches a wiki page (because it is needed somewhere else),
+        this could trigger a mergeSubentriesFromWikiPage() which may update the subentries of an experiment
+        This is all done in the model domain, and the UI widget that caused the wiki-page to be attached in
+        the first place is likely not aware about anything regarding subentries or the UI widgets that display
+        subentries.
+
+        This seems a good example of why I would want an in-model callback system. And again, this could be
+        handled with a callback system as described above. If implemented in the confighandler, you could
+        just register callbacks for "ad-hoc config-keys", e.g. "experiment-RS189.subentries", and
+        have the experiment call
+            confighandler.invokeEntryChangeCallbacks("experiment-RS189.subentries", self.Subentries)
+        However, it does seem more elegant to have the callback registered in the experiment object,
+        which after running mergeSubentriesFromWikiPage() would call either of
+            self.invokeCallbacksForChangedProperty()    # and look for all changed properties flagged by mergeSubentriesFromWikiPage,
+                                                        # similar to how ChangedEntriesForCallbacks is used by confighandler
+            self.invokeChangedPropertyCallbacks('Subentries')   # only invoke callbacks for the 'Subentries' property.
+            self.invokePropertyCallbacks('Subentries')
+
+        And honestly, this is essentially what I already have here in the confighandler, so could easily
+        be implemented with a mixin class / class decorator, plus possibly also a custom callback_property decorator,
+        where the setter would automatically call registered callbacks (or, alternatively, just flag the property
+        in the ChangedPropertiesForCallbacks list -- this could be customized similarly to how the ttl is customized
+        for the cached_property decorator...)
+
+        But maybe check out how Kivy implements its bind() method.
+
         """
         if args is None:
             args = list()

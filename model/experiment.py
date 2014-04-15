@@ -317,7 +317,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """
         if not self._wikipage:
             if self.attachWikiPage():
-                logger.info("%s - Having just attached the wikipage (pageid=%s), I will now parse wikipage subentries and merge them...",
+                logger.info("[%s] - Having just attached the wikipage (pageid=%s), I will now parse wikipage subentries and merge them...",
                             self, self._wikipage.PageId)
                 self.mergeWikiSubentries(self._wikipage)
         return self._wikipage
@@ -754,7 +754,8 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
 
     def renameSubentriesFoldersByFormat(self, createNonexisting=False):
         """
-        Renames all subentries folders to match
+        Renames all subentries folders to match the configured format
+        specified with config key exp_subentry_dir_fmt.
         """
         logger.warning("This method is temporarily disabled while testing...")
         dir_fmt = self.getConfigEntry('exp_subentry_dir_fmt')
@@ -934,10 +935,14 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         Arguments:
           wikipage  : the wikipage (object) to parse
           xhtml     : parse directly this xhtml
+
         If wikipage and xhtml is None, then self.WikiPage will be used.
-        Returns a dict with subentries, similar to the subentries in self.Props['exp_subentries'],
-        i.e.     subentry['a'] = {'expid': ...}
+
+        Returns an OrderedDict with subentries, similar to the subentries in self.Props['exp_subentries'],
+            i.e.     subentry['a'] = {'expid': ...}
+
         Returns None if something failed.
+
         If return_subentry_xhtml is set to True, then the subentry-dict in the returned subentries dict
         will include the current xhtml source for that subentry. This is generally NOT desired.
         Note: wikipage is a WikiPage object, not a page struct.
@@ -959,7 +964,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         try:
             subentry_regex_fmt = self.getConfigEntry('wiki_subentry_regex_fmt')
             logger.debug("wiki_subentry_regex_fmt is: '%s'", subentry_regex_fmt)
-            subentry_regex = subentry_regex_fmt.format(expid=self.Expid, subentry_idx=r"(?P<subentry_idx>[_-]{0,3}[^\s]+)" ) # alternatively, throw in **self.Props
+            subentry_regex = subentry_regex_fmt.format(expid=self.Expid, subentry_idx=r"(?P<subentry_idx>[a-zA-Z]+)") # alternatively, throw in **self.Props
             logger.debug("Subentry regex after format substitution: '%s'", subentry_regex)
             subentry_regex_prog = re.compile(subentry_regex, flags=re.DOTALL+re.MULTILINE)
         except (TypeError, KeyError) as e:
@@ -980,14 +985,16 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         wiki_subentries = OrderedDict()
         for match in subentry_regex_prog.finditer(exp_xhtml):
             gd = match.groupdict()
-            logger.debug("Match groupdict: %s", gd)
-            datestring = gd.pop('subentry_date_string')
+            logger.debug("Match groupdict: {%s}", ", ".join(u"{} : {}".format(key, value[0:20]+' (....) '+value[-20:] if value and len(value) > 50 else value)
+                                                            for key, value in gd.items()))
             if not return_subentry_xhtml:
                 gd.pop('subentry_xhtml')
+            # If a datestring is present, convert it to a datetime type.
+            datestring = gd.pop('subentry_date_string')
             if datestring:
                 gd['date'] = datetime.strptime(datestring, "%Y%m%d")
             if gd['subentry_idx'] in wiki_subentries:
-                logger.warning("Duplicate subentry_idx '%s' encountered while parsing xhtml", gd['subentry_idx'])
+                logger.warning("Duplicate subentry_idx '%s' encountered while parsing subentries from xhtml.", gd['subentry_idx'])
             wiki_subentries[gd['subentry_idx']] = gd
         return wiki_subentries
 

@@ -43,11 +43,30 @@ from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpC
 
 TESTDATADIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '2013_Aarhus')
 
+pagexhtml1 = """
+<h3>About</h3><p><strong>Purpose:</strong></p><p><strong>Summary:</strong></p><p><strong>Lessons:</strong></p><p><strong>Project(s):</strong></p><p><strong>Previous experiments and related pages:</strong></p><p><strong>Overview/outline:&nbsp;</strong></p><p><strong>Samples:</strong></p><h2>Experimental section</h2>
+Something...
+<h4>RS189a Pipetting TR SS MBL staples for MV </h4><h6>Plan, setup, mixing schemes, etc</h6><h6>Journal, 20140109</h6><p>RS189a journal</p>
+
+<h4>RS189-b Pipetting TR ss-col410-bg staples with Anders  (20140108)</h4><h6>Plan, setup, mixing schemes, etc</h6><h6>Journal, 20140108</h6>
+<p>RS189b journal</p>
+<h4>RS189_c Pipetting TR.SS cols with new IDT_Jan14 staples (201405)</h4><h6>Plan, setup, mixing schemes, etc</h6><h6>Journal, 20140115</h6><p>RS189c journal</p>
+<h2>Results and discussion</h2><h6>Gallery</h6><p>X-gal</p><h6>Observations</h6><h6>Discussion</h6><h6>Conclusion</h6><h6>Lessons learned</h6><h6>Outlook</h6><h2>Attachments</h2><p>Hello</p>
+"""
+# date is pop'ed if it is None. expid is not included parsed but is constant in the format()ed regex.
+# Remember that kwargs is not a good way to define an ordered dict ;-)
+pagexhtml1_expectedprops = OrderedDict([('a', dict(subentry_idx='a', subentry_titledesc="Pipetting TR SS MBL staples for MV")),
+                                        ('b', dict(subentry_idx='b', date=datetime.strptime("20140108", "%Y%m%d"), subentry_titledesc="Pipetting TR ss-col410-bg staples with Anders")),
+                                        ('c', dict(subentry_idx='c', subentry_titledesc="Pipetting TR.SS cols with new IDT_Jan14 staples (201405)"))])
 
 @pytest.fixture
 def expprops():
     expprops = dict(expid='RS099', exp_titledesc="Pytest titledesc", exp_subentries=OrderedDict())
     return expprops
+
+@pytest.fixture
+def exppropsRS189():
+    return dict(expid='RS189', exp_titledesc="Pipetting TR SS staples for MBL and col410", exp_subentries=OrderedDict())
 
 
 
@@ -118,42 +137,6 @@ def test_getFoldernameAndParentdirpath(exp_no_wikipage_or_subentries, monkeypatc
     assert parentdirpath == '/tmp/config'
 
 
-#
-#
-#def setup1(useserver=True):
-#    confighandler = ExpConfigHandler( pathscheme='test1' )
-#    #em = ExperimentManager(confighandler=confighandler)
-#    print "----"
-#    rootdir = confighandler.get("local_exp_subDir")
-#    print "rootdir: {}".format(rootdir)
-#    print "glob res: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
-#    ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
-#    print "ldir: {}".format(ldir)
-#    ldir2 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS105*"))[0] )
-#    ldir3 = os.path.join(rootdir, glob.glob(os.path.join(rootdir, "RS177*"))[0] )
-#    print "ldir2: {}".format(ldir2)
-#    ldir = ldir2
-#    #ldir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
-##                '/home/scholer/Documents/labfluence_data_testsetup/.labfluence
-#    #ldir2 = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS105 TR STV-col11 Origami v3":
-#    server = ConfluenceXmlRpcServer(confighandler=confighandler, autologin=True) if useserver else None
-#    e = Experiment(confighandler=confighandler, server=server, localdir=ldir)
-#    return e
-
-# You cannot import or use ExprimentManager here due to circular imports.
-# You will need to create a separate test environment for that.
-#def setup2():
-#    confighandler = ExpConfigHandler(pathscheme='default1')
-#    em = ExperimentManager(confighandler=confighandler, autoinit=False)
-#    server = ConfluenceXmlRpcServer(autologin=True, ui=None, confighandler=confighandler)
-#    confighandler.Singletons['server'] = server
-#    rootdir = confighandler.get("local_exp_subDir")
-#    print "experiment rootdir: {}".format(rootdir)
-#    print "glob res for RS102: {}".format(glob.glob(os.path.join(rootdir, r'RS102*')) )
-#    ldir = os.path.join(rootdir, glob.glob(os.path.join(rootdir, r'RS102*'))[0] )
-#    e = Experiment(confighandler=confighandler, server=server, localdir=ldir, manager=em)
-#    return e
-
 
 def test_experiment_basics(exp_no_wikipage_or_subentries, expprops):
     """
@@ -200,6 +183,22 @@ def test_getFoldernameFromFmtAndProps(exp_no_wikipage_or_subentries, expprops):
     assert e.getFoldernameFromFmtAndProps() == 'RS099 Pytest titledesc'
 
 
+def test_parseSubentriesFromWikipage(exp_no_wikipage_or_subentries, exppropsRS189):
+    """
+    parseSubentriesFromWikipage
+    """
+    e = exp_no_wikipage_or_subentries
+    e.Props.update(exppropsRS189)
+    wiki_experiment_section = r'(?P<experiment_info>.*?)(?P<exp_section_header><h2>Experimental section</h2>)(?P<exp_section_body>.*?)(?=<h[1-2]>.+?</h[1-2]>|\Z)'
+    wiki_subentry_regex_fmt = r'(<h4>{expid}[_-]*{subentry_idx}\s+(?P<subentry_titledesc>.+?)\s*(\((?P<subentry_date_string>\d{{8}})\))?</h4>)(?P<subentry_xhtml>.*?)(?=<h[1-4]>.+?</h[1-4]>|\Z)'
+    e.setConfigEntry('wiki_experiment_section', wiki_experiment_section)
+    e.setConfigEntry('wiki_subentry_regex_fmt', wiki_subentry_regex_fmt)
+    wiki_subentries = e.parseSubentriesFromWikipage(xhtml=pagexhtml1)
+    assert wiki_subentries == pagexhtml1_expectedprops
+
+
+
+
 @pytest.mark.skipif(True, reason="Not ready yet")
 def test_setLocaldirpathAndFoldername():
     assert False
@@ -215,11 +214,6 @@ def test_makeLocaldir():
 @pytest.mark.skipif(True, reason="Not ready yet")
 def test_changeLocaldir():
     assert False
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_():
-    assert False
-
 
 
 
@@ -389,23 +383,6 @@ def test_getWikiSubentryXhtml(e=None):
     for s in ('a',):#'b','c','e'):
         print "\nFor subentry '{}':".format(s)
         e.getWikiSubentryXhtml(s)
-    #print "\nInvoked without subentry:"
-    #e.getWikiSubentryXhtml()
-    print "\n<<<<<<<<<<<<<< test_getWikiSubentryXhtml() finished <<<<<<<<<<<<"
-    return e
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_parseSubentriesFromWikipage(e=None):
-    print "\n>>>>>>>>>>>>>> test_getWikiSubentryXhtml() started >>>>>>>>>>>>>"
-    if not e:
-        e = setup1()
-        wikipage = e.attachWikiPage()
-    print "\n\n"
-    print e.Server
-    print "wikipage: {}".format(wikipage)
-    wiki_subentries = e.parseSubentriesFromWikipage(wikipage)
-    print "wiki_subentries:"
-    print wiki_subentries
     #print "\nInvoked without subentry:"
     #e.getWikiSubentryXhtml()
     print "\n<<<<<<<<<<<<<< test_getWikiSubentryXhtml() finished <<<<<<<<<<<<"

@@ -118,7 +118,7 @@ def outputres(res, outputfmt):
     - json
     - pickle - hard to read, but can serialize almost anything...
     """
-    logger.debug("Generating output for result: %s", res)
+    logger.debug("Generating output for result of length %s with outputfmt %s", len(res), outputfmt)
     outputfmt = outputfmt.lower()
     if outputfmt == 'print':
         print res

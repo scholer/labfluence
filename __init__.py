@@ -37,6 +37,26 @@ import logging.handlers
 logging.addLevelName(4, 'SPAM')
 logger = logging.getLogger(__name__)
 
+def getLoglevelInt(loglevel, defaultlevel=None):
+    """
+    Used to ensure that a value is a valid loglevel integer.
+    If loglevel is already an integer, or a string representation of an interger, this integer is returned.
+    If loglevel is a registrered level NAME (e.g. DEBUG, INFO, WARNING, ERROR), the correspoinding integer value is returned.
+    If anything fails, falls back to defaultlevel (if provided), or else logging.WARNING.
+    """
+    if defaultlevel is None:
+        defaultlevel = logging.WARNING
+    try:
+        loglevel = int(loglevel)
+    except ValueError:
+        loglevel = getattr(logging, loglevel.upper(), defaultlevel)
+    except AttributeError:
+        # no loglevel argument defined by argparse
+        loglevel = defaultlevel
+    return loglevel
+
+
+
 
 def init_logging(argsns, prefix="labfluence"):
     """
@@ -61,16 +81,11 @@ def init_logging(argsns, prefix="labfluence"):
     if argsns.logtofile:
         logfilepath = argsns.logtofile
     else:
-        logfilename = '{}_testing.log'.format(prefix) if getattr(argsns, 'testing', False) else 'labfluence_lims_debug.log'
+        logfilenameformat = '{}_testing.log' if getattr(argsns, 'testing', False) else '{}_debug.log'
+        logfilename = logfilenameformat.format(prefix)
         logfilepath = os.path.join(logfiledir, logfilename)
 
-    try:
-        loglevel = int(argsns.loglevel)
-    except ValueError:
-        loglevel = getattr(logging, argsns.loglevel.upper(), logging.WARNING)
-    except AttributeError:
-        # no loglevel argument defined by argparse
-        loglevel = logging.WARNING
+    loglevel = getLoglevelInt(argsns.loglevel)
 
     # Logging concepts based on:
     # - http://docs.python.org/2/howto/logging.html
@@ -116,7 +131,10 @@ def init_logging(argsns, prefix="labfluence"):
 
     # Determine and set loglevel for streamhandler (outputs to sys.stderr)
     if argsns.debug is None:
+        # --debug is NOT specified...
         logstreamhandler.setLevel(loglevel)
+        if loglevel < logfilehandler.level:
+            logfilehandler.setLevel(loglevel)
     elif argsns.debug: # argsns.debug is a non-empty list:
         # Edit: Initially, here I would just decrease the loglevel of individual loggers.
         # However, c.f. the log flowchart, even if individual loggers are set to DEBUG level,

@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 # Python invocation arguments:
 # -i : Inspect interactively after running script.
@@ -14,4 +14,10 @@
 # - Labfluence will per default write log info to logs/labfluence_debug.log - This should also be affected by --loglevel.
 # - Labfluence can also be invoked with ipython --gui=tk (DEPENDS ON YOUR IPYTHON VERSION)
 
-python -i labfluence.py --loglevel DEBUG
+scriptpath=$(readlink -f $0)
+scriptdir=`dirname $scriptpath`
+echo "Scriptpath: $scriptpath"
+echo "Scriptdir: $scriptdir"
+
+# You should NOT change directory or anyting like that, since the user might expect local files from the current directory to be available.
+python -i $scriptdir/labfluence.py --loglevel DEBUG
