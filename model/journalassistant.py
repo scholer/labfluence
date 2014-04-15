@@ -231,12 +231,12 @@ class JournalAssistant(object):
         if subentry_idx is None:
             subentry_idx = self.Current_subentry_idx
         if subentry_idx is None:
-            logger.info( "flush invoked, but no subentry selected/available so aborting flush request and returning False.")
+            logger.info("flush invoked, but no subentry selected/available so aborting flush request and returning False.")
             return False
         # Do a quick check that a WikiPage object is attached.
         # If it is not, reading the cache content is a moot point.
         if not self.WikiPage:
-            logger.info("Experiment.flush() ERROR, no wikipage, aborting... (%s)", self)
+            logger.info("Experiment.flush() Could not flush, no wikipage, aborting... (%s)", self)
             return False
         # Generate subentry properties from subentry_idx:
         subentryprops = self.makeSubentryProps(subentry_idx=subentry_idx)
@@ -255,16 +255,20 @@ class JournalAssistant(object):
             try:
                 os.remove(journal_path+'.lastflush')
             except OSError as e:
-                logger.debug("OSError while removing .lastflush file for subentry_idx %s, probably it just didn't exist.", subentry_idx)
+                if os.path.exists(journal_path+'.lastflush'):
+                    logger.warning("OSError while removing .lastflush file (%s) for subentry_idx %s, however the file/dir does exists!", journal_path+'.lastflush', subentry_idx)
+                else:
+                    logger.debug("File '%s' does not exist (the subentry, '%s', is probably new).", journal_path+'.lastflush', subentry_idx)
             try:
                 os.rename(journal_path, journal_path+'.lastflush')
             except (IOError, OSError) as e:
-                logger.info("IOError/OSError while renaming journal entry file %s to %s. Error is: %s", journal_path, journal_path+'.lastflush', e)
-        except IOError as e:
-            logger.info("IOError during flush: %s", e)
-            return
-        except OSError as e:
-            logger.info("OSError during flush: %s", e)
+                logger.warning("IOError/OSError while renaming journal entry file %s to %s. Error is: %s", journal_path, journal_path+'.lastflush', e)
+        except (IOError, OSError) as e:
+            if os.path.exists(journal_path+'.lastflush'):
+                logger.error("IOError/OSError during flush: %s -- however, the file/directory does exist!", e)
+                logger.error("This can be caused by e.g.: a) permission issue, b) the filepath is a directory, c) The file is locked. Either way, this should be resolved manually by you (the user).")
+            else:
+                logger.debug("File '%s' does not exist (the subentry, '%s', is probably new). Nothing to flush.", journal_path+'.lastflush', subentry_idx)
             return
         # This should mean that everything worked ok...
         # Write journal entries to backup file (containing all flushed entries). Also for equivalent file with xhtml entries.
@@ -273,15 +277,16 @@ class JournalAssistant(object):
         if journal_flushed_backup_path:
             try:
                 with open_utf(journal_flushed_backup_path, 'ab') as bak:
+                    # File is opened in 'append, binary' mode.
                     bak.write(journal_content)
             except IOError as e:
-                logger.info("IOError while appending flushed journal entries (text) to backup file: '%s'. Error is: %s", journal_flushed_backup_path, e)
+                logger.warning("IOError while appending flushed journal entries (text) to backup file: '%s'. Error is: %s", journal_flushed_backup_path, e)
         if journal_flushed_xhtml_path:
             try:
                 with open_utf(journal_flushed_xhtml_path, 'ab') as bak:
                     bak.write(new_xhtml)
             except IOError as e:
-                logger.info("IOError while appending flushed journal xhtml to backup file: '%s'. Error is: %s", journal_flushed_xhtml_path, e)
+                logger.warning("IOError while appending flushed journal xhtml to backup file: '%s'. Error is: %s", journal_flushed_xhtml_path, e)
         return res
 
     def getTemplateManager(self):

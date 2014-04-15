@@ -50,9 +50,11 @@ def init_logging(argsns, prefix="labfluence"):
     # Examples of different log formats:
     #logfmt = "%(levelname)s: %(filename)s:%(lineno)s %(funcName)s() > %(message)s"
     #logfmt = "%(levelname)s %(name)s:%(lineno)s %(funcName)s() > %(message)s"
-    logfmt = "%(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s"
+    # loguserfmt = format of log displayed to the user; logfilefmt = format of log messages written to logfile.
+    loguserfmt = "%(asctime)s %(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s"
     logfilefmt = '%(asctime)s %(levelname)-6s - %(name)s:%(lineno)s - %(funcName)s() - %(message)s'
     logdatefmt = "%Y%m%d-%H:%M:%S" # "%Y%m%d-%Hh%Mm%Ss"
+    logtimefmt = "%H:%M:%S" # Output to user in console
     logfiledir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'logs')
     if not os.path.exists(logfiledir):
         os.mkdir(logfiledir)
@@ -103,10 +105,12 @@ def init_logging(argsns, prefix="labfluence"):
     # Add a custom StreamHandler for outputting to the user (default level is 0 = ANY)
     logstreamhandler = logging.StreamHandler()
     logging.root.addHandler(logstreamhandler)
-    logstreamformatter = logging.Formatter(logfmt)
+    logstreamformatter = logging.Formatter(loguserfmt, logtimefmt)
     logstreamhandler.setFormatter(logstreamformatter)
 
     # And a special log handler for debug messages:
+    # This is added to the loggers of individual modules in order to output
+    # debug info even if the root logger is set to a higher loglevel.
     logdebughandler = logging.StreamHandler()
     logdebughandler.setFormatter(logstreamformatter)
 
