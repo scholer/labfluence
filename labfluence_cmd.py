@@ -239,19 +239,24 @@ if __name__ == '__main__':
     ### Basic command line options ###
     ##################################
 
-    parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment.")
     parser.add_argument('--logtofile', help="Log logging outputs to this file.")
     parser.add_argument('--loglevel', default=logging.WARNING,
                         help="Logging level to use. Higher log levels results in less output. \
                              Can be specified either as string (debug, info, warning, error), \
                              or as an integer (10, 20, 30, 40). \
-                             Loglevel defaults to logging.INFO (= 20), unless \
-                             --debug is set, the log level will be min(logging.DEBUG, argsns.loglevel).")
+                             Loglevel defaults to logging.WARNING (30), unless \
+                             --debug is set, in which case log level will be min(logging.DEBUG, argsns.loglevel).")
     parser.add_argument('--debug', metavar='<MODULES>', nargs='*', # default defaults to None.
                         help="Specify modules where you want to display logging.DEBUG messages.\
                              Note that modules specified after --debug are not affected by the --loglevel \
-                             argument, but always defaults to logging.DEBUG.")
-    parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.")
+                             argument, but always defaults to logging.DEBUG.\
+                             (technically, because the module's logger directs messages directly to the loghandlers\
+                             and does not rely on propagation to the root logger...)\
+                            Special: If no modules are specified, '--debug' will produce same effect as '--loglevel DEBUG'.")
+    parser.add_argument('--pathscheme', help="Specify a particular pathscheme to use for the confighandler.\
+                        Can be used to switch between different configs. In practice mostly used for development testing.")
+    parser.add_argument('--testing', action='store_true', help="Start labfluence in testing environment. Will set pathscheme\
+                        to default testing pathscheme and set loglevel of a range of loggers to DEBUG.")
     parser.add_argument('--outputformat', metavar="<FORMAT>", default="pretty",
                         help="How to format the output (if applicable). E.g. YAML, JSON, PRETTY, etc. \
                              Use NONE to supress normal output. Default is to do pretty print.")
