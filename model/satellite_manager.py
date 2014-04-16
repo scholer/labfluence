@@ -31,15 +31,11 @@ SatelliteMgr
             SatelliteLocation
 
 """
-#import os
-#import re
-#import shutil
-#import time
-# FTP not yet implemented...
-#from ftplib import FTP
+
 import logging
 logger = logging.getLogger(__name__)
 
+from collections import OrderedDict
 
 from satellite_location import SatelliteLocation, SatelliteFileLocation, location_factory
 
@@ -72,7 +68,7 @@ class SatelliteManager(object):
         """
         Returns a sorted copy of the satellite locations:
         """
-        return dict(sorted(self.SatelliteLocations))
+        return OrderedDict(sorted(self.SatelliteLocations.items()))
 
     def getLocationNames(self):
         """
