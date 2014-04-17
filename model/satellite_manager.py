@@ -39,23 +39,25 @@ from collections import OrderedDict
 
 from satellite_location import SatelliteLocation, SatelliteFileLocation, location_factory
 
+from labfluencebase import LabfluenceBase
 
 
-class SatelliteManager(object):
+class SatelliteManager(LabfluenceBase):
     """
     Manager class for satellite locations.
     """
     def __init__(self, confighandler):
-        self._confighandler = confighandler
+        LabfluenceBase.__init__(self, confighandler)
+        #self._confighandler = confighandler
         if 'satellitemanager' not in confighandler.Singletons:
             confighandler.Singletons['satellitemanager'] = self
         self._satellitelocations = dict() # dict name : satellite-location-object
 
 
-    @property
-    def Confighandler(self):
-        """ The universal confighandler """
-        return self._confighandler
+    #@property
+    #def Confighandler(self):
+    #    """ The universal confighandler """
+    #    return self._confighandler
 
     @property
     def SatelliteLocations(self):

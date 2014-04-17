@@ -14,6 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable-msg=R0904
 
 """
 Provides ability to interact with special LIMS (laboratory inventory
@@ -46,7 +47,11 @@ class WikiLimsPage(WikiPage):
     See the WikiPage class for info on pagestructs data structure/fields, etc.
     """
 
-    #def __init__(self, pageId, server, confighandler=None, pagestruct=None):
+    def __init__(self, pageId, server=None, confighandler=None, pagestruct=None):
+        WikiPage.__init__(self, pageId, server=server, confighandler=confighandler, pagestruct=pagestruct)
+        self._limstableregexprog = None
+        self._tablerowregexprog = None
+        self._tablerowdataregexprog = None
 
     @property
     def LimstableRegexProg(self):
@@ -125,18 +130,17 @@ class WikiLimsPage(WikiPage):
             entry_vals = [entry.get(field, "") for field in headers]
             lostkeys = set(headers) - set(entry.keys())
             logger.info("Defaulting to using empty string ('') for lost keys %s; entry_vals is now: %s", lostkeys, entry_vals)
-        if all(item=="" for item in entry_vals):
+        if all(item == "" for item in entry_vals):
             logger.info("All entries are empty strings, so aborting...! -- entry_vals list is: %s", entry_vals)
             return
         entry_xhtml = u"<tr>{}</tr>".format(
-            "".join(u"<td><p>{}</p></td>".format(val) for val in entry_vals ) )
+            "".join(u"<td><p>{}</p></td>".format(val) for val in entry_vals))
         insert_index = match.start('tablerows')
         new_xhtml = xhtml[:insert_index] + entry_xhtml + xhtml[insert_index:]
         self.Content = new_xhtml
         if persistToServer:
             if versionComment is None:
-                versionComment = u"Entry added by Labfluence LimsPage: {}".format(
-                    entry.get('Product', "") )
+                versionComment = u"Entry added by Labfluence LimsPage: {}".format(entry.get('Product', ""))
             self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=minorEdit)
         logger.debug("Entry added, xhtml length %s", len(xhtml))
         return new_xhtml
@@ -176,16 +180,15 @@ class WikiLimsPage(WikiPage):
             entries_vals = [[entry.get(field, "") for field in headers] for entry in entries]
             lostkeys = set(headers) - set(entries[0].keys())
             logger.info("Defaulting to using empty string ('') for lost keys %s; entries_vals is now: %s", lostkeys, entries_vals)
-        if all(item=="" for entry_vals in entries_vals for item in entry_vals):
+        if all(item == "" for entry_vals in entries_vals for item in entry_vals):
             logger.info("All element items of all entries are empty strings, so aborting...! -- entries_vals list is: %s", entries_vals)
             return False
         else:
             for i, entry_vals in enumerate(entries_vals):
-                if all(item=="" for item in entry_vals):
+                if all(item == "" for item in entry_vals):
                     logger.info("All elements are empty strings for entries_vals[%s]! -- entries_vals[%s] list is: %s", i, i, entry_vals)
 
-        entries_xhtml = u"\n".join( u"<tr>{}</tr>".format(
-            "".join(u"<td><p>{}</p></td>".format(val) for val in entry_vals ) )
+        entries_xhtml = u"\n".join(u"<tr>{}</tr>".format("".join(u"<td><p>{}</p></td>".format(val) for val in entry_vals))
                                  for entry_vals in entries_vals if any(entry_vals))
         insert_index = match.start('tablerows')
         new_xhtml = xhtml[:insert_index] + entries_xhtml + xhtml[insert_index:]
@@ -193,7 +196,7 @@ class WikiLimsPage(WikiPage):
         self.Content = new_xhtml
         if persistToServer:
             versionComment = u"Entries {} added by Labfluence LimsPage.".format(
-                ", ".join('"{}"'.format(entry.get('Product', "")) for entry in entries ) )
+                ", ".join('"{}"'.format(entry.get('Product', "")) for entry in entries))
             self.updatePage(struct_from='cache', versionComment=versionComment, minorEdit=False)
         logger.debug("Entry added, xhtml length %s", len(xhtml))
         return new_xhtml

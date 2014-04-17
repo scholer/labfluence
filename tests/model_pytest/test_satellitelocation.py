@@ -18,20 +18,20 @@
 
 import pytest
 import os
-import sys
 import yaml
 import logging
 logger = logging.getLogger(__name__)
 # Note: Switched to using pytest-capturelog, captures logging messages automatically...
 
-from pathutils import walkup
+
+# set paths:
+from model.pathutils import walkup
 
 approotdir = os.path.join(walkup(os.path.realpath(__file__), 3))
 modeldir = os.path.join(approotdir, 'model')
 testsdir = os.path.join(approotdir, 'tests')
 testdatadir = os.path.join(testsdir, 'test_data')
-sys.path.append(approotdir)
-sys.path.append(modeldir)
+
 
 
 #### SUT ####
@@ -39,8 +39,8 @@ sys.path.append(modeldir)
 from model.satellite_location import SatelliteFileLocation
 
 ## Test doubles:
-from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
-from model.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
+#from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
+#from model.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
 
 from directorymockstructure import DirectoryMockstructure
 

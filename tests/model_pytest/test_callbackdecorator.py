@@ -17,20 +17,9 @@
 # pylint: disable=C0103,W0212
 
 
-import os
-import sys
 import pytest
 import logging
 logger = logging.getLogger(__name__)
-
-from pathutils import walkup
-
-approotdir = os.path.join(walkup(os.path.realpath(__file__), 3))
-modeldir = os.path.join(approotdir, 'model')
-testsdir = os.path.join(approotdir, 'tests')
-testdatadir = os.path.join(testsdir, 'test_data')
-sys.path.append(approotdir)
-sys.path.append(modeldir)
 
 
 #### SUT ####
@@ -78,7 +67,7 @@ def test_basics():
 def test_registercallback():
     obj = TestClass()
     assert obj.numchanges == 0
-    myvar = 0
+    myvar = [0]
     def mycallback():
-        myvar += 2
+        myvar[0] += 2
     obj.MyProp.registercallback(mycallback)

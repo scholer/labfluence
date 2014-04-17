@@ -17,20 +17,10 @@
 # pylint: disable=C0111,C0103,W0212
 
 
-import os
-import sys
 #import pytest
 import logging
 logger = logging.getLogger(__name__)
 
-from pathutils import walkup
-
-approotdir = os.path.join(walkup(os.path.realpath(__file__), 3))
-modeldir = os.path.join(approotdir, 'model')
-testsdir = os.path.join(approotdir, 'tests')
-testdatadir = os.path.join(testsdir, 'test_data')
-sys.path.append(approotdir) # Uh... if you really do this for all test_* modules, the sys.path will be super long...
-#sys.path.append(modeldir)
 
 
 #### SUT ####

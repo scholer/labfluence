@@ -14,7 +14,8 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221
+# xxpylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221
+# pylint: disable-msg=W0142,R0904
 # messages:
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
 #   C0302: too many lines in module; R0201: Method could be a function; W0142: Used * or ** magic
@@ -35,6 +36,9 @@ import logging
 logger = logging.getLogger(__name__)
 from Tkinter import TclError
 
+from pathutils import getPathParents
+
+
 # from http://stackoverflow.com/questions/4579908/cross-platform-splitting-of-path-in-python
 def os_path_split_asunder(path, debug=False):
     """
@@ -44,7 +48,7 @@ def os_path_split_asunder(path, debug=False):
     while True:
         newpath, tail = os.path.split(path)
         if debug:
-            logger.debug(repr(path), (newpath, tail) )
+            logger.debug(repr(path), (newpath, tail))
         if newpath == path:
             assert not tail
             if path:
@@ -54,6 +58,32 @@ def os_path_split_asunder(path, debug=False):
         path = newpath
     parts.reverse()
     return parts
+
+
+def _saveConfig(outputfn, config):
+    """
+    For internal use; does the actual saving of the config.
+    Can be easily mocked or overridden by fake classes to enable safe testing environments.
+    """
+    try:
+        # default_flow_style=False -> make the output "prettier" (block style)
+        # width=-1 -> disables line-wrapping in Ruby, but doesn't work for PyYAML,
+        # because yaml.dumper.Emitter checks if width > self.best_indent*2 (and reverts to 80 otherwise)
+        # setting width=400 to only wrap very long lines...
+        # line_break is the line-termination (EOL) character.
+        yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False, width=400)
+        logger.info("Config saved to file: %s", outputfn)
+        return True
+    except IOError, e:
+        # This is to be expected for the system config...
+        logger.warning("Could not save config to file '%s', error raised: %s", outputfn, e)
+
+
+def _printConfig(config, indent=2):
+    """
+    Returns a pretty string representation of a config.
+    """
+    return "\n".join(u"{indent}{k}: {v}".format(indent=' '*indent, k=k, v=v) for k, v in config.items())
 
 
 
@@ -208,6 +238,7 @@ class ConfigHandler(object):
         Simulated the get method of a dict.
         Note that the ExpConfigHandler's get() adds a bit more options...
         """
+        # This is not usually used, since we almost always use ExpConfigHandler as confighandler.
         return self.getConfig(what='combined').get(key, default)
 
     def setdefault(self, key, value=None, autosave=None):
@@ -259,7 +290,7 @@ class ConfigHandler(object):
             #    if key in config:
             #        config[key] = value
             #        return cfgtyp
-            cfgtype = next( (cfgtype for cfgtype, config in self.Configs.items()
+            cfgtype = next((cfgtype for cfgtype, config in self.Configs.items()
                                 if key in config),
                             self.DefaultConfig)
         else:
@@ -322,7 +353,7 @@ class ConfigHandler(object):
         if VERBOSE > 3:
             logger.info("readConfig() :: New '%s'-type config loaded:", cfgtype)
             logger.debug("Loaded config is: %s", newconfig)
-            logger.debug("readConfig() :: Updated main '%s' config to be: %s", cfgtype, self._printConfig(self.Configs[cfgtype]) )
+            logger.debug("readConfig() :: Updated main '%s' config to be: %s", cfgtype, _printConfig(self.Configs[cfgtype]))
         if "next_config_override_fn" in newconfig and self.AllowNextConfigOverrideChain:
             # the next_config_override_fn are read-only, but their content will be persisted to the main configfile.when saved.
             if VERBOSE:
@@ -337,7 +368,7 @@ class ConfigHandler(object):
                 self.addNewConfig(newconfigfn, newtype)
 
         # Inputting configs through Config_path_entries:
-        reversemap = dict( (val, key) for key, val in self.Config_path_entries.items() )
+        reversemap = dict((val, key) for key, val in self.Config_path_entries.items())
         for key in set(newconfig.keys()).intersection(self.Config_path_entries.values()):
             if VERBOSE > 2:
                 logger.debug("Found the following path_entries key '%s' in the new config: %s", key, newconfig[key])
@@ -388,10 +419,9 @@ class ConfigHandler(object):
         """
         logger.info("saveConfigs invoked with configtosave '%s'", what)
         for cfgtype, outputfn in self.ConfigPaths.items():
-            if (what=='all' or cfgtype in what or cfgtype==what):
+            if what == 'all' or cfgtype in what or cfgtype == what:
                 if outputfn:
                     logger.info("Saving config '%s' to file: %s", cfgtype, outputfn)
-                    self._saveConfig(outputfn, self.Configs[cfgtype])
                 else:
                     logger.info("No filename specified for config '%s'", cfgtype)
             else:
@@ -411,34 +441,8 @@ class ConfigHandler(object):
             logger.warning("Outputfn for configtype '%s' is '%s', ABORTING. ", cfgtype, outputfn)
             return False
         logger.debug("Saving config %s using outputfn %s", cfgtype, outputfn)
-        self._saveConfig(outputfn, config)
+        _saveConfig(outputfn, config)
         return True
-
-
-    def _saveConfig(self, outputfn, config):
-        """
-        For internal use; does the actual saving of the config.
-        Can be easily mocked or overridden by fake classes to enable safe testing environments.
-        """
-        try:
-            # default_flow_style=False -> make the output "prettier" (block style)
-            # width=-1 -> disables line-wrapping in Ruby, but doesn't work for PyYAML,
-            # because yaml.dumper.Emitter checks if width > self.best_indent*2 (and reverts to 80 otherwise)
-            # setting width=400 to only wrap very long lines...
-            # line_break is the line-termination (EOL) character.
-            yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False, width=400)
-            logger.info("Config saved to file: %s", outputfn)
-            return True
-        except IOError, e:
-            # This is to be expected for the system config...
-            logger.warning("Could not save config to file '%s', error raised: %s", outputfn, e)
-
-
-    def _printConfig(self, config, indent=2):
-        """
-        Returns a pretty string representation of a config.
-        """
-        return "\n".join( u"{indent}{k}: {v}".format(indent=' '*indent, k=k, v=v) for k, v in config.items() )
 
 
     def printConfigs(self, cfgtypestoprint='all'):
@@ -447,13 +451,13 @@ class ConfigHandler(object):
         Default is 'all' -> print all configs.
         """
         for cfgtype, outputfn in self.ConfigPaths.items():
-            if (cfgtypestoprint=='all' or cfgtype in cfgtypestoprint or cfgtype==cfgtypestoprint):
+            if cfgtypestoprint == 'all' or cfgtype in cfgtypestoprint or cfgtype == cfgtypestoprint:
                 print u"\nConfig '{}' in file: {}".format(cfgtype, outputfn)
-                print self._printConfig(self.Configs[cfgtype])
-        return "\n".join( "\n".join([ u"\nConfig '{}' in file: {}".format(cfgtype, outputfn),
-                                      self._printConfig(self.Configs[cfgtype]) ])
-                          for cfgtype,outputfn in self.ConfigPaths.items()
-                          if (cfgtypestoprint=='all' or cfgtype in cfgtypestoprint or cfgtype==cfgtypestoprint)
+                print _printConfig(self.Configs[cfgtype])
+        return "\n".join("\n".join([u"\nConfig '{}' in file: {}".format(cfgtype, outputfn),
+                                      _printConfig(self.Configs[cfgtype])])
+                          for cfgtype, outputfn in self.ConfigPaths.items()
+                          if (cfgtypestoprint == 'all' or cfgtype in cfgtypestoprint or cfgtype == cfgtypestoprint)
                          )
 
 
@@ -619,7 +623,7 @@ class ConfigHandler(object):
             kwargs = dict()
         # I would have liked this to be a set, but hard to implement set for dict-type kwargs and no frozendict in python2.
         # Just make sure not to register the same callback twice.
-        self.EntryChangeCallbacks.setdefault(configentry, list()).append( (function, args, kwargs, pass_newvalue_as) )
+        self.EntryChangeCallbacks.setdefault(configentry, list()).append((function, args, kwargs, pass_newvalue_as))
         logger.debug("Registrered callback for configentry '%s': %s(*%s, **%s) with pass_newvalue_as=%s", configentry, function, args, kwargs, pass_newvalue_as)
         # I could also have implemented as dict based on the function is hashable, e.g.:
         #self.EntryChangeCallbacks.setdefault(configentry, dict()).set(function, (args, kwargs) )
@@ -643,7 +647,7 @@ class ConfigHandler(object):
         Thus, if unregisterEntryChangeCallback() is called without arguments,
         ALL REGISTRERED CALLBACKS WILL BE REMOVED!
         """
-        if all(a is None for a in (function, args, kwargs) ):
+        if all(a is None for a in (function, args, kwargs)):
             if configentries is None:
                 logger.warning("NOTICE: unregisterEntryChangeCallback called without any arguments. All registrered callbacks will be removed.")
             else:
@@ -657,9 +661,9 @@ class ConfigHandler(object):
             #removelist = filter(callbackfilter, self.EntryChangeCallbacks[configentry])
             # Changed, now using generator alternative instead of filter builtin (which is in bad
             # standing with the BDFL, http://www.artima.com/weblogs/viewpost.jsp?thread=98196)
-            removelist = (  callbacktuple for callbacktuple in self.EntryChangeCallbacks[configentry]
-                            if all( criteria in (None, callbacktuple[i])
-                                   for i, criteria in enumerate((function, args, kwargs)) )
+            removelist = (callbacktuple for callbacktuple in self.EntryChangeCallbacks[configentry]
+                            if all(criteria in (None, callbacktuple[i])
+                                   for i, criteria in enumerate((function, args, kwargs)))
                          )
             logger.debug("Removing callbacks from self.EntryChangeCallbacks[%s]: %s", configentry, removelist)
             for callbacktuple in removelist:
@@ -757,7 +761,7 @@ class ExpConfigHandler(ConfigHandler):
         self.ConfigPaths['exp'] = expconfigfn
         self.Config_path_entries['exp'] = "exp_config_path"
         if readfiles:
-            logger.debug("__init()__ :: autoreading..." )
+            logger.debug("__init()__ :: autoreading...")
             self.autoRead()
         if enableHierarchy and hierarchy_rootdir_config_key:
             rootdir = self.get(hierarchy_rootdir_config_key)
@@ -767,7 +771,7 @@ class ExpConfigHandler(ConfigHandler):
                 self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs)
             else:
                 logger.info("rootdir is %s; hierarchy_rootdir_config_key is %s; configs are (configpaths): %s",
-                    rootdir, hierarchy_rootdir_config_key, self.ConfigPaths )
+                            rootdir, hierarchy_rootdir_config_key, self.ConfigPaths)
 
         else:
             self.HierarchicalConfigHandler = None
@@ -815,9 +819,9 @@ class ExpConfigHandler(ConfigHandler):
                     if exp_path:
                         return os.path.normpath(os.path.join(exp_path, cfg[key]))
                 # Case 2, config keys specifying a list of paths:
-                elif pathsrelativetoexp and key in ('local_exp_ignoreDirs'):
+                elif pathsrelativetoexp and key in ('local_exp_ignoreDirs', ):
                     exp_path = self.getConfigDir('exp')
-                    return [os.path.join(exp_path, ignoreDir) for ignoreDir in cfg[key] ]
+                    return [os.path.join(exp_path, ignoreDir) for ignoreDir in cfg[key]]
                 return cfg[key]
         return default
 
@@ -903,7 +907,7 @@ class HierarchicalConfigHandler(object):
         """
         Make a pretty string representation of the loaded configs for e.g. debugging.
         """
-        return "\n".join( u"{} -> {}".format(path, cfg) for path, cfg in sorted(self.Configs.items())  )
+        return "\n".join(u"{} -> {}".format(path, cfg) for path, cfg in sorted(self.Configs.items()))
 
     def loadRootHierarchy(self, rootdir=None, clear=False):
         """
@@ -1051,51 +1055,6 @@ class HierarchicalConfigHandler(object):
         self.Configs[newpath] = self.Configs.pop(oldpath)
 
 
-    def getPathParents(self, path, version=1, topfirst=True):
-        """
-        get parents list:
-        e.g. for /home/scholer/Documents/, return:
-         ['/', '/home', '/home/scholer', '/home/scholer/Documents']
-        if topfirst is false, returns the above, reversed.
-        Implemented in three different ways, determined by 'version'.
-        """
-        if version == 1:
-            def getparents(path):
-                """
-                A generator, that returns the path and its parents
-                """
-                _, path = os.path.splitdrive(path)
-                while True:
-                    yield path # yield first, to also return the input dir.
-                    parent = os.path.dirname(path)
-                    if parent == path:
-                        break
-                    path = parent
-            if topfirst:
-                return reversed(list(getparents(path)))
-            else:
-                return getparents(path)
-        # other implementations:
-        #paths = list()
-        #if version == 2:
-        #    for dirname in os_path_split_asunder(path):
-        #        if not paths:
-        #            # Set the first element in paths.
-        #            paths = [dirname]
-        #        else:
-        #            paths.append(os.path.join(paths[-1], dirname))
-        #    if topfirst:
-        #        return paths
-        #    else:
-        #        return reversed(paths)
-        #    return paths if topfirst else reversed(paths)
-        #if version == 3:
-        #    while True:
-        #        paths.append(path)
-        #        path, tail = os.path.split(path)
-        #        if not path and tail:
-        #            break
-        #    return reversed(paths) if topfirst else paths
 
 
     def getEntry(self, key, path, traverseup=True, default=None, doload='new'):
@@ -1117,7 +1076,7 @@ class HierarchicalConfigHandler(object):
             elif doload == 'never': # and we have already loaded above...
                 return default
         # end if not traverseup; begin traverseup case:
-        for cand_path in self.getPathParents(path, topfirst=False):
+        for cand_path in getPathParents(path, topfirst=False):
             if cand_path in self.Configs and key in self.Configs[cand_path]:
                 return self.Configs[cand_path][key]
 
@@ -1182,23 +1141,23 @@ class PathFinder(object):
         self._schemeSearch = dict()
         # notation is:
         # configtype : (<filename to look for>, (list of directories to look in))
-        self._schemeSearch['default1'] = dict(sys = ('labfluence_sys.yml',  ('.', 'config', 'setup/configs/default/') ),
-                                              user= ('labfluence_user.yml',
-                                                     (os.path.expanduser(os.path.join('~', dir)) for dir in
-                                                      ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence') ) )
+        self._schemeSearch['default1'] = dict(sys=('labfluence_sys.yml', ('.', 'config', 'setup/configs/default/')),
+                                              user=('labfluence_user.yml',
+                                                    (os.path.expanduser(os.path.join('~', dir)) for dir in
+                                                    ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence')))
                                                     )
                                               )
-        self._schemeSearch['test1'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/test_configs/local_test_setup_1',) ),
-                                              user= ('labfluence_user.yml', ('setup/configs/test_configs/local_test_setup_1', ) )
-                                              )
+        self._schemeSearch['test1'] = dict(sys=('labfluence_sys.yml', ('setup/configs/test_configs/local_test_setup_1',)),
+                                           user=('labfluence_user.yml', ('setup/configs/test_configs/local_test_setup_1',))
+                                           )
 
-        self._schemeSearch['install'] =  dict(  sys = ('labfluence_sys.yml',  ('setup/configs/new_install/',) ),
-                                                user= ('labfluence_user.yml', ('setup/configs/new_install/', ) ),
-                                                exp = ('labfluence_exp.yml', ('setup/configs/new_install/', ) )
-                                              )
+        self._schemeSearch['install'] = dict(sys=('labfluence_sys.yml', ('setup/configs/new_install/',)),
+                                             user=('labfluence_user.yml', ('setup/configs/new_install/',)),
+                                             exp=('labfluence_exp.yml', ('setup/configs/new_install/',))
+                                             )
 
         #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
-        logger.debug("%s initialized, self.Defaultscheme='%s'", self.__class__.__name__, self.Defaultscheme )
+        logger.debug("%s initialized, self.Defaultscheme='%s'", self.__class__.__name__, self.Defaultscheme)
 
     def mkschemedict(self):
         """
@@ -1207,7 +1166,7 @@ class PathFinder(object):
         Could be optimized so you only find the config filepaths when a particular scheme is requested.
         """
         for scheme, schemesearch in self._schemeSearch.items():
-            self.Schemedicts[scheme] = dict( (cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in schemesearch.items()  )
+            self.Schemedicts[scheme] = dict((cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in schemesearch.items())
 
     def getScheme(self, scheme=None, update=True):
         """
@@ -1218,7 +1177,7 @@ class PathFinder(object):
         if scheme is None:
             scheme = self.Defaultscheme
         if update:
-            self.Schemedicts[scheme] = dict( (cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in self._schemeSearch[scheme].items()  )
+            self.Schemedicts[scheme] = dict((cfgtype, self.findPath(filename, dircands)) for cfgtype, (filename, dircands) in self._schemeSearch[scheme].items())
             logger.debug("PathFinder.Schemedicts updated to: %s", self.Schemedicts)
         logger.debug("PathFinder.getScheme('%s', update=%s) returns path scheme: %s", scheme, update, self.Schemedicts[scheme])
         return self.Schemedicts[scheme]
@@ -1237,9 +1196,9 @@ class PathFinder(object):
         Changes: replaced for-loops with a sequence of generators.
         """
 
-        okdirs = ( dircand for dircand in dircands if os.path.isdir(dircand) )
-        normdirs = ( os.path.normpath(dircand) for dircand in okdirs )
-        dirswithfilename = ( dircand for dircand in normdirs if filename in os.listdir(dircand) )
+        okdirs = (dircand for dircand in dircands if os.path.isdir(dircand))
+        normdirs = (os.path.normpath(dircand) for dircand in okdirs)
+        dirswithfilename = (dircand for dircand in normdirs if filename in os.listdir(dircand))
         firstdir = next(dirswithfilename, None)
         if firstdir:
             winnerpath = os.path.join(firstdir, filename)
@@ -1252,7 +1211,7 @@ class PathFinder(object):
         """
         Returns a pretty string representation of all schemes in self.Schemedicts .
         """
-        ret = "\n".join( u"scheme '{}': {}".format(scheme, ", ".join(u"{}='{}'".format(k, v) \
-                    for k, v in schemedict.items() ) ) \
-                    for scheme, schemedict in self.Schemedicts.items() )
+        ret = "\n".join(u"scheme '{}': {}".format(scheme, ", ".join(u"{}='{}'".format(k, v) \
+                    for k, v in schemedict.items())) \
+                    for scheme, schemedict in self.Schemedicts.items())
         return ret

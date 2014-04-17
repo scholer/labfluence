@@ -14,29 +14,29 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,E1101,W0402,E0202,W0201,W0141
+# pylint: disable-msg=R0904,W0142
+# R0904: Too many public methods,
+# W0142: *, ** magic.
+
 """
 experiment_manager module with ExperimentManager class,
 handles logic related to managing experiment objects.
 """
 
-#import glob
 import os
 import re
 import logging
 from collections import OrderedDict
 from itertools import ifilter
 logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
-#from operator import attrgetter, itemgetter, methodcaller
 
 # Model classes:
 from experiment import Experiment
-#from confighandler import ExpConfigHandler
-#from server import ConfluenceXmlRpcServer
 from labfluencebase import LabfluenceBase
 
 # Decorators:
 from decorators.cache_decorator import cached_property
+
 
 class ExperimentManager(LabfluenceBase):
     """
@@ -53,7 +53,7 @@ class ExperimentManager(LabfluenceBase):
     - Do not use beaker, use dogpile: http://techspot.zzzeek.org/2012/04/19/using-beaker-for-caching-why-you-ll-want-to-switch-to-dogpile.cache/
     - http://seanblanchfield.com/python-memoize-with-expiry/ - based on Django's memorize
     """
-    def __init__(self, confighandler, server=None, autoinit=None, experimentsources=('local', 'wiki') ):
+    def __init__(self, confighandler, server=None, autoinit=None, experimentsources=('local', 'wiki')):
         LabfluenceBase.__init__(self, confighandler, server)
         self._wikicache = dict()
         #self.Experiments = list()       # list of experiment objects;
@@ -92,26 +92,6 @@ class ExperimentManager(LabfluenceBase):
     def ExperimentsById(self, value):
         """property setter"""
         self._experimentsbyid = value
-
-    #@property
-    #def Server(self):
-    #    """
-    #    Returns server registrered in confighandler's singleton registry.
-    #    """
-    #    return self.Confighandler.Singletons.get('server', None)
-    #@Server.setter
-    #def Server(self, value):
-    #    """
-    #    Set server in confighandler, if not already set.
-    #    I do not allow overriding existing server if set, so using setdefault...
-    #    """
-    #    self.Confighandler.Singletons.setdefault('experimentmanager', value)
-    #
-    #@cached_property(ttl=60) # 1 minut cache...
-    #def ServerInfo(self):
-    #    """ Remember, the cached_property makes a property, which must be nvoked without '()'!
-    #    """
-    #    return self.Server.getServerInfo()
 
     @cached_property(ttl=120) # 2 minutes cache...
     def CurrentWikiExperimentsPagestructsByExpid(self):
@@ -156,23 +136,6 @@ class ExperimentManager(LabfluenceBase):
 
     """
 
-    #def getCurrentExpid(self):
-    #    """Returns current experiment id from app_current_expid"""
-    #    return self.Confighandler.setdefault('app_current_expid', None)
-    #def setCurrentExpid(self, new_expid):
-    #    """Sets current experiment id as app_current_expid"""
-    #    old_expid = self.getCurrentExpid()
-    #    if old_expid != new_expid:
-    #        self.Confighandler.setkey('app_current_expid', new_expid)
-    #        self.Confighandler.invokeEntryChangeCallback('app_current_expid', new_expid)
-    #@property
-    #def ActiveExperimentIds(self):
-    #    "List of active experiments, obtained from confighandler."
-    #    return self.Confighandler.setdefault('app_active_experiments', list())
-    #@property
-    #def RecentExperimentIds(self):
-    #    "List of recently opened experiments, obtained from confighandler."
-    #    return self.Confighandler.setdefault('app_recent_experiments', list())
     @property
     def ActiveExperiments(self):
         "List of active experiments, obtained from confighandler."
@@ -265,7 +228,7 @@ class ExperimentManager(LabfluenceBase):
             if not expid:
                 logger.warning("expid '%s' present in expids for initExpIds()", expid)
             elif expid not in self.ExperimentsById:
-                logger.info( "expid '%s' not initialized !...", expid)
+                logger.info("expid '%s' not initialized !...", expid)
                 # Uhm... does it make sense to initialize experiments with no e.g. localdir? No.
                 #exp = self.ExperimentsById[expid] = Experiment(manager=self, confighandler=self.Confighandler,
                 #                                    props=dict(expid=expid))
@@ -282,8 +245,8 @@ class ExperimentManager(LabfluenceBase):
         # Make sure all expids are initialized.
         # This is a lot faster if you have already initialized all experiments in the exp_local_subdir
         self.initExpIds(expids)
-        expids = [ expid for expid in expids if expid in self.ExperimentsById ]
-        experiments = [ self.ExperimentsById[expid] for expid in expids ]
+        expids = [expid for expid in expids if expid in self.ExperimentsById]
+        experiments = [self.ExperimentsById[expid] for expid in expids]
         # This is typically (edit: ONLY) called from tkui.expmanagerlistboxes, as:
         # expids = self.getExpIds(); experiments = self.ExperimentManager.getExpsById(expids)
         # display = zip(expids, experiments).
@@ -360,9 +323,9 @@ class ExperimentManager(LabfluenceBase):
             logger.warning(" Search directory is '%s', aborting...", directory)
             return False
         # Note: sorted returns a list, not an iterator...
-        localdirs = sorted( dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) ) #os.listdir(directory)
+        localdirs = sorted(dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname)))) #os.listdir(directory)
         logger.debug("localdirs in directory %s: %s", directory, localdirs)
-        folderpaths = ( os.path.join(directory, dirname) for dirname in localdirs )
+        folderpaths = (os.path.join(directory, dirname) for dirname in localdirs)
         return folderpaths
 
     def getLocalExpsDirMatchTuples(self, basedir=None):
@@ -376,11 +339,11 @@ class ExperimentManager(LabfluenceBase):
             return
         regex_str = self.getExpSeriesRegex(basedir) # using basedir should enable per-directory regex definitions.
         if not regex_str:
-            logger.warning( "ERROR, no exp_series_regex entry found in config (%s), aborting...", regex_str )
+            logger.warning("ERROR, no exp_series_regex entry found in config (%s), aborting...", regex_str)
             return
-        logger.debug( "Parsing local folders with regex: %s", regex_str )
+        logger.debug("Parsing local folders with regex: %s", regex_str)
         regex_prog = re.compile(regex_str)
-        pathmatchtuples = (tup for tup in ( (path, regex_prog.match(os.path.basename(path))) for path in exp_paths) if tup[1])
+        pathmatchtuples = (tup for tup in ((path, regex_prog.match(os.path.basename(path))) for path in exp_paths) if tup[1])
         return pathmatchtuples
 
     def getLocalExpsDirGroupdictTuples(self, basedir=None):
@@ -388,7 +351,7 @@ class ExperimentManager(LabfluenceBase):
         Returns a generator with (path, match.groupdict() ) tuples,
         for local experiment folders.
         """
-        pathgds = ( (path, match.groupdict()) for path, match in self.getLocalExpsDirMatchTuples(basedir) )
+        pathgds = ((path, match.groupdict()) for path, match in self.getLocalExpsDirMatchTuples(basedir))
         return ((path, dict(date=next(ifilter(None, [gd.pop('date', None), gd.pop('date1', None), gd.pop('date2', None)]), None),
                             **gd))
                     for path, gd in pathgds)
@@ -410,8 +373,8 @@ class ExperimentManager(LabfluenceBase):
         - 'display-tuple'       -> (<display>, <identifier>, <full object>) tuples. Well, currently not with the full object.
         """
         if ret == 'experiment-object':
-            exps = ( Experiment(localdir=exppath, regex_match=match, manager=self, confighandler=self.Confighandler)
-                    for exppath, match in self.getLocalExpsDirMatchTuples(basedir) )
+            exps = (Experiment(localdir=exppath, regex_match=match, manager=self, confighandler=self.Confighandler)
+                    for exppath, match in self.getLocalExpsDirMatchTuples(basedir))
         elif ret == 'regex-match':
             exps = (tup[1] for tup in self.getLocalExpsDirMatchTuples(basedir))
         elif ret in ('properties', 'groupdict'):
@@ -419,13 +382,11 @@ class ExperimentManager(LabfluenceBase):
         elif ret in ('properties', 'groupdict'):
             exps = (tup[1] for tup in self.getLocalExpsDirGroupdictTuples(basedir))
         elif ret == 'tuple':
-            exps = (    (os.path.basename(exppath),
-                        gd['expid'], gd.get('exp_titledesc'), gd.get('date', gd.get('date1', gd.get('date2', None))),
-                        exppath ) for exppath, gd in self.getLocalExpsDirGroupdictTuples(basedir) )
+            exps = ((os.path.basename(exppath), gd['expid'], gd.get('exp_titledesc'), gd.get('date', gd.get('date1', gd.get('date2', None))), exppath) for exppath, gd in self.getLocalExpsDirGroupdictTuples(basedir))
         elif ret == 'expid':
             exps = (tup[1].get('expid') for tup in self.getLocalExpsDirGroupdictTuples(basedir))
         elif ret == 'display-tuple':
-            exps = ( (os.path.basename(exppath), gd.get('expid'), None ) for exppath, gd in self.getLocalExpsDirGroupdictTuples(basedir) )
+            exps = ((os.path.basename(exppath), gd.get('expid'), None) for exppath, gd in self.getLocalExpsDirGroupdictTuples(basedir))
         else:
             logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
             return
@@ -461,7 +422,7 @@ class ExperimentManager(LabfluenceBase):
                 newexpids.append(expid)
         if addtoactive and newexpids:
             logger.debug("Adding new expids to active experiments: %s", newexpids)
-            self.addActiveExperiments( newexpids ) # This will take care of invoking registrered callbacks in confighandler.
+            self.addActiveExperiments(newexpids) # This will take care of invoking registrered callbacks in confighandler.
         logger.info("mergeLocalExperiments(basedir=%s, addtoactive=%s) completed. Local experiment directory parsed and merged.", basedir, addtoactive)
         self._localexpdirsparsed = True
         return newexpids
@@ -488,7 +449,7 @@ class ExperimentManager(LabfluenceBase):
                 logger.info("No server defined, aborting.")
                 return
             # There might have been a temporary issue with server, see if it is ressolved:
-            logger.info("Server info: %s", self.getServerInfo) # This will handle cache etc and attempt to reconnect at most every two minutes.
+            logger.info("Server info: %s", self.ServerInfo) # This will handle cache etc and attempt to reconnect at most every two minutes.
             if not self.Server:
                 logger.warning("Server not connected, aborting")
                 return
@@ -515,12 +476,12 @@ class ExperimentManager(LabfluenceBase):
             logger.debug("No wiki pages, aborting...")
             return
         regex_str = self.getExpSeriesRegex()
-        logger.debug( "Regex and wiki_pages: %s, %s", regex_str, ", ".join( u"{}: {}".format(p.get('id'), p.get('title')) for p in wiki_pages ) )
+        logger.debug("Regex and wiki_pages: %s, %s", regex_str, ", ".join(u"{}: {}".format(p.get('id'), p.get('title')) for p in wiki_pages))
         if not regex_str:
-            logger.warning( " ERROR, no exp_series_regex entry found in config, aborting!" )
+            logger.warning("ERROR, no exp_series_regex entry found in config, aborting!")
             return
         regex_prog = re.compile(regex_str)
-        pagematchtuples = (tup for tup in ( (page, regex_prog.match(page['title'])) for page in wiki_pages) if tup[1])
+        pagematchtuples = (tup for tup in ((page, regex_prog.match(page['title'])) for page in wiki_pages) if tup[1])
         return pagematchtuples
 
     def getCurrentWikiExpsPageGroupdictTuples(self, ):
@@ -528,9 +489,9 @@ class ExperimentManager(LabfluenceBase):
         old name: getExpRootWikiPageGroupdictTuples
         Returns a generator with (page, match.groupdict() ) tuples.
         """
-        pagegds = ( (page, match.groupdict()) for page, match in self.getCurrentWikiExpsPageMatchTuples())
-        return (    (page, dict(title=page['title'], expid=gd['expid'], exp_titledesc=gd['exp_titledesc'],
-                                date=gd.get('date', gd.get('date1', gd.get('date2', None)))))
+        pagegds = ((page, match.groupdict()) for page, match in self.getCurrentWikiExpsPageMatchTuples())
+        return ((page, dict(title=page['title'], expid=gd['expid'], exp_titledesc=gd['exp_titledesc'],
+                            date=gd.get('date', gd.get('date1', gd.get('date2', None)))))
                     for page, gd in pagegds)
 
     def getCurrentWikiExperiments(self, ret='pagestruct'):
@@ -561,26 +522,26 @@ class ExperimentManager(LabfluenceBase):
         logger.debug("getCurrentWikiExperiments called with ret='%s'", ret)
 
         if ret == 'regex-match':
-            exps =  (tup[1] for tup in self.getCurrentWikiExpsPageMatchTuples())
+            exps = (tup[1] for tup in self.getCurrentWikiExpsPageMatchTuples())
         elif ret in ('pagestruct', 'pagestructs'):
-            exps =  (tup[0] for tup in self.getCurrentWikiExpsPageMatchTuples())
+            exps = (tup[0] for tup in self.getCurrentWikiExpsPageMatchTuples())
         elif ret in ('pagestruct-by-expid', 'pagestructs-by-expid'): # the plural 's' is common mistake...
-            exps =  { match.groupdict().get('expid'): page for page, match in self.getCurrentWikiExpsPageMatchTuples() }
+            exps = {match.groupdict().get('expid'): page for page, match in self.getCurrentWikiExpsPageMatchTuples()}
         elif ret in ('groupdict', 'groupdicts'):
             # Returns a generator with dicts, containing keys: title, expid, exp_titledesc, date or date1 or date2
-            exps =  ( tup[1] for tup in self.getCurrentWikiExpsPageGroupdictTuples() )
+            exps = (tup[1] for tup in self.getCurrentWikiExpsPageGroupdictTuples())
         elif ret in ('tuple', 'tuples'):
             # Note: this tuple is NOT the same as the display tuple used for lists!
             # This is a memory efficient (pagetitle, expid, exp_titledesc, date) tuple
-            exps =  ( ( gd['title'], gd['expid'], gd.get('exp_titledesc'), gd['date'] )
-                        for page, gd in self.getCurrentWikiExpsPageGroupdictTuples() )
+            exps = ((gd['title'], gd['expid'], gd.get('exp_titledesc'), gd['date'])
+                        for page, gd in self.getCurrentWikiExpsPageGroupdictTuples())
         elif ret in ('expid', 'expids'):
-            exps =  ( gd.get('expid') for page, gd in self.getCurrentWikiExpsPageGroupdictTuples() )
+            exps = (gd.get('expid') for page, gd in self.getCurrentWikiExpsPageGroupdictTuples())
         elif ret in ('display-tuple', 'display-tuples'):
-            exps =  ( ( page['title'], match.groupdict().get('expid'), None ) for page, match in self.getCurrentWikiExpsPageMatchTuples() )
+            exps = ((page['title'], match.groupdict().get('expid'), None) for page, match in self.getCurrentWikiExpsPageMatchTuples())
         elif ret in ('experiment-object', 'experiment-objects'):
-            exps =  ( Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, wikipage=page)
-                        for page, match in self.getCurrentWikiExpsPageMatchTuples() )
+            exps = (Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, wikipage=page)
+                        for page, match in self.getCurrentWikiExpsPageMatchTuples())
         else:
             logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
             return
@@ -618,7 +579,7 @@ class ExperimentManager(LabfluenceBase):
                     exp.Props['wiki_pageId'] = page['id']
             elif mergeonlyexpids is None or expid in mergeonlyexpids:
                 logger.debug("mergeonlyexpids=%s is None or expid(=%s) in mergeonlyexpids(=%s), creating new experiment instance with props/gd=%s and makelocaldir=%s",
-                             mergeonlyexpids, expid, mergeonlyexpids, gd, autocreatelocaldirs )
+                             mergeonlyexpids, expid, mergeonlyexpids, gd, autocreatelocaldirs)
                 exp = Experiment(props=gd, makelocaldir=autocreatelocaldirs,
                                  manager=self, confighandler=self.Confighandler,
                                  doparseLocaldirSubentries=False, wikipage=page)
@@ -630,7 +591,7 @@ class ExperimentManager(LabfluenceBase):
                 logger.debug("Not merging expid %s (it is not in self.ExperimentsById, but mergeonlyexpids is: %s)", expid, mergeonlyexpids)
         if newexpids:
             logger.debug("Adding new expids to active experiments: %s", newexpids)
-            self.addActiveExperiments( newexpids ) # This will take care of invoking registrered callbacks in confighandler.
+            self.addActiveExperiments(newexpids) # This will take care of invoking registrered callbacks in confighandler.
         logger.info("Completed mergeCurrentWikiExperiments(autocreatelocaldirs=%s, mergeonlyexpids=%s), saving configs...:", autocreatelocaldirs, mergeonlyexpids)
         self.Confighandler.saveConfigs()
         logger.debug("Returning newexpids: %s", newexpids)
@@ -662,9 +623,9 @@ class ExperimentManager(LabfluenceBase):
             # probably do some testing if there is already an exp with this expid !
             if expid in expByIdMap:
                 if experiment == expByIdMap[expid]:
-                    logger.info( "ExperimentManager, identical experiment during makeExperimentByExpIdMap(), %s", expid )
+                    logger.info("ExperimentManager, identical experiment during makeExperimentByExpIdMap(), %s", expid)
                 else:
-                    logger.info( "ExperimentManager.makeExperimentByExpIdMap() :: WARNING: Duplicate expId '%s'", expid)
+                    logger.info("ExperimentManager.makeExperimentByExpIdMap() :: WARNING: Duplicate expId '%s'", expid)
                     #expByIdMap[expId].update(experiment) # Not implemented; and should probably do some thorough checking before simply merging.
             else:
                 expByIdMap[expid] = experiment
@@ -682,8 +643,8 @@ class ExperimentManager(LabfluenceBase):
             expByIdMap = self.ExperimentsById
         regex_str = self.getConfigEntry('expid_regex')
         if not regex_str:
-            logger.info( "No expid regex in config, aborting." )
-        logger.debug( "Regex: %s", regex_str )
+            logger.info("No expid regex in config, aborting.")
+        logger.debug("Regex: %s", regex_str)
         regex_prog = re.compile(regex_str)
         #def matchgroupdummy(*args):
         #    """ Used to avoid calling .group() method of None object: """
@@ -700,8 +661,8 @@ class ExperimentManager(LabfluenceBase):
         #return [ getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) for expid in self.ExperimentsById.keys() ]
         #return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
 
-        return sorted( (x for x in  (int(match.group(1)) for match in (regex_prog.match(expid) for expid in expByIdMap.keys() ) )
-                        if x is not None) )
+        return sorted((x for x in (int(match.group(1)) for match in (regex_prog.match(expid) for expid in expByIdMap.keys()))
+                            if x is not None))
 
 #        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
 
@@ -760,7 +721,7 @@ class ExperimentManager(LabfluenceBase):
         logger.info("New experiment created: %s, with localdir: %s, and wikipage with pageId %s", exp, exp.Localdirpath, exp.PageId)
         logger.debug("Adding newly created experiment to list of active experiments...")
         self.ExperimentsById[expid] = exp
-        self.addActiveExperiments( (expid, ) ) # This will take care of invoking registrered callbacks in confighandler.
+        self.addActiveExperiments((expid, )) # This will take care of invoking registrered callbacks in confighandler.
         return exp
 
 

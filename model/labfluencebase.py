@@ -31,22 +31,44 @@ from decorators.cache_decorator import cached_property
 
 class LabfluenceBase(SimpleCallbackSystem):
     """
-    Base class which assumes the confighandler is provied with init.
+    Base class for objects that makes use of a confighandler (provied with init).
 
-    Inherits from:
-     - SimpleCallbackSystem
+    Inherits from SimpleCallbackSystem, so child classes will also have the SimpleCallbackSystem
+    available to them.
+
+    The following classes currently inherits from this LabfluenceBase:
+    - Experiment
+    - ExperimentManager
+    - WikiPage, WikiLimsPage
+    - SatelliteManager
+
+    Cannot be used in:
+    - server, simpleserver
+    - confighandler
     """
 
     def __init__(self, confighandler, server=None):
-        self.Confighandler = confighandler
+        self._confighandler = confighandler
         self._server = server
         SimpleCallbackSystem.__init__(self)
 
 
     @property
+    def Confighandler(self):
+        """
+        Returns confighandler object.
+        # Edit: I cannot use return _server or confighandler.Single...
+        # Server evaluates to False if it is not connected, so check specifically against None.
+        """
+        if self._confighandler is not None:
+            return self._confighandler
+        return self._server.Confighandler # In some cases I just want to configure the server and pass that around.
+
+    @property
     def Server(self):
         """
         Returns server registrered in confighandler's singleton registry.
+        Server evaluates to False if it is not connected, so check specifically against None.
         """
         try:
             return self.Confighandler.Singletons.get('server', self._server)
@@ -61,6 +83,7 @@ class LabfluenceBase(SimpleCallbackSystem):
         try:
             self.Confighandler.Singletons.setdefault('experimentmanager', value)
         except AttributeError:
+            logger.debug("Attribute Error while querying Confighandler for server singleton.")
             self._server = value
 
     @cached_property(ttl=60) # 1 minute cache...
@@ -88,8 +111,14 @@ class LabfluenceBase(SimpleCallbackSystem):
         return self.Confighandler.setdefault('app_recent_experiments', list())
 
 
-    def getConfigEntry(self, entrykey):
+    def getConfigEntry(self, cfgkey, default=None):
         """
-        Obtain config entry from confighandler using entrykey.
+        Obtain config entry from confighandler using cfgkey.
         """
-        return self.Confighandler.get(entrykey)
+        return self.Confighandler.get(cfgkey, default=default)
+
+    def setConfigEntry(self, cfgkey, value):
+        """
+        Set config entry in confighandler using cfgkey.
+        """
+        self.Confighandler.set(cfgkey, value)

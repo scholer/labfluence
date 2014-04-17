@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0103,C0301,C0302,R0201,R0902,R0904,R0913,W0142,W0201,W0221,W0402
+# pylint: disable-msg=C0302,R0902,R0904,W0142
 # messages:
 #   C0103: Invalid attribute/variable name (too short/long/etc?)
 #   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
@@ -93,9 +93,6 @@ import yaml
 import re
 from datetime import datetime
 from collections import OrderedDict
-import xmlrpclib
-#import hashlib
-#import fnmatch
 import logging
 logger = logging.getLogger(__name__)
 
@@ -105,10 +102,11 @@ from journalassistant import JournalAssistant
 from filemanager import Filemanager
 from utils import increment_idx, idx_generator, asciize
 from decorators.cache_decorator import cached_property
-#from decorators.deprecated_decorator import deprecated
+
+from labfluencebase import LabfluenceBase
 
 
-class Experiment(object):
+class Experiment(LabfluenceBase):
     """
     This class is the main model for a somewhat abstract "Experiment".
     See module docstring for further info.
@@ -130,9 +128,10 @@ class Experiment(object):
           If not provided, will call confighandler.getEntry() to retrieve a regex.
         - loadYmlFn: filename to use when loading and persisting experiment props; only used if confighandler is not provided.
         """
+        LabfluenceBase.__init__(self, confighandler, server)
         self.VERBOSE = 0
-        self.Confighandler = confighandler
-        self._server = server
+        #self.Confighandler = confighandler
+        #self._server = server
         self._manager = manager
         if isinstance(wikipage, WikiPage) or wikipage is None:
             self._wikipage = wikipage
@@ -149,6 +148,7 @@ class Experiment(object):
         # For use without a confighandler:
         self._props = dict()
         self._expid = None
+        self._exp_regex_prog = None
         self._cache = dict() # cached_property cache
         self._allowmanualpropssavetofile = False # Set to true if you want to let this experiment handle Props file persisting without a confighandler.
         self._doserversearch = False
@@ -161,7 +161,7 @@ class Experiment(object):
             self.setLocaldirpathAndFoldername(localdir)
         else:
             logger.debug("localdir is: %s (and makelocaldir was: %s), setting Localdirpath, Foldername and Parentdirpath to None.", localdir, makelocaldir)
-            logger.info( "NOTICE: No localdir provided for this experiment (are you in test mode?)\
+            logger.info("NOTICE: No localdir provided for this experiment (are you in test mode?)\
 functionality of this object will be greatly reduced and may break at any time.\
 props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             self.Localdirpath, self.Foldername, self.Parentdirpath = None, None, None
@@ -174,7 +174,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         if regex_match:
             gd = regex_match.groupdict()
             # In case the groupdict has multiple date fields, find out which one to use and discart the other keys:
-            gd['date'] = next( ( date for date in [gd.pop(k, None) for k in ('date1', 'date2', 'date')] if date ), None )
+            gd['date'] = next((date for date in [gd.pop(k, None) for k in ('date1', 'date2', 'date')] if date), None)
             ## regex is often_like "(?P<expid>RS[0-9]{3}) (?P<exp_title_desc>.*)"
             self.Props.update(gd)
         elif not 'expid' in self.Props:
@@ -295,15 +295,6 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """
         return self.listAttachments()
 
-    @property
-    def Server(self):
-        """
-        Server evaluates to False if it is not connected, so check specifically against None.
-        """
-        if self._server is not None:
-            return self._server
-        else:
-            return self.Confighandler.Singletons.get('server')
     @property
     def Manager(self):
         """
@@ -450,23 +441,6 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         self.Filemanager.saveFileshistory()
 
 
-    def registerCallback(self, callbackkey):
-        """
-        It would be nice to be able to register various kinds of callbacks,
-        e.g. have a wikipage reload (fetch new struct from server)
-        trigger e.g. a new subentry merge, and have a new subentry init
-        invoking a UI widget reload.
-        """
-        pass
-
-    def update(self, other_exp):
-        """
-        Update this experiment with the content from other_exp.
-        """
-        #raise NotImplementedError("Experiment.update is not implemented...")
-        logger.warning( "update not implemented..." )
-
-
 
     """
     STUFF RELATED TO PROPERTY HANDLING/PERSISTING AND LOCAL DIR PARSING
@@ -474,6 +448,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
 
     def getConfigEntry(self, cfgkey, default=None):
         """
+        Over-rides method from LabfluenceBase.
         self.Props is linked to Confighandler, so
             self.Confighandler.get(cfgkey, path=self.Localdirpath)
         should return exactly the same as
@@ -484,11 +459,12 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         if cfgkey in self.Props:
             return self.Props.get(cfgkey)
         else:
-            p = getattr(self, 'Localdirpath', None)
+            p = self.Localdirpath
             return self.Confighandler.get(cfgkey, default=default, path=p)
 
     def setConfigEntry(self, cfgkey, value):
         """
+        Override method from LabfluenceBase.
         Sets config entry. If cfgkey is listed in self.Props, then set/update that,
         otherwise relay through to self.Confighandler.
         Notice: does not currently check the hierarchical config,
@@ -617,7 +593,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         logger.debug("self._getFoldernameAndParentdirpath(%s) returned: %s, %s, %s", localdir, foldername, parentdirpath, localdirpath)
         self.Parentdirpath = parentdirpath
         if not foldername:
-            logger.warning( "Experiment.__init__() :: Warning, could not determine foldername...????" )
+            logger.warning("Experiment.__init__() :: Warning, could not determine foldername...????")
         self.Foldername = foldername
         self.Localdirpath = localdirpath
         logger.debug("self.Parentdirpath=%s, self.Foldername=%s, self.Localdirpath=%s", self.Parentdirpath, self.Foldername, self.Localdirpath)
@@ -783,7 +759,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         #org_keyorder = self.Subentries.keys()
         if self.Subentries.keys() == sorted(self.Subentries.keys()):
             return
-        self.Props['exp_subentries'] = self.Subentries = OrderedDict(sorted(self.Subentries.items()) )
+        self.Props['exp_subentries'] = self.Subentries = OrderedDict(sorted(self.Subentries.items()))
 
 
     def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None, extraprops=None, makefolder=False, makewikientry=False):
@@ -844,25 +820,31 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         return subentry_foldername
 
 
-    def existingSubentryFolder(self, subentry_idx, returntuple=False):
+    def existingSubentryFolder(self, subentry_idx):
         """
         Serves two purposes:
         1) To tell whether a particular subentry exists,
         2) If returntuple is True, will return a tuple consisting of:
-            (boolean whether subentry folder exist,
-             subentry_folder_path, subentry_foldername)
+        Returns tuple of:
+            (whether_subentry_folder_exist, subentry_folder_path, subentry_foldername)
+        where the first element is True if a folder exists for subentry_idx,
+        the second element is the complete path to the subentry folder
+        and the third element is the basename of the subentry folder.
+
+        This means you CANNOT simply use as:
+            if existingSubentryFolder('a'):     # THIS WILL ALWAYS BE TRUE,
+                (...)
+        instead, probe the first element of the returned tuple:
+            if existingSubentryFolder('a')[0]:
+                (...)
         """
         subentry_foldername = self.getSubentryFoldername(subentry_idx)
         folderpath = os.path.realpath(os.path.join(self.Localdirpath, subentry_foldername))
         if os.path.isdir(folderpath):
-            if returntuple:
-                return (True, folderpath, subentry_foldername)
-            return True
+            return (True, folderpath, subentry_foldername)
         elif os.path.exists(folderpath):
             logger.warning("The folder specified by subentry '%s' exists, but is not a directory: %s ", subentry_idx, folderpath)
-        if returntuple:
-            return (False, folderpath, subentry_foldername)
-        return False
+        return (False, folderpath, subentry_foldername)
 
     def makeSubentryFolder(self, subentry_idx):
         """
@@ -875,7 +857,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         except KeyError:
             logger.warning("Experiment.makeSubentryFolder() :: ERROR, subentry_idx '%s' not listed in subentries, aborting...", subentry_idx)
             return
-        folder_exists, newfolderpath, subentry_foldername = self.existingSubentryFolder(subentry_idx, returntuple=True)
+        folder_exists, newfolderpath, subentry_foldername = self.existingSubentryFolder(subentry_idx)
         if folder_exists:
             logger.error("Experiment.makeSubentryFolder() :: ERROR, newfolderpath (%s) already exists, aborting...", newfolderpath)
             return
@@ -911,7 +893,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             logger.error("Experiment.parseLocaldirSubentries() :: ERROR, no directory provided and no localdir in Props attribute.")
             return
         regex_prog = self.Subentries_regex_prog
-        localdirs = sorted(dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname) ) ) )
+        localdirs = sorted(dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname))))
         subentries = self.Props.setdefault('exp_subentries', OrderedDict())
         logger.debug("Parsing directory '%s' for subentries using regex = '%s', localdirs = %s, subentries before parsing = %s",
                      directory, regex_prog.pattern, localdirs, subentries)
@@ -920,7 +902,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             gd = match.groupdict()
             logger.debug("MATCH found when for folder '%s', groupdict = %s", match.string, gd)
             # I allow for regex with multiple date entries, i.e. both at the start end end of filename.
-            datekeys = sorted( key for key in gd.keys() if 'date' in key )
+            datekeys = sorted(key for key in gd.keys() if 'date' in key)
             gd['date'] = next((date for date in [gd.pop(k) for k in datekeys] if date), None)
             gd['foldername'] = match.string
             # If subentry_idx is not in gd, then the regex is wrong and it is ok to fail with KeyError
@@ -1121,10 +1103,10 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         match = regex_prog.search(content)
         if match:
             gd = match.groupdict()
-            return "\n".join( gd[k] for k in ('subentry_header', 'subentry_xhtml') )
+            return "\n".join(gd[k] for k in ('subentry_header', 'subentry_xhtml'))
         else:
             logger.debug("No subentry xhtml found matching regex_pat '%s', derived from regex_pat_fmt '%s'. len(self.WikiPage.Struct['content']) is: %s",
-                         regex_pat, regex_pat_fmt, len(self.WikiPage.Struct['content']) )
+                         regex_pat, regex_pat_fmt, len(self.WikiPage.Struct['content']))
             return None
 
     def getCurrentSubentryIdx(self):
@@ -1201,8 +1183,8 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         spaceKey = self.Confighandler.get('wiki_exp_root_spaceKey')
         pageTitle = self.Foldername or self.getFoldernameFromFmtAndProps() # No reason to make this more complicated...
         user = self.Confighandler.get('wiki_username') or self.Confighandler.get('username')
-        optional = {'creator': (user, ), 'modifier': (user, ) }
-        required = {'title': (expid, ) }
+        optional = {'creator': (user, ), 'modifier': (user, )}
+        required = {'title': (expid, )}
         logger.info("Searching for page with title=%s, space=%s on server...", pageTitle, spaceKey)
         pagestruct = server.searchForWikiPage(spaceKey, pageTitle, required, optional)
         return pagestruct
@@ -1278,7 +1260,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         del self._cache['Attachments']
         structs = self.Attachments
         if not structs:
-            logger.info( "Experiment.updateAttachmentsCache() :: listAttachments() returned '%s'", structs )
+            logger.info("Experiment.updateAttachmentsCache() :: listAttachments() returned '%s'", structs)
         return structs
 
     # edit: cached_property makes the method a property and can no longer be used as a method.
@@ -1358,18 +1340,3 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             return self.getExpRepr()
         else:
             return default
-
-
-
-if __name__ == "__main__":
-    logfmt = "%(levelname)-5s %(name)20s:%(lineno)-4s%(funcName)20s() %(message)s"
-    logging.basicConfig(level=logging.DEBUG, format=logfmt)
-    from confighandler import ExpConfigHandler
-    ch = ExpConfigHandler(pathscheme='test1')
-    from server import ConfluenceXmlRpcServer
-    serverparams = {'baseurl': 'http://10.14.40.245:8090', 'urlpostfix': '/rpc/xmlrpc'}
-    proxy = ConfluenceXmlRpcServer(confighandler=ch, serverparams=serverparams)
-    pagestruct1 = proxy.getPage(spaceKey='~scholer', pageTitle='RS102 Strep-col11 TR annealed with biotin')
-    print "pagestruct1: %s" % pagestruct1
-    pagestruct2 = proxy.getPage(spaceKey='~scholer', pageTitle='RS1022 Strep-col11 TR annealed with biotin')
-    print "pagestruct2: %s" % pagestruct2

@@ -53,9 +53,11 @@ from utils import isvalidfilename
 #from server import ConfluenceXmlRpcServer
 #from decorators.cache_decorator import cached_property
 
+from labfluencebase import LabfluenceBase
 
 
-class WikiPage(object):
+
+class WikiPage(LabfluenceBase):
     """
     In theory, WikiPage objects should be fairly oblivious.
     Try to restrain their dependency to just include a WikiServer, and rely
@@ -101,6 +103,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             |             /
           JournalAssistant
         """
+        LabfluenceBase.__init__(self, confighandler, server)
         # The current approach is that this should be immutable; changing the pageId could result
         # in undefined bahaviour, e.g. overwriting a page with another page's content.
         self.PageId = str(int(pageId)) # Making sure pageId is an integer typed as a string...
@@ -164,36 +167,6 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         if self.Struct:
             self.Struct['content'] = new_content
 
-    @property
-    def Server(self):
-        """
-        Returns server object.
-        # Edit: I cannot use return _server or confighandler.Single...
-        # Server evaluates to False if it is not connected, so check specifically against None.
-        """
-        if self._server is not None:
-            return self._server
-        logger.debug("Attempting to obtain server from confighandler.")
-        try:
-            return self._confighandler.Singletons.get('server')
-        except AttributeError:
-            logger.debug("Attribute Error while querying Confighandler for server singleton.")
-            return None
-
-    @property
-    def Confighandler(self):
-        """
-        Returns confighandler object.
-        # Edit: I cannot use return _server or confighandler.Single...
-        # Server evaluates to False if it is not connected, so check specifically against None.
-        """
-        if self._confighandler is not None:
-            return self._confighandler
-        try:
-            return self._server.Confighandler
-        except AttributeError:
-            logger.debug("Attribute Error while obtaining Confighandler via server, returning empty dict().")
-            return dict()
 
     def reloadFromServer(self):
         """
@@ -273,7 +246,6 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
         if not att_structs:
             return list()
         return [att['fileName'] for att in att_structs]
-
 
 
     def keep_alive(self):
@@ -359,7 +331,7 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             new_struct['title'] = title
         #new_struct['version'] = str(int(new_struct['version'])+0) # 'version' refers to the version you are EDITING, not the version number for the version that you are submitting.
         pageUpdateOptions = dict(versionComment=versionComment, minorEdit=minorEdit)
-        logger.debug("pageUpdateOptions: %s, new_struct: %s", pageUpdateOptions, new_struct )
+        logger.debug("pageUpdateOptions: %s, new_struct: %s", pageUpdateOptions, new_struct)
         page_struct = self.Server.updatePage(new_struct, pageUpdateOptions)
         if page_struct:
             self.Struct = page_struct
@@ -514,7 +486,7 @@ risk of content loss! ---> (before_insert_index, after_insert_index) is %s | reg
                              before_insert_index, after_insert_index,
                              page[before_insert_index-30:before_insert_index+5], page[after_insert_index-5:after_insert_index+30]
                              )
-                self.Struct['content'] = "\n".join([page[:before_insert_index], xhtml, page[after_insert_index:] ])
+                self.Struct['content'] = "\n".join([page[:before_insert_index], xhtml, page[after_insert_index:]])
         # Determine return type and persist if relevant:
         if match:
             logger.info("match found. persistToServer=%s", persistToServer)
@@ -746,7 +718,7 @@ risk of content loss! ---> (before_insert_index, after_insert_index) is %s | reg
         return self.Server.getPagePermissions(self.PageId)
 
 
-class TemplateManager(object):
+class TemplateManager(LabfluenceBase):
     """
     TemplateManager is responsible for locating templates, either locally
     or from the wiki server. The templates may be cached (if enabled in config).
@@ -754,19 +726,20 @@ class TemplateManager(object):
     """
 
     def __init__(self, confighandler, server=None):
+        LabfluenceBase.__init__(self, confighandler, server)
         #if 'templatemanager' in confighandler.Singletons:
         #    logger.info("TemplateManager.__init__() :: ERROR, a template manager is already registrered in the confighandler...")
         #    return confighandler['templatemanager']
-        self.Confighandler = confighandler
-        self._server = server
+        #self.Confighandler = confighandler
+        #self._server = server
         self.Cache = dict()
         confighandler.Singletons['templatemanager'] = self
-    @property
-    def Server(self):
-        """
-        Returns server.
-        """
-        return self._server or self.Confighandler.Singletons.get('server')
+    #@property
+    #def Server(self):
+    #    """
+    #    Returns server.
+    #    """
+    #    return self._server or self.Confighandler.Singletons.get('server')
 
     def get(self, templatetype):
         """
@@ -818,15 +791,16 @@ class TemplateManager(object):
 
 
 
-class WikiPageFactory(object):
+class WikiPageFactory(LabfluenceBase):
     """
     This is in charge of making new pages.
     Note: This is not for making new WikiPage objects for existing wiki pages,
     but for creating new pages on the wiki.
     """
     def __init__(self, server, confighandler, defaulttemplate='exp_page'):
-        self._server = server
-        self.Confighandler = confighandler
+        LabfluenceBase.__init__(self, confighandler, server)
+        #self._server = server
+        #self.Confighandler = confighandler
         if 'templatemanager' in confighandler.Singletons:
             self.TemplateManager = confighandler.Singletons['templatemanager']
         else:
@@ -834,12 +808,12 @@ class WikiPageFactory(object):
         self.DefaultTemplateType = defaulttemplate
         #self.TemplatePagesIds = self.Confighandler.get('wiki_templates_pageIds') #{'experiment': 41746489}
         self.OverrideSpaceKeyRoot = True # Not sure this is ever used...
-    @property
-    def Server(self):
-        """
-        Returns server.
-        """
-        return self._server or self.Confighandler.Singletons.get('server', None)
+    #@property
+    #def Server(self):
+    #    """
+    #    Returns server.
+    #    """
+    #    return self._server or self.Confighandler.Singletons.get('server', None)
 
 
     def makeMinimalStruct(self, struct):
@@ -848,7 +822,7 @@ class WikiPageFactory(object):
         """
         keys = ('space', 'title', 'content', 'version')
         # alternatively:
-        new_struct = dict( (k, struct.get(k)) for k in keys)
+        new_struct = dict((k, struct.get(k)) for k in keys)
 #        new_struct = dict(filter(lambda t: t[0] in keys, struct.items() ) )
         return new_struct
 
