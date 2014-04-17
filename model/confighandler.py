@@ -24,7 +24,49 @@
 """
 Confighandler module includes all logic to read, parse and save config and
 
+
+## TODOs ##
+
+# TODO: implement check for whether a config (file) has been updated elsewhere.
+Implementation suggestion:
+1) Load config from file = cfgfromfile
+2) Check if cfgfromfile['lastsaved'] is newer than cfginmemory['lastsaved']
+    If cfgfromfile is NOT newer, then it can simply be overwritten.
+3) If cfgfromfile IS newer, then for each keyfromfile, valuefromfile in cfgfromfile.items():
+    if keyfromfile in cfginmemory and valuefromfile != cfginmemory[keyfromfile]:
+        cfginmemory[keyfromfile] = valuefromfile # update
+        self.invokeEntryChangeCallback(keyfromfile, valuefromfile) # PUBLISH the update
+Here I intend for objects which derive their Properties from
+confighandler to subscribe to updates and update their properties
+if required and call self.invokePropertyCallbacks(...) to update downstream objects,
+e.g. widgets subscribing to em.ActiveExperiments.
+For experiment configs this becomes a bit more tedious.
+I can either do everything in the experiment object,
+making sure that changes to keys are propagated,
+or I can let the HierarchicalConfigHandler publish the update messages,
+and then make sure that the corresponding experiment is
+able to pick this up.
+
+The latter would likely require using pypubsub module or similar.
+
+Alternatively, the announcement could go as:
+1) HierarchicalConfigHandler (HCH) detects that cfgfromfile has updated keys.
+2) during the merge/update of cfginmemory, all changed keys are collected.
+3a) HCH announces this via the regular confighandler callback system,
+    using the config's path as announcement key,
+    and pass the set of changed cfgkeys as the newvalue argument.
+3b) Alternatively, the updated keys could just be returned to the caller,
+    which would in many cases be the experiment object it self.
+    This is simpler, but maybe also less reliable.
+    I would have to check who calls HCH.saveConfig(path, ...) and how/why.
+    Update: HCH.saveConfig is called by ExpConfigHandler.saveExpConfig - which is again only
+    called by ECH.updateAndPersist(path, props).
+4) The experiment object picks up the set of changed keys and
+    updates properties and invokePropertyCallback(...) as required.
+
+
 """
+
 
 import yaml
 import os
@@ -37,6 +79,56 @@ logger = logging.getLogger(__name__)
 from Tkinter import TclError
 
 from pathutils import getPathParents
+
+
+
+def check_cfgs_and_merge(cfginmemory, cfgfromfile):
+    """
+    Compares two configs (intended as one from memory and the same reloaded from file).
+    Uses 'lastsaved' entry to determine if cfgfromfile is newer than cfginmemory.
+    If it is, then update cfginmemory with cfgfromfile, keeping track
+    of which config entries are truely new.
+
+    Returns two sets:
+
+        keysupdatedfromfile, keysupdatedinmemory, changedkeys
+
+    where:
+
+        keysupdatedfromfile is a set of keys that were found to be updated in cfgfromfile,
+                i.e. present in cfgfromfile and different from the corresponding key in cfginmemory,
+                IF cfgfromfile was never (saved more recently) than cfginmemory.
+                If cfgfromfile is not newer, this will be an empty set.
+
+        keysupdatedinmemory is a set of keys that were found to be updated in cfginmemory
+                compared to cfgfromfile.
+                If cfgfromfile is newer than cfginmemory, this will be an empty set.
+
+        changedkeys is the symmetric difference of the set of keys from the two configs,
+        i.e. the keys that are present in one of the configs but not the other.
+
+    """
+    keysupdatedinmemory = set()
+    keysupdatedfromfile = set()
+    if not 'lastsaved' in cfgfromfile or cfgfromfile['lastsaved'] <= cfginmemory.get('lastsaved', datetime.fromordinal(1)):
+        # cfgfromfile is NOT newer (they might be the same)
+        # check what has been updated in cfginmemory since last save:
+        for keyinmemory, valueinmemory in cfginmemory.items():
+            if keyinmemory not in cfgfromfile or valueinmemory != cfgfromfile[keyinmemory]:
+                #cfginmemory[keyinmemory] = valueinmemory # does not make sense.
+                keysupdatedinmemory.add(keyinmemory)
+    # See which keys are updated in file, which are not in
+    else:
+        for keyfromfile, valuefromfile in cfgfromfile.items():
+            if keyfromfile not in cfginmemory or valuefromfile != cfginmemory[keyfromfile]:
+                cfginmemory[keyfromfile] = valuefromfile # update
+                keysupdatedfromfile.add(keyfromfile)
+    ## Question: If a key is in cfginmemory but not in cfgfromfile AND cfgfromfile is newer,
+    ## does it make sense to keep the key in cfginmemory or should it be removed?
+    ## I say... It should stay. The risk is too high that you lose something critical if you drop keys.
+    changedkeys = set(cfginmemory.keys()).symmetric_difference(cfgfromfile.keys())
+    return keysupdatedfromfile, keysupdatedinmemory, changedkeys
+
 
 
 # from http://stackoverflow.com/questions/4579908/cross-platform-splitting-of-path-in-python
@@ -60,7 +152,7 @@ def os_path_split_asunder(path, debug=False):
     return parts
 
 
-def _saveConfig(outputfn, config):
+def saveConfig(outputfn, config, updatelastsaved=True):
     """
     For internal use; does the actual saving of the config.
     Can be easily mocked or overridden by fake classes to enable safe testing environments.
@@ -71,13 +163,24 @@ def _saveConfig(outputfn, config):
         # because yaml.dumper.Emitter checks if width > self.best_indent*2 (and reverts to 80 otherwise)
         # setting width=400 to only wrap very long lines...
         # line_break is the line-termination (EOL) character.
+        if updatelastsaved:
+            old_lastsaved = config.get('lastsaved')
+            config['lastsaved'] = datetime.now()
         yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False, width=400)
         logger.info("Config saved to file: %s", outputfn)
         return True
     except IOError, e:
         # This is to be expected for the system config...
         logger.warning("Could not save config to file '%s', error raised: %s", outputfn, e)
+        config['lastsaved'] = old_lastsaved
 
+def loadConfig(inputfn):
+    """
+    Load config (dict) from file.
+    """
+    with open(inputfn) as fd:
+        cfg = yaml.load(fd)
+    return cfg
 
 def _printConfig(config, indent=2):
     """
@@ -343,7 +446,8 @@ class ConfigHandler(object):
             logger.warning("WARNING, file already read: %s", inputfn)
             return
         try:
-            newconfig = yaml.load(open(inputfn)) # I dont think this needs with... or open/close logic.
+            #newconfig = yaml.load(open(inputfn)) # I dont think this needs with... or open/close logic.
+            newconfig = loadConfig(inputfn)
         except IOError as e:
             logger.warning("readConfig() :: ERROR, could not load yaml config, cfgtype: %s, error: %s", cfgtype, e)
             return False
@@ -441,7 +545,7 @@ class ConfigHandler(object):
             logger.warning("Outputfn for configtype '%s' is '%s', ABORTING. ", cfgtype, outputfn)
             return False
         logger.debug("Saving config %s using outputfn %s", cfgtype, outputfn)
-        _saveConfig(outputfn, config)
+        saveConfig(outputfn, config)
         return True
 
 
@@ -768,7 +872,7 @@ class ExpConfigHandler(ConfigHandler):
             ignoredirs = self.get(hierarchy_ignoredirs_config_key)
             logger.debug("Enabling HierarchicalConfigHandler with rootdir: %s", rootdir)
             if rootdir:
-                self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs)
+                self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs, parent=self)
             else:
                 logger.info("rootdir is %s; hierarchy_rootdir_config_key is %s; configs are (configpaths): %s",
                             rootdir, hierarchy_rootdir_config_key, self.ConfigPaths)
@@ -843,8 +947,13 @@ class ExpConfigHandler(ConfigHandler):
         """
         Relay to self.HierarchicalConfigHandler.saveConfig(path)
         """
-        return self.HierarchicalConfigHandler.saveConfig(path, cfg)
-
+        logger.debug("invoked with path=%s, cfg=%s", path, cfg)
+        keysupdatedfromfile, keysupdatedinmemory, changedkeys = self.HierarchicalConfigHandler.saveConfig(path, cfg)
+        logger.info("self.HierarchicalConfigHandler.saveConfig(%s, %s) returned with tuple: (%s, %s, %s)",
+                     path, cfg, keysupdatedfromfile, keysupdatedinmemory, changedkeys)
+        self.invokeEntryChangeCallback(path, keysupdatedfromfile)
+        logger.info("Invoking self.invokeEntryChangeCallback(%s, %s)", path, keysupdatedfromfile)
+        return keysupdatedfromfile, keysupdatedinmemory, changedkeys
 
     def updateAndPersist(self, path, props=None, update=False):
         """
@@ -854,6 +963,10 @@ class ExpConfigHandler(ConfigHandler):
         - 'timestamp' = use lastsaved timestamp to determine which config is main.
         - 'file' = file is updated using memory.
         - 'memory' = memory is updated using file.
+
+        TODO: This should be consolidated with the check_config_and_merge function,
+        so that you can inform config subscribers if one or more config keys is being
+        updated based on the the config from file.
         """
         exps = self.HierarchicalConfigHandler.Configs
         cfg = exps.setdefault(path, dict())
@@ -891,8 +1004,9 @@ class HierarchicalConfigHandler(object):
     however, it is probably better to do this dynamically/on request, to speed up startup time.
 
     """
-    def __init__(self, rootdir, ignoredirs=None, doautoloadroothierarchy=False, VERBOSE=0):
+    def __init__(self, rootdir, ignoredirs=None, parent=None, doautoloadroothierarchy=False, VERBOSE=0):
         self.VERBOSE = VERBOSE
+        self._parent = parent
         self.Configs = dict() # dict[path] --> yaml config
         self.ConfigSearchFn = '.labfluence.yml'
         self.Rootdir = rootdir
@@ -986,7 +1100,8 @@ class HierarchicalConfigHandler(object):
         if update is None:
             update = 'file'
         try:
-            cfg = yaml.load(open(fpath))
+            #cfg = yaml.load(open(fpath))
+            cfg = loadConfig(fpath)
             if update and dpath in self.Configs:
                 if update == 'file':
                     cfg.update(self.Configs[dpath])
@@ -1010,7 +1125,7 @@ class HierarchicalConfigHandler(object):
         return cfg
 
 
-    def saveConfig(self, path, cfg=None, docheck=False):
+    def saveConfig(self, path, cfg=None):
         """
         Save config <cfg> to path <path>.
         If cfg is not given, the method will check if a config from <path> was
@@ -1029,22 +1144,36 @@ class HierarchicalConfigHandler(object):
                 cfg = self.Configs[dpath]
             else:
                 logger.warning("HierarchicalConfigHandler.saveConfig() :: Error, no config found to save for path '%s'", fpath)
-                return None
-        if docheck:
-            fileconfig = yaml.load(cfg, open(fpath))
-            if fileconfig.get('lastsaved'):
-                if not cfg.get('lastsaved') or cfg.get('lastsaved') < fileconfig['lastsaved']:
-                    logger.warning("Attempted to save config to path '%s', but checking the existing file\
-                                   reveiled that the existing config has been updated (from another location). Aborting...")
-                    return False
-        cfg['lastsaved'] = datetime.now()
-        try:
-            yaml.dump(cfg, open(fpath, 'wb'))
-            logger.debug("HierarchicalConfigHandler.saveConfig() :: config saved to file '%s'", fpath)
-            return True
-        except IOError, e:
-            logger.warning("HierarchicalConfigHandler.saveConfig() :: Could not open path '%s'. Error is: %s", path, e)
-            return False
+                return None, None, None
+        #if docheck:
+            #fileconfig = yaml.load(cfg, open(fpath))
+            #if fileconfig.get('lastsaved'):
+            #    if not cfg.get('lastsaved') or cfg.get('lastsaved') < fileconfig['lastsaved']:
+            #        logger.warning("Attempted to save config to path '%s', but checking the existing file\
+            #                       reveiled that the existing config has been updated (from another location). Aborting...")
+            #        return False
+
+        # EDIT: It is no longer possible to 'skip' the check, but you can
+        # make sure that cfg will override, by setting cfg['lastsaved'] = datetime.now() - although that is a hack.
+        cfgfromfile = loadConfig(fpath)
+        keysupdatedfromfile, keysupdatedinmemory, changedkeys = check_cfgs_and_merge(cfg, cfgfromfile) # This will merge cfg with the one from file...
+        #if keysupdatedfromfile:
+        #    if self._parent:
+        #        self._parent.invokeEntryChangeCallback(path, keysupdatedfromfile)
+
+        #cfg['lastsaved'] = datetime.now() # This is now added by saveConfig()
+        res = saveConfig(fpath, cfg, updatelastsaved=True)
+        logger.debug("%s :: saveConfig(%s, <cfg>) returned: '%s'", self.__class__.__name__, fpath, res)
+        #return res
+        return keysupdatedfromfile, keysupdatedinmemory, changedkeys
+        #try:
+        #    yaml.dump(cfg, open(fpath, 'wb'))
+        #    logger.debug("HierarchicalConfigHandler.saveConfig() :: config saved to file '%s'", fpath)
+        #    return True
+        #except IOError, e:
+        #    logger.warning("HierarchicalConfigHandler.saveConfig() :: Could not open path '%s'. Error is: %s", path, e)
+        #    return False
+
 
 
     def renameConfigKey(self, oldpath, newpath):

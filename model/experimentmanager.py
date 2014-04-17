@@ -191,7 +191,9 @@ class ExperimentManager(LabfluenceBase):
         self.sortRecentExprimentIds()
         self.Confighandler.invokeEntryChangeCallback() # the 'app_active_experiments' has been marked as chaned by self.addActiveExperimentId
         self.Confighandler.saveConfigForEntry('app_active_experiments')
-        self.invokePropertyCallbacks(None) # invoke all.
+        #self.invokeIfPropertyChanged(None) # invoke all.
+        self.invokeIfPropertyChanged('ActiveExperimentIds') # Only invoke for ActiveExperimentIds
+        self.invokeIfPropertyChanged('RecentExperimentIds') # and RecentExperimentIds
 
 
     def addActiveExperimentId(self, expid, removeFromRecent=True):

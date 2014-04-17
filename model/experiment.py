@@ -523,8 +523,11 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         if self.Confighandler:
             if not os.path.isdir(path):
                 path = os.path.dirname(path)
-            logger.debug("Invoking self.Confighandler.updateAndPersist(path=%s, self.Props=%s)", path, self.Props)
-            self.Confighandler.updateAndPersist(path, self.Props)
+            logger.debug("Invoking self.Confighandler.saveExpConfig(path=%s)", path)#, self.Props)
+            #self.Confighandler.updateAndPersist(path, self.Props)
+            # Why use updateAndPersist? If there is a confighandler, just use
+            ret = self.Confighandler.saveExpConfig(path)
+            logger.debug("self.Confighandler.saveExpConfig returned value: %s", ret)
         elif self._allowmanualpropssavetofile:
             if os.path.isdir(path):
                 path = os.path.normpath(os.path.join(self.Localdirpath, self.ConfigFn))
@@ -999,7 +1002,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             expsection_regex_prog = re.compile(self.getConfigEntry('wiki_experiment_section'), flags=re.DOTALL+re.MULTILINE)
             logger.debug("wiki_experiment_section regex is: %s", expsection_regex_prog.pattern)
         except TypeError as e:
-            logger.warning("TypeError: %s while creating regex prog; self.getConfigEntry('wiki_experiment_section')=%s; ABORTING...",
+            logger.warning("TypeError: %s while creating regex prog; self.getConfigEntry('wiki_experiment_section')=%s; (If None, then 'wiki_experiment_section' is probably not set in config) - ABORTING...",
                            e, self.getConfigEntry('wiki_experiment_section'))
             return
         try:

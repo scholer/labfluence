@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 from model.confighandler import ExpConfigHandler
 
 
+def saveConfig(outputfn, config, desc=''):
+    logger.info("FakeConfighandler method; does not do anything, does not return anything.")
+
 
 class FakeConfighandler(ExpConfigHandler):
     """
@@ -105,19 +108,19 @@ wiki_lims_pageid: '917542'
     #############################
 
     def autoRead(self):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
     def readConfig(self, **kwargs):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
     def saveConfigForEntry(self, key):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
     def _saveConfig(self, outputfn, config, desc=''):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
     def saveConfigs(self, what='all', VERBOSE=None):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
 
     ################################
@@ -125,16 +128,17 @@ wiki_lims_pageid: '917542'
     ################################
 
     def getExpConfig(self, path):
+        logger.info("FakeConfighandler method; only returns a fixed string.")
         return self.__expconfigs.setdefault(path, dict())
 
     def loadExpConfig(self, path):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
     def saveExpConfig(self, path, cfg=None):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
     def updateAndPersist(self, path, props=None, update=False):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")
 
     def renameConfigKey(self, oldpath, newpath):
-        pass
+        logger.info("FakeConfighandler method; does not do anything, does not return anything.")

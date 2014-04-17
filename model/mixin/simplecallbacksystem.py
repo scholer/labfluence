@@ -143,6 +143,20 @@ class TestClass(SimpleCallbackSystem):
             # Remove propkey from the set of flagged properties:
             self._changedproperties.discard(propkey)
 
+
+    def invokeIfPropertyChanged(self, propkey, newvalue=None):
+        """
+        If you do not want to fire all callbacks by invoking
+            invokePropertyCallbacks(None)
+        then use this to only call callbacks for a single property,
+        and only if the property has been flagged as changed.
+        """
+        if propkey in self._changedproperties:
+            if newvalue is None:
+                newvalue = getattr(self, propkey, None)
+            self.invokePropertyCallbacks(propkey, newvalue)
+
+
     def flagPropertyChanged(self, propkey):
         """
         Mark property <propkey> as changed.
