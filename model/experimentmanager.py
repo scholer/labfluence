@@ -33,11 +33,12 @@ logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-lo
 from experiment import Experiment
 #from confighandler import ExpConfigHandler
 #from server import ConfluenceXmlRpcServer
+from labfluencebase import LabfluenceBase
 
 # Decorators:
 from decorators.cache_decorator import cached_property
 
-class ExperimentManager(object):
+class ExperimentManager(LabfluenceBase):
     """
     The _wikicache is used to avoid repeated server queries, e.g. for current experiments.
     The cache is structures as a dict where key designates the cache type
@@ -52,9 +53,8 @@ class ExperimentManager(object):
     - Do not use beaker, use dogpile: http://techspot.zzzeek.org/2012/04/19/using-beaker-for-caching-why-you-ll-want-to-switch-to-dogpile.cache/
     - http://seanblanchfield.com/python-memoize-with-expiry/ - based on Django's memorize
     """
-    def __init__(self, confighandler, VERBOSE=0, autoinit=None, experimentsources=('local', 'wiki') ):
-        self.VERBOSE = VERBOSE
-        self.Confighandler = confighandler
+    def __init__(self, confighandler, server=None, autoinit=None, experimentsources=('local', 'wiki') ):
+        LabfluenceBase.__init__(self, confighandler, server)
         self._wikicache = dict()
         #self.Experiments = list()       # list of experiment objects;
         if autoinit is None:
@@ -93,25 +93,25 @@ class ExperimentManager(object):
         """property setter"""
         self._experimentsbyid = value
 
-    @property
-    def Server(self):
-        """
-        Returns server registrered in confighandler's singleton registry.
-        """
-        return self.Confighandler.Singletons.get('server', None)
-    @Server.setter
-    def Server(self, value):
-        """
-        Set server in confighandler, if not already set.
-        I do not allow overriding existing server if set, so using setdefault...
-        """
-        self.Confighandler.Singletons.setdefault('experimentmanager', value)
-
-    @cached_property(ttl=60) # 1 minut cache...
-    def ServerInfo(self):
-        """ Remember, the cached_property makes a property, which must be nvoked without '()'!
-        """
-        return self.Server.getServerInfo()
+    #@property
+    #def Server(self):
+    #    """
+    #    Returns server registrered in confighandler's singleton registry.
+    #    """
+    #    return self.Confighandler.Singletons.get('server', None)
+    #@Server.setter
+    #def Server(self, value):
+    #    """
+    #    Set server in confighandler, if not already set.
+    #    I do not allow overriding existing server if set, so using setdefault...
+    #    """
+    #    self.Confighandler.Singletons.setdefault('experimentmanager', value)
+    #
+    #@cached_property(ttl=60) # 1 minut cache...
+    #def ServerInfo(self):
+    #    """ Remember, the cached_property makes a property, which must be nvoked without '()'!
+    #    """
+    #    return self.Server.getServerInfo()
 
     @cached_property(ttl=120) # 2 minutes cache...
     def CurrentWikiExperimentsPagestructsByExpid(self):
@@ -156,23 +156,23 @@ class ExperimentManager(object):
 
     """
 
-    def getCurrentExpid(self):
-        """Returns current experiment id from app_current_expid"""
-        return self.Confighandler.setdefault('app_current_expid', None)
-    def setCurrentExpid(self, new_expid):
-        """Sets current experiment id as app_current_expid"""
-        old_expid = self.getCurrentExpid()
-        if old_expid != new_expid:
-            self.Confighandler.setkey('app_current_expid', new_expid)
-            self.Confighandler.invokeEntryChangeCallback('app_current_expid', new_expid)
-    @property
-    def ActiveExperimentIds(self):
-        "List of active experiments, obtained from confighandler."
-        return self.Confighandler.setdefault('app_active_experiments', list())
-    @property
-    def RecentExperimentIds(self):
-        "List of recently opened experiments, obtained from confighandler."
-        return self.Confighandler.setdefault('app_recent_experiments', list())
+    #def getCurrentExpid(self):
+    #    """Returns current experiment id from app_current_expid"""
+    #    return self.Confighandler.setdefault('app_current_expid', None)
+    #def setCurrentExpid(self, new_expid):
+    #    """Sets current experiment id as app_current_expid"""
+    #    old_expid = self.getCurrentExpid()
+    #    if old_expid != new_expid:
+    #        self.Confighandler.setkey('app_current_expid', new_expid)
+    #        self.Confighandler.invokeEntryChangeCallback('app_current_expid', new_expid)
+    #@property
+    #def ActiveExperimentIds(self):
+    #    "List of active experiments, obtained from confighandler."
+    #    return self.Confighandler.setdefault('app_active_experiments', list())
+    #@property
+    #def RecentExperimentIds(self):
+    #    "List of recently opened experiments, obtained from confighandler."
+    #    return self.Confighandler.setdefault('app_recent_experiments', list())
     @property
     def ActiveExperiments(self):
         "List of active experiments, obtained from confighandler."
@@ -296,9 +296,10 @@ class ExperimentManager(object):
 
     ### CONFIG RELATED ###
 
-    def getConfigEntry(self, key):
-        """relays to confighandler"""
-        return self.Confighandler.get(key)
+    # set by base class...
+    #def getConfigEntry(self, key):
+    #    """relays to confighandler"""
+    #    return self.Confighandler.get(key)
 
     def getWikiExpRootSpaceKey(self):
         """relays to confighandler"""

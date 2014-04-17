@@ -28,20 +28,31 @@ Example (PS: only works for new-style objects; uses mixin I think...)
 
 """
 
-#
-# © 2011 Christopher Arndt, MIT License
-# From https://wiki.python.org/moin/PythonDecoratorLibrary#Cached_Properties
-
+import time
 from functools import partial
+import logging
+logger = logging.getLogger(__name__)
 
-def hashunhashable(value):
+
+
+def hashunhashable(value, recursiondepth=5):
+    """
+    Called recursively for
+    Try to return a pseudo-hash of value. This is intended to be used
+    to compare if value has been changed since last update.
+    """
     try:
-        hash(value)
+        return hash(value)
     except TypeError:
+        if recursiondepth < 1:
+            try:
+                return hash(str(value))
+            except TypeError:
+                return id(value)
         try:
-            return sum(hash(key)+hashunhashable(val) for key, val in value.items())
+            return sum(hash(key)+hashunhashable(val, recursiondepth-1) for key, val in value.items())
         except AttributeError:
-            return sum(hashunhashable(val) for val in value)
+            return sum(hashunhashable(val, recursiondepth-1) for val in value)
 
 def gethash(value):
     try:
@@ -63,10 +74,6 @@ def defaultget(self):
     return self._value
 
 
-import time
-import logging
-logger = logging.getLogger(__name__)
-
 
 class callback_property(object):
     '''
@@ -74,7 +81,7 @@ class callback_property(object):
 
     When the property is set/changed, it will invoke registered callbacks.
     The callbacks are saved in <instance>._propertycallbacks[<property-name>] = list of callbacks.
-    where <instance> or <inst> is the instance object to which this property belongs to.
+    where <instance> or <obj> is the instance object to which this property belongs to.
 
     At the moment, I do not plan on storing args and kwargs in the callbacks list;
     if you want to save a callback which should be called with a particular set of
@@ -96,10 +103,10 @@ class callback_property(object):
     of the property:
         * 'call_instantly'  ->  all callbacks are called immediately when the property is changed.
         * 'flag_changed'    ->  do not call any callbacks; instead, simply flag the
-                                property as changed in <inst>._changedproperties
+                                property as changed in <obj>._changedproperties
 
     If behavior is 'flag_changed', then it is up to the modifying entity to
-    invoke <inst>._invokeCallbacksForChangedProperties()
+    invoke <obj>._invokeCallbacksForChangedProperties()
     This is mostly useful for "batch" updates, where you do not want to invoke a property's callback
     on every change, i.e. if you have a counter property that you increment in a for-loop.
 
@@ -211,9 +218,145 @@ class callback_property(object):
     - http://qt-project.org/doc/qt-4.8/propertybinding.html
     - https://blog.qt.digia.com/blog/2008/08/29/data-bindings/
 
+#####################
+    Addendum:
+#####################
+A lot of my original implementation could not work, so I had to look for considerable inspiration in Kivy.
+https://github.com/kivy/kivy/blob/master/kivy/_event.pyx
+https://github.com/kivy/kivy/blob/master/kivy/properties.pyx
+
+For instance, Kivy uses Property.link() to link a Property to its parrent instance when
+the instance is initialized: (EventDispatcher is used as a mixin class...)
+
+EventDispatcher.__init__()  ->  creates a list of attributes with dir(__cls__) and finds properties from this.
+                                edit: how exactly? Why does it get the attribute and not the value returned by __get__ ?
+                                ok, it gets the attr from the class, not self.
+                                invokes attr.link(self, key/attrname)
+
+Property.link(obj, name)    -> makes self._name, obj.__storage[name] = propertystorage d?, self.init_storage(obj, d)
+Property.init_storage(obj, storage) -> just sets storage.value and storage.observers = list()
+
+So uhm... yearh, if you want this thing, I think lifting it from Kivy is a good start...
+
+Except of cause for the fact that I actually usually make use of making a getter, i.e.
+    def ActiveExperimentIds(self):
+        return self.confighandler. ...
+And referencing self does not seem to work when EventDispatcher runs through dir(self.__class__)
+
+Indeed, Kivy's Property getter signature is (self, EventDispatcher obj, objtype), and
+it checks if obj is None.
+
+Update:
+Implementing Kivy-style self-aware properties does seem a bit elaborate, and will
+always require the object instance to subclass a EventDispatcher or similar mixin class.
+
+One alternative to this is to just implement a simple callback system in the object instance,
+alá what I did in confighandler. This would be quite easy. It would, however, require
+that who-ever modifies a property takes responsibility to call invokePropertyCallback(<property>),
+but you can just make sure most updates are done by the object it self.
+
+Another alternative is to implement a simple observer-event callback system,
+e.g. something like what is described by DanielSank here:
+http://stackoverflow.com/questions/21992849/binding-a-pyqt-pyside-widget-to-a-local-viriable-in-python
+
+A third alternative is to make use of modules designed to implement such callback systems, e.g.
+    obsub   -> implements a simple event-observer pattern, https://pypi.python.org/pypi/obsub/0.2
+    pubsub  -> implements a publish-subscribe pattern, http://pubsub.sourceforge.net/
+
+Note that obsub is about 1/10th the size of pubsub...!
+
+The first, obsub, implements a event-observer pattern. A method can be decorated with @event.
+This will essentially just invoke registerd handlers (observers) for the event:
+    class MyClass(object):
+        @event
+        def mymethod(self, what, who, where):
+            print "{} is doing {} with {} in the {}".format(self, what, who, where)
+
+    def myhandler(self, what, who, where):
+        print "After {} has completed doing {} with {}, this handler will now do something.".format(self, what, who)
+
+    # try it:
+    myobj = MyClass()
+    myobj.mymethod += myhandler
+    myobj.mymethod('nothing', 'the president', 'white house')
+    ## should output:
+    # <__main__.MyClass object at 0x02BD55D0> is doing nothing with the president in the white house
+    # After <__main__.MyClass object at 0x02BD55D0> has completed doing nothing with the president, this handler will now do something.
+
+However, this is not immediately suitable for properties. Yes, you could do it for the setter,
+but it doesn't check whether the property's value has actually been changed. It should NOT be
+applied blindly to the getter (would invoke it constantly), and it wouldn't check for indirect
+updates either.
+Obviously, the @event should not be blindly applied to e.g. experiment.mergeWikiSubentries.
+Instead, to use this, I should probably create dedicated "event methods", i.e.
+    @event
+    def on_subentries_changed(self):
+        ...
+
+However, this seems pretty similar to what I would do with my own "simple callback system":
+For a widget who wants to be notified if an experiment's subentries change:
+
+    # In the "widget"'s code:
+    def update_list(self, exp): # For obsub, the signatures MUST match. If
+        ...
+    def update_subentries(self, subentries): # For my callback system, the new value is passed as first (only) argument (maybe consider passing the object also).
+        ...
+    # obsub register:
+    experiment.on_subentries_changed += self.update_list
+    # simple callback register:
+    experiment.registerPropertyCallback('Subentries', self.update_subentries)
+    # To invoke the callbacks:
+    experiment.on_subentries_changed()
+    experiment.invokePropertyCallbacks('Subentries')
+
+The two are more or less identical. Obsub requires you to create methods for each event,
+and if you want to use this as a 'property-changed' notifier, that might be a bit verbose.
+
+One difference is that to enable the functionality in a class, with obsub you create the
+on_something methods with @event decorator. While with the simple callback system
+I would probably have the registerPropertyCallback, unregisterPropertyCallback,
+and invokePropertyCallbacks in a separate mixin class, which the class must inherit from.
+
+The other module, pubsub, seems very similar to what is already in confighandler: a single, universal
+system, where methods can be attached (registered/subscribe to) a particular key, e.g.
+'app_activeexperimentids':
+    confighandler.registerEntryChangeCallback(<configentry-key>, function, args=None, kwargs=None, ...)
+    pubsub.pub.subscribe(listenerfunction, <topic-key>)
+The callbacks are invoked when someone calls:
+    confighandler.invokeEntryChangeCallback(<key>, [<new_value>])
+    pubsub.pub.sendMessage(<key>, *args)
+The main difference is that pubsub allows sending multiple arguments in sendMessage,
+while the confighandler's callback system specifies arguments when registering the callback.
+(Although you could easily change invokeEntryChangeCallback to allow for extra arguments...)
+Also, pubsub implements a whole lot of message-related stuff, e.g. checks for message data specification (MDS)
+upon subscribing, and checks for topic typos, etc.
+
+Partial conclusion:
+
+    Implementing a self-aware, observable PROPERTY alá Kivy, as I had planned with this
+    callback_property has turned out to be quite complex, and require the parent object
+    to have some code to make the property aware of its parent.
+
+    Continue to use the confighandler isn't really pretty for multiple object,
+    and using a full-featured publish-subscribe module wouldn't make it much better.
+
+    OBSUB and my own simple callback system seems fairly equivalent. The code required would
+    be very minor in both cases (obsub is 32 loc, my own is 33 loc). The obsub approach *is* neat,
+    and while the obsub code is also quite awesome, it is also very complex
+    and not easy to understand. My own simple callback system, on the other hand,
+    would be very simple to understand: Each object instance has a property dict,
+    keyed by property name with a corresponding list of callbacks.
+
     '''
-    def __init__(self, behaviour='call_instantly', enable_getter_monitor=False, scheduler_method=None,
+    def __init__(self, fget=None, fset=None, fdel=None, doc=None,
+                 behaviour='call_instantly', enable_getter_monitor=False, scheduler_method=None,
                  skipIfLasthashIsNone=False, storeCallbacksInInstance=True, property_stores_value=False):
+
+        self.fget, self.fset, self.fdel = fget, fset, fdel
+        if doc is None and fget is not None:
+            doc = fget.__doc__
+        self.__doc__ = doc
+        self._name = id(self) # tempoary...?
         self.lasthash = None
         self.lastcalltime = None
         self.behaviour = behaviour
@@ -223,13 +366,12 @@ class callback_property(object):
         self.storeCallbacksInInstance = storeCallbacksInInstance
         self._callbacks = list()    # This is only used if storeCallbacksInInstance=False
         self._ischanged = False
-        self.fget = self.fset = self.fdel = None
         if property_stores_value:
             self.fget = defaultget
             self.fset = defaultset
+        logger.info("%s initialized: %s", self.__class__.__name__, self)
 
-
-    def __call__(self, fget, doc=None):
+    def __call__(self, fget, doc=None, fset=None, fdel=None):
         """
         In the setup:
             @callback_property()
@@ -239,26 +381,29 @@ class callback_property(object):
         with the MyProperty method as only argument (fget).
         The return value (self) is then saved as the new MyProperty attribute.
         """
-        self.fget = fget
+        logger.info("%s called, setting fget to %s", self.__class__.__name__, fget)
+        #self.fget = fget
+        self.fget, self.fset, self.fdel = fget, fset, fdel
         self.__doc__ = doc or fget.__doc__
         self.__name__ = fget.__name__
         self.__module__ = fget.__module__
         return self
 
-    def __get__(self, inst, owner):
+    def __get__(self, obj, owner):
         ## Note: putting now = time.time() at the top will make the cache behavior dependent on the calculation time.
         ## You could argue the cache time-to-live should be calculated from _after_ the calculation
         ## has finished, not from when it was started.
         ## (This is only important if calculation time (self.fget) is comparable to self.ttl)
-        value = self.fget(inst)
+        logger.info("%s - invoked get with obj = %s", self.__class__.__name__, obj)
+        value = self.fget(obj)
         if self.enable_getter_monitor:
             newhash = gethash(value)
             if newhash != self.lasthash:
-                self.invokeCallbacks(inst, value)
+                self.invokeCallbacks(obj, value)
             self.lasthash = newhash
         return value
 
-    def __set__(self, inst, value):
+    def __set__(self, obj, value):
         """
         Descriptor protocol:
             __set__(self, instance, value) --> None
@@ -271,76 +416,102 @@ class callback_property(object):
         then later:
             myobj.mycachedattr = 2
         """
-        logger.debug("__set__ invoked with inst '%s' and value '%s'", inst, value)
+        logger.debug("__set__ invoked with obj '%s' and value '%s'", obj, value)
         if self.fset is None:
             raise AttributeError("can't set attribute")
-        self.fset(inst, value)
+        self.fset(obj, value)
         newhash = gethash(value)
         if newhash != self.lasthash:
-            self.invokeCallbacks(inst, value)
+            self.invokeCallbacks(obj, value)
         self.lasthash = newhash
         now = time.time()
         try:
-            cache = inst._cache
+            cache = obj._cache
         except AttributeError:
-            cache = inst._cache = {} # empty dict.
+            cache = obj._cache = {} # empty dict.
             logger.debug("No existing cache, created a new...")
         cache[self.__name__] = (value, now)
 
-    def __delete__(self, inst):
+    def __delete__(self, obj):
         logger.debug("Deleting cache for property '%s'", self.__name__)
         try:
-            del inst._cache[self.__name__]
+            del obj._cache[self.__name__]
         except AttributeError as e:
-            logger.debug("inst '%s' doesn't have a _cache so nothing to delete. (%s)", inst, e)
+            logger.debug("obj '%s' doesn't have a _cache so nothing to delete. (%s)", obj, e)
         except KeyError as e:
-            logger.debug("No key '%s' for _cache of inst '%s' so nothing to delete.", e, inst)
+            logger.debug("No key '%s' for _cache of obj '%s' so nothing to delete.", e, obj)
 
 
     def getter(self, fget):
         """ Returns a new callable instance, which will use fget as getter """
-        return type(self)(fget, self.fset, self.fdel, self.__doc__)
+        #return type(self)(fget, self.fset, self.fdel, self.__doc__)
+        return self(fget=fget, fset=self.fset, fdel=self.fdel, doc=self.__doc__)
 
     def setter(self, fset):
         """ Returns a new callable instance, which will use fset as setter """
-        return type(self)(self.fget, fset, self.fdel, self.__doc__)
+        #return type(self)(self.fget, fset, self.fdel, self.__doc__)
+        return self(fget=self.fget, fset=fset, fdel=self.fdel, doc=self.__doc__)
 
     def deleter(self, fdel):
         """ Returns a new callable instance, which will use fdel as deleter """
-        return type(self)(self.fget, self.fset, fdel, self.__doc__)
+        #return type(self)(self.fget, self.fset, fdel, self.__doc__)
+        return self(fget=self.fget, fset=self.fset, fdel=fdel, doc=self.__doc__)
+
+    def link(self, obj, name):
+        """
+        Links property to its parrent object.
+        Lifted from https://github.com/kivy/kivy/blob/master/kivy/properties.pyx
+        """
+        # Kivy properties uses d = PropertyStorage()
+        # this seems to just keep track of 1) registrered observers, 2) value(?)
+        # However, I think for the moment I will just use a list of observers.
+        # self.init_storage(obj, d) # just sets d.value and d.observers
+        #obj.__storage[name] = d
+        self._name = name
+        try:
+            obj.__propertiescallbacks[name] = list()
+        except AttributeError:
+            obj.__propertiescallbacks = dict(name=[])
 
 
-    def registercallback(self, inst, callback):
+    def registercallback(self, obj, callback):
         """
         Register callback to this property.
         callback is invoked whenever the property registers that is has changed.
+        Question: How do you reach this method from the outside?
+        obj.__dict__[MyProperty].registercallback ? - a bit long?
         """
-        if inst and self.storeCallbacksInInstance:
+        # Uh, much of this won't work, self has no __name__ attribute...
+        if obj and self.storeCallbacksInInstance:
             try:
-                inst._propertycallbacks[self.__name__] = callback
+                obj._propertycallbacks[self.__name__] = callback
             except AttributeError:
-                inst._propertycallbacks = {self.__name__ : callback}
+                obj._propertycallbacks = {self.__name__ : callback}
         else:
             try:
                 self._callbacks[self.__name__] = callback
             except AttributeError:
                 self._callbacks = {self.__name__ : callback}
 
-    def getcallbacks(self, inst):
+    def getcallbacks(self, obj):
         """
         This might be subject to change, so having this as a separate method for now to make
         future changes easier...
         """
-        if inst and self.storeCallbacksInInstance:
-            return inst._propertycallbacks[self.__name__]
+        if obj and self.storeCallbacksInInstance:
+            try:
+                return obj._propertycallbacks[self.__name__]
+            except (AttributeError, KeyError) as e:
+                logger.debug("%s while obtaining callbacks from obj, probably nothing registered.", e)
+                return list()
         else:
             return self._callbacks
 
-    def invokeCallbacks(self, inst, value):
+    def invokeCallbacks(self, obj, value):
         """
         Invoke all registered callbacks.
         """
-        for callback in self.getcallbacks(inst):
+        for callback in self.getcallbacks(obj):
             if self.scheduler_method:
                 # Use functools.partial to create a partial function where value is set
                 # (without the function actually being called here and now).
@@ -348,7 +519,7 @@ class callback_property(object):
             else:
                 callback(value)
         try:
-            del inst._changedproperties[self.__name__]
+            del obj._changedproperties[self.__name__]
         except (AttributeError, KeyError) as e:
-            logger.debug("Could not delete %s from %s._changedproperties: %s", self.__name__, inst, e)
+            logger.debug("Could not delete %s from %s._changedproperties: %s", self.__name__, obj, e)
         self._ischanged = False
