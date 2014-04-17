@@ -122,10 +122,12 @@ def test_invokecallback():
     assert lastnewvalue == [None]
     assert myvar == [0]
 
+    obj.flagPropertyChanged('MyProp')
     obj.invokePropertyCallbacks('MyProp', 6)
     assert obj.numchanges == 4
     assert lastnewvalue == [6]
     assert myvar == [2]
+    assert 'MyProp' not in obj._changedproperties # should have been removed.
 
     obj.invokePropertyCallbacks(None, 13)
     assert obj.numchanges == 4
@@ -139,3 +141,4 @@ def test_invokecallback():
     assert obj.numchanges == 5 # Calling MyProp increments it by 1, from 4 to 5.
     assert lastnewvalue == [5] # newvalue same as MyProp.
     assert myvar == [4]
+    assert 'MyProp' not in obj._changedproperties

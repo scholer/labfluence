@@ -120,7 +120,9 @@ class TestClass(SimpleCallbackSystem):
         failedfunctions = list()
         if propkey is None:
             logger.debug("propkey=%s, calling callbacks for all properties in _changedproperties=%s", propkey, self._changedproperties)
-            for changedprop in self._changedproperties:
+            # invokePropertyCallbacks will update self._changedproperties, so you need to iterate over a copy:
+            propkeys_copy = self._changedproperties.copy()
+            for changedprop in propkeys_copy:
                 try:
                     nv = getattr(self, changedprop)
                 except AttributeError:
@@ -138,6 +140,8 @@ class TestClass(SimpleCallbackSystem):
             for function in failedfunctions:
                 logger.info("Unregistrering callbacks for function: %s(...)", function)
                 self.unregisterPropertyCallback(function=function)
+            # Remove propkey from the set of flagged properties:
+            self._changedproperties.discard(propkey)
 
     def flagPropertyChanged(self, propkey):
         """

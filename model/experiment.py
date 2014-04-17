@@ -148,6 +148,7 @@ class Experiment(LabfluenceBase):
         # For use without a confighandler:
         self._props = dict()
         self._expid = None
+        self._last_attachmentslist = None
         self._exp_regex_prog = None
         self._cache = dict() # cached_property cache
         self._allowmanualpropssavetofile = False # Set to true if you want to let this experiment handle Props file persisting without a confighandler.
@@ -234,8 +235,13 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         return self.Props.setdefault('exp_subentries', OrderedDict())
     @Subentries.setter
     def Subentries(self, subentries):
-        """property setter"""
-        self.Props['exp_subentries'] = subentries
+        """
+        Re-set Subentries to <subentries>
+        should be an OrderedDict alá subentries['a'] = dict-with-subentry-props.
+        """
+        if subentries != self.Props.get('exp_subentries'):
+            self.Props['exp_subentries'] = subentries
+            self.invokePropertyCallbacks('Subentries', subentries)
     @property
     def Expid(self):
         """Should always be located one place and one place only: self.Props."""
@@ -246,7 +252,8 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         if self.Props.get('expid') != expid:
             logger.info("Overriding old self.Expid '%s' with new expid '%s', localpath='%s'",
                         self.Expid, expid, self.Localdirpath)
-        self.Props['expid'] = expid
+            self.Props['expid'] = expid
+            self.invokePropertyCallbacks('Expid', expid)
     @property
     def Wiki_pagetitle(self):
         """Should always be located one place and one place only: self.Props."""
@@ -281,6 +288,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
                 self._wikipage.PageId = pageid
                 self._wikipage.reloadFromServer()
         self.Props['wiki_pageId'] = pageid
+        self.flagPropertyChanged('PageId')
 
 
     @cached_property(ttl=60)
@@ -293,7 +301,13 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         The property invokes the cached method listAttachments.
         To reset the cache and get an updated list, use getUpdatedAttachmentsList().
         """
-        return self.listAttachments()
+        attachments = self.listAttachments()
+        if self._last_attachmentslist != attachments:
+            self.invokePropertyCallbacks('Attachments', attachments)
+        else:
+            logger.debug("The newly-fetched attachments list is identical to the old, not invoking property callbacks...")
+        self._last_attachmentslist = attachments
+        return attachments
 
     @property
     def Manager(self):
@@ -311,11 +325,14 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
                 logger.info("[%s] - Having just attached the wikipage (pageid=%s), I will now parse wikipage subentries and merge them...",
                             self, self._wikipage.PageId)
                 self.mergeWikiSubentries(self._wikipage)
+                self.invokePropertyCallbacks('WikiPage', self._wikipage)
         return self._wikipage
     @WikiPage.setter
     def WikiPage(self, newwikipage):
         """property setter"""
-        self._wikipage = newwikipage
+        if newwikipage != self._wikipage:
+            self._wikipage = newwikipage
+            self.flagPropertyChanged('WikiPage')
     @property
     def Fileshistory(self):
         """
@@ -523,16 +540,26 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
 
     def updatePropsByFoldername(self, regex_prog=None):
         """
-        Update self.Props to match the meta info provided by the folder name, e.g. expid, titledesc and date.
+        Update self.Props to match the meta info provided by the folder name,
+        e.g. expid, titledesc and date.
+        Returns the matching regex, in case it might be useful to the caller.
         """
         if regex_prog is None:
             regex_prog = self.Exp_regex_prog
         regex_match = regex_prog.match(self.Foldername)
         if regex_match:
-            self.Props.update(regex_match.groupdict())
-            logger.debug("Props updated using foldername %s and regex, returning groupdict %s", self.Foldername, regex_match.groupdict())
-            if self.SavePropsOnChange:
-                self.saveProps()
+            # will groupdict update Props?
+            gd = regex_match.groupdict()
+            if next((True for key, value in gd.items() if key not in self.Props or value != self.Props[key]), False):
+                props = self.Props
+                props.update(gd)
+                logger.debug("Props updated using foldername %s and regex, returning groupdict %s", self.Foldername, regex_match.groupdict())
+                if self.SavePropsOnChange:
+                    self.saveProps()
+                self.invokePropertyCallbacks('Props', props)
+            else:
+                logger.debug("Groupdict %s from parsed foldername '%s' does not seem to update self.Props with keys: %s",
+                             gd, self.Foldername, self.Props.keys())
         return regex_match
 
     def updatePropsByWikipage(self, regex_prog=None):
@@ -547,10 +574,17 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             wikipage.reloadFromServer()
         regex_match = regex_prog.match(wikipage.Struct.get('title'))
         if regex_match:
-            self.Props.update(regex_match.groupdict())
-            logger.debug("Props updated using wikipage.Struct['title'] %s and regex, returning groupdict %s", regex_match.string, regex_match.groupdict())
-            if self.SavePropsOnChange:
-                self.saveProps()
+            gd = regex_match.groupdict()
+            if next((True for key, value in gd.items() if key not in self.Props or value != self.Props[key]), False):
+                props = self.Props
+                props.update(regex_match.groupdict())
+                logger.debug("Props updated using wikipage.Struct['title'] %s and regex, returning groupdict %s", regex_match.string, regex_match.groupdict())
+                if self.SavePropsOnChange:
+                    self.saveProps()
+                self.invokePropertyCallbacks('Props', props)
+            else:
+                logger.debug("Groupdict %s from parsed foldername '%s' does not seem to update self.Props with keys: %s",
+                             gd, self.Foldername, self.Props.keys())
         return regex_match
 
 
@@ -594,7 +628,11 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         self.Parentdirpath = parentdirpath
         if not foldername:
             logger.warning("Experiment.__init__() :: Warning, could not determine foldername...????")
+        if getattr(self, 'Foldername', None):
+            self.flagPropertyChanged('Foldername')
         self.Foldername = foldername
+        if getattr(self, 'Localdirpath', None):
+            self.flagPropertyChanged('Localdirpath')
         self.Localdirpath = localdirpath
         logger.debug("self.Parentdirpath=%s, self.Foldername=%s, self.Localdirpath=%s", self.Parentdirpath, self.Foldername, self.Localdirpath)
 
@@ -707,6 +745,8 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """
         Renames the local directory folder to match the formatting dictated by exp_series_dir_fmt.
         Also takes care to update the confighandler.
+
+        NOT COMPLETELY IMPLEMENTED OR TESTED!
         """
         dir_fmt = self.Confighandler.get('exp_series_dir_fmt')
         if not dir_fmt:
@@ -758,15 +798,21 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """
         #org_keyorder = self.Subentries.keys()
         if self.Subentries.keys() == sorted(self.Subentries.keys()):
+            # no change...
             return
-        self.Props['exp_subentries'] = self.Subentries = OrderedDict(sorted(self.Subentries.items()))
+        self.Subentries = OrderedDict(sorted(self.Subentries.items()))
+        # The Subentries setter will invoke callbacks...
 
 
-    def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None, extraprops=None, makefolder=False, makewikientry=False):
+    def addNewSubentry(self, subentry_titledesc, subentry_idx=None, subentry_date=None,
+                       extraprops=None, makefolder=False, makewikientry=False,
+                       batchmode=False):
         """
         Adds a new subentry and add it to the self.Props['subentries'][<subentry_idx>].
         Optionally also creates a local subentry folder and adds a new subentry section to the wiki page,
         by relaying to self.makeSubentryFolder() and self.makeWikiSubentry()
+        Setting batchmode to True will not call invokePropertyCallbacks, but
+        just flagPropertyChanged('Subentries')
         """
         if subentry_idx is None:
             subentry_idx = self.getNewSubentryIdx()
@@ -791,6 +837,10 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         if makewikientry:
             self.makeWikiSubentry(subentry_idx)
         self.saveIfChanged()
+        if batchmode:
+            self.flagPropertyChanged('Subentries')
+        else:
+            self.invokePropertyCallbacks('Subentries', self.Subentries)
         return subentry
 
 
@@ -876,11 +926,14 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """
         Make sure all subentries are initiated up to subentry <subentry_idx>.
         """
-        if not self.Subentries:
-            self.Subentries = OrderedDict()
+        count = 0
         for idx in idx_generator(subentry_idx):
             if idx not in self.Subentries:
                 self.Subentries[idx] = dict()
+                count += 1
+        if count:
+            self.invokePropertyCallbacks('Subentries', self.Subentries)
+
 
 
     def parseLocaldirSubentries(self, directory=None):
@@ -894,10 +947,11 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             return
         regex_prog = self.Subentries_regex_prog
         localdirs = sorted(dirname for dirname in os.listdir(directory) if os.path.isdir(os.path.abspath(os.path.join(directory, dirname))))
-        subentries = self.Props.setdefault('exp_subentries', OrderedDict())
+        subentries = self.Subentries
         logger.debug("Parsing directory '%s' for subentries using regex = '%s', localdirs = %s, subentries before parsing = %s",
                      directory, regex_prog.pattern, localdirs, subentries)
         matchsubdirs = sorted((match.group('subentry_idx'), match) for match in (regex_prog.match(subdir) for subdir in localdirs) if match)
+        count = 0
         for idx, match in matchsubdirs:
             gd = match.groupdict()
             logger.debug("MATCH found when for folder '%s', groupdict = %s", match.string, gd)
@@ -907,7 +961,12 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             gd['foldername'] = match.string
             # If subentry_idx is not in gd, then the regex is wrong and it is ok to fail with KeyError
             # Note that if subentry_idx is not present, simply making a new index could be dangerous; what if the directories are not sorted and the next index is not right?
-            subentries.setdefault(idx, dict()).update(gd)
+            # check whether something will be updated:
+            if next((True for key, value in gd.items() if key not in subentries or value != subentries[key]), False):
+                subentries.setdefault(idx, dict()).update(gd)
+                count += 1
+        if count:
+            self.invokePropertyCallbacks('Subentries', subentries)
         return subentries
 
 
@@ -985,21 +1044,26 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """
         Used to parse existing subentries (in self.Props) with subentries
         obtained by parsing the wiki page.
-        Returns True if success and False on fail.
+        Returns the number of created subentries (count)
+        and False if something fails.
         """
         wiki_subentries = self.parseSubentriesFromWikipage(wikipage)
         if wiki_subentries is None:
             return False
         # OrderedDict returned
         subentries = self.Subentries
+        count = 0
         for subentry_idx, subentry_props in wiki_subentries.items():
             if subentry_idx in subentries:
                 logger.debug("Subentry '%s' from wikipage already in Subentries", subentry_idx)
             else:
                 subentries[subentry_idx] = subentry_props
+                count += 1
                 logger.debug("Subentry '%s' from wikipage added to Subentries, props are: %s",
                              subentry_idx, subentry_props)
-        return True
+        if count:
+            self.invokePropertyCallbacks('Subentries', subentries)
+        return count
 
 
     def getNewSubentryIdx(self):
@@ -1063,6 +1127,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         Reload the attached wiki page from server.
         """
         self.WikiPage.reloadFromServer()
+        self.invokePropertyCallbacks('WikiPage', self.WikiPage)
 
 
     def getWikiXhtml(self, ):
@@ -1207,11 +1272,12 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         current_datetime = datetime.now()
         fmt_params = dict(datetime=current_datetime, date=current_datetime)
         fmt_params.update(self.Props)
-        self.WikiPage = pagefactory.new('exp_page', fmt_params=fmt_params)
+        self.WikiPage = wikipage = pagefactory.new('exp_page', fmt_params=fmt_params)
         self.Props['wiki_pageId'] = self.WikiPage.Struct['id']
         # Always save/persist props after making a wiki page, otherwise the pageId might be lost.
         self.saveProps()
-        return self.WikiPage
+        self.invokePropertyCallbacks('WikiPage', wikipage)
+        return wikipage
 
 
     def makeWikiSubentry(self, subentry_idx, subentry_titledesc=None, updateFromServer=True, persistToServer=True):
@@ -1224,7 +1290,9 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
             return
         res = self.JournalAssistant.newExpSubentry(subentry_idx, subentry_titledesc=subentry_titledesc, updateFromServer=updateFromServer, persistToServer=persistToServer)
         #pagetoken = self.getConfigEntry('wiki_exp_new_subentry_token') # I am no longer using tokens, but relying on regular expressions to find the right insertion spot.
-        self.saveIfChanged()
+        if res:
+            self.saveIfChanged()
+            # I am NOT invoking 'Subentries' callbacks; this is done elsewhere.
         return res
 
 
@@ -1258,9 +1326,9 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         """
         # Reset the cache:
         del self._cache['Attachments']
-        structs = self.Attachments
+        structs = self.Attachments # The Attachments cached property invokes callbacks whenever cache has expired.
         if not structs:
-            logger.info("Experiment.updateAttachmentsCache() :: listAttachments() returned '%s'", structs)
+            logger.info("Attachments property / listAttachments() returned '%s'", structs)
         return structs
 
     # edit: cached_property makes the method a property and can no longer be used as a method.

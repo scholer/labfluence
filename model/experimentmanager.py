@@ -172,6 +172,9 @@ class ExperimentManager(LabfluenceBase):
         self.Confighandler.invokeEntryChangeCallback('app_active_experiments')
         self.Confighandler.invokeEntryChangeCallback('app_recent_experiments')
         self.Confighandler.saveConfigForEntry('app_recent_experiments')
+        self.invokePropertyCallbacks('ActiveExperimentIds', self.ActiveExperimentIds)
+        self.invokePropertyCallbacks('RecentExperimentIds', self.RecentExperimentIds)
+
 
     def addActiveExperiments(self, exps, removeFromRecent=True):
         """
@@ -188,6 +191,8 @@ class ExperimentManager(LabfluenceBase):
         self.sortRecentExprimentIds()
         self.Confighandler.invokeEntryChangeCallback() # the 'app_active_experiments' has been marked as chaned by self.addActiveExperimentId
         self.Confighandler.saveConfigForEntry('app_active_experiments')
+        self.invokePropertyCallbacks(None) # invoke all.
+
 
     def addActiveExperimentId(self, expid, removeFromRecent=True):
         """
@@ -198,6 +203,7 @@ class ExperimentManager(LabfluenceBase):
             logger.debug("Appending expid '%s' to ActiveExperimentIds", expid)
             # possibly do:
             self.Confighandler.ChangedEntriesForCallbacks.add('app_active_experiments') # it is a set.
+            self.flagPropertyChanged('ActiveExperimentIds')
         else:
             logger.debug("expid '%s' already in ActiveExperimentIds.", expid)
         if removeFromRecent:
@@ -206,18 +212,21 @@ class ExperimentManager(LabfluenceBase):
                 logger.debug("Removing expid '%s' from RecentExperimentIds", expid)
                 self.RecentExperimentIds.remove(expid)
             self.Confighandler.ChangedEntriesForCallbacks.add('app_recent_experiments')
+            self.flagPropertyChanged('RecentExperimentIds')
 
     def sortActiveExprimentIds(self):
         """
         Sort "in place", just in case there are direct references to the list in other places...:
         """
         self.ActiveExperimentIds.sort()
+        self.invokePropertyCallbacks('ActiveExperimentIds', self.ActiveExperimentIds)
         logger.debug("Sorted ActiveExperimentIds: %s", self.ActiveExperimentIds)
     def sortRecentExprimentIds(self):
         """
         Sorts the list of recent experiment ids.
         """
         self.RecentExperimentIds.sort()
+        self.invokePropertyCallbacks('RecentExperimentIds', self.RecentExperimentIds)
         logger.debug("Sorted RecentExperimentIds: %s", self.RecentExperimentIds)
 
     def initExpIds(self, expids):
@@ -391,7 +400,6 @@ class ExperimentManager(LabfluenceBase):
             logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
             return
         return exps
-            #self._experiments = experiments
 
 
     def mergeLocalExperiments(self, basedir=None, addtoactive=False):#, sync_exptitledesc=None):
@@ -425,6 +433,7 @@ class ExperimentManager(LabfluenceBase):
             self.addActiveExperiments(newexpids) # This will take care of invoking registrered callbacks in confighandler.
         logger.info("mergeLocalExperiments(basedir=%s, addtoactive=%s) completed. Local experiment directory parsed and merged.", basedir, addtoactive)
         self._localexpdirsparsed = True
+        self.invokePropertyCallbacks('ExperimentsById', self._experimentsbyid)
         return newexpids
 
 
@@ -595,6 +604,7 @@ class ExperimentManager(LabfluenceBase):
         logger.info("Completed mergeCurrentWikiExperiments(autocreatelocaldirs=%s, mergeonlyexpids=%s), saving configs...:", autocreatelocaldirs, mergeonlyexpids)
         self.Confighandler.saveConfigs()
         logger.debug("Returning newexpids: %s", newexpids)
+        self.invokePropertyCallbacks('ExperimentsById', self._experimentsbyid)
         return newexpids
 
 
@@ -722,6 +732,7 @@ class ExperimentManager(LabfluenceBase):
         logger.debug("Adding newly created experiment to list of active experiments...")
         self.ExperimentsById[expid] = exp
         self.addActiveExperiments((expid, )) # This will take care of invoking registrered callbacks in confighandler.
+        self.invokePropertyCallbacks('ExperimentsById', self._experimentsbyid)
         return exp
 
 
