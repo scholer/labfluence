@@ -22,19 +22,15 @@ Server module. Provides classes to access e.g. a Confluence server through xmlrp
 from __future__ import print_function, division
 import xmlrpclib
 import socket
-#import os.path
 import itertools
 import string
-#import sys
 from Crypto.Cipher import AES
-#import Crypto.Random
 from Crypto.Random import random as crypt_random
 import inspect
 import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-#from confighandler import ConfigHandler, ExpConfigHandler
 from utils import login_prompt, display_message
 
 # Decorators:
@@ -83,7 +79,7 @@ class AbstractServer(object):
         self._raiseerrors = None # For temporary overwrite.
         #self._raisetimeouterrors = True # Edit: Hardcoded not here but in the attribute getter.
         self._connectionok = None # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
-       ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
+        ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
         ## It is nice, but not sure why this was so important, though...
         if not hasattr(self, 'CONFIG_FORMAT'):
             self.CONFIG_FORMAT = 'server_{}'
@@ -143,7 +139,6 @@ class AbstractServer(object):
         """ Property; Returns the registrered UI to use from the confighandler. """
         if self.Confighandler:
             return self.Confighandler.getSingleton("ui")
-
 
     @property
     def Serverparams(self):
@@ -255,6 +250,8 @@ class AbstractServer(object):
         if self._connectionok is not False:
             self._connectionok = False
             if self.Confighandler:
+                # If you implement a per-object callback system (instead of having it all in the confighandler),
+                # This is a suitable candidate for a callback property.
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
         logger.debug( "Server: _connectionok is now: %s", self._connectionok)
 
@@ -288,15 +285,23 @@ class AbstractServer(object):
                 logger.warning("%s, token could not be obtained (is '%s'), aborting.", self.__class__.__name__, token)
                 return None
         try:
-            logger.debug("%s, trying to execute for function %s with args %s", self.__class__.__name__, inspect.stack()[1][3], args)
+            # function.__name__ should equal inspect.stack()[1][3]. 
+            # Edit: No, function is the xmlrpclib.ServerProxy.confluence2.<xmlrpc api method>
+            # Whereas stack()[1][3] refers to the method which invoked this method, i.e. ConfluenceXmlRpcServer.<method>
+            # If function is a function, name will be available as "function.func_name"...
+            # If function is a method, name will be available as .__name__ and .im_func.func_name
+            # Edit: Do not try to log function.__name__, that does not work for xmlrpclib.
+            #logger.debug("%s, trying to execute for function '%s()' with args: %s", self.__class__.__name__, function.__name__, [type(arg) for arg in args])
+            logger.debug("%s: trying to execute for function '%s()' with args: %s", self.__class__.__name__, inspect.stack()[1][3], [type(arg) for arg in args])
             ret = function(token, *args)
             self.setok()
-            logger.debug("server request completed, returned value is: %s", type(ret))
+            logger.debug("server request completed, returned value is type: %s", type(ret))
             return ret
         except socket.error as e:
-            logger.debug("%s, socket error during execution of function %s: %s", self.__class__.__name__, inspect.stack()[1][3], e)
+            #logger.debug("%s, socket error during execution of function '%s()': %s", self.__class__.__name__, function.__name__, e)
+            logger.debug("%s, socket error during execution of function '%s()': %s", self.__class__.__name__, inspect.stack()[1][3], e)
             self.notok()
-            logger.debug("self.notok() invoked?")
+            logger.debug("Probably a network issue, no reason to try again, invoking self.notok().")
             #if raiseerrors is None:
             #raiseerrors = self._raiseerrors
             #if raiseerrors is None:
@@ -304,7 +309,7 @@ class AbstractServer(object):
             #if raiseerrors:
             #    raise e
         except xmlrpclib.Fault as e:
-            logger.debug("%s: xmlrpclib.Fault exception raised during execution of function %s:%s", self.__class__.__name__, inspect.stack()[1][3], e)
+            logger.debug("%s: xmlrpclib.Fault exception raised during execution of function %s: %s", self.__class__.__name__, inspect.stack()[1][3], e)
             cause = self.determineFaultCause(e)
             # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
             logger.debug("Cause of xmlrpclib.Fault determined to be: '%s'", cause)
@@ -382,7 +387,7 @@ class AbstractServer(object):
                 logger.warning("AbstractServer.getToken() :: unencrypted logintoken found in config. Returning this, but please try to transfer to encrypted version.")
                 return token_unencrypted
             else:
-                logger.info("AbstractServer.getToken() :: Aborting...")
+                logger.info("AbstractServer): Could not find an unencrypted token in the config, aborting (returning None)...")
                 return
         # Uh, it might be better to use AES.MODE
         cryptor = AES.new(crypt_key, AES.MODE_CFB, crypt_iv)
@@ -472,7 +477,7 @@ class AbstractServer(object):
 
     def determineFaultCause(self, e):
         """
-        Subclass this
+        Subclass this, depending on the serverproxy type. (server and API, for confluence server e.g. xmlrpc, REST.)
         """
         pass
 
