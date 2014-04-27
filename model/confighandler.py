@@ -157,6 +157,7 @@ def saveConfig(outputfn, config, updatelastsaved=True):
     For internal use; does the actual saving of the config.
     Can be easily mocked or overridden by fake classes to enable safe testing environments.
     """
+    logger.debug("Saving config (type: '%s') to path: %s", type(config), outputfn)
     try:
         # default_flow_style=False -> make the output "prettier" (block style)
         # width=-1 -> disables line-wrapping in Ruby, but doesn't work for PyYAML,
@@ -178,6 +179,7 @@ def loadConfig(inputfn):
     """
     Load config (dict) from file.
     """
+    logger.debug("Loading config from path: %s", inputfn)
     with open(inputfn) as fd:
         cfg = yaml.load(fd)
     return cfg
@@ -526,6 +528,7 @@ class ConfigHandler(object):
             if what == 'all' or cfgtype in what or cfgtype == what:
                 if outputfn:
                     logger.info("Saving config '%s' to file: %s", cfgtype, outputfn)
+                    saveConfig(outputfn, self.Configs[cfgtype])
                 else:
                     logger.info("No filename specified for config '%s'", cfgtype)
             else:
@@ -1137,6 +1140,7 @@ class HierarchicalConfigHandler(object):
         dpath, fpath = self.getConfigFileAndDirPath(path)
         # optionally perform a check to see if the config was changed since it was last saved...?
         # either using an external file, a timestampt, or something else...
+        logger.debug("saveConfig invoked with path '%s' and type(cfg)=%s", path, cfg)
         if cfg is None:
             if path in self.Configs:
                 cfg = self.Configs[path]
@@ -1155,8 +1159,13 @@ class HierarchicalConfigHandler(object):
 
         # EDIT: It is no longer possible to 'skip' the check, but you can
         # make sure that cfg will override, by setting cfg['lastsaved'] = datetime.now() - although that is a hack.
-        cfgfromfile = loadConfig(fpath)
-        keysupdatedfromfile, keysupdatedinmemory, changedkeys = check_cfgs_and_merge(cfg, cfgfromfile) # This will merge cfg with the one from file...
+        try:
+            cfgfromfile = loadConfig(fpath)
+        except IOError as e:
+            logger.debug("Could not load file '%s', it probably doesn't exists yet (will be the case for all newly created experiments): %s", fpath, e)
+            keysupdatedfromfile, keysupdatedinmemory, changedkeys = None, None, None
+        else:
+            keysupdatedfromfile, keysupdatedinmemory, changedkeys = check_cfgs_and_merge(cfg, cfgfromfile) # This will merge cfg with the one from file...
         #if keysupdatedfromfile:
         #    if self._parent:
         #        self._parent.invokeEntryChangeCallback(path, keysupdatedfromfile)
