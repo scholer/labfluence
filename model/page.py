@@ -331,11 +331,6 @@ minorEdit      Boolean Is this update a 'minor edit'? (default value: false)
             new_struct['title'] = title
         #new_struct['version'] = str(int(new_struct['version'])+0) # 'version' refers to the version you are EDITING, not the version number for the version that you are submitting.
         pageUpdateOptions = dict(versionComment=versionComment, minorEdit=minorEdit)
-<<<<<<< local
-        logger.debug("pageUpdateOptions: %s, new_struct: %s", pageUpdateOptions, new_struct)
-=======
-        logger.debug("pageUpdateOptions: %s, new_struct: %s", pageUpdateOptions, ", ".join("{} (len={})".format(key, len(val) if val and hasattr(val, '__len__') else None) for key, val in new_struct.items()))
->>>>>>> other
         page_struct = self.Server.updatePage(new_struct, pageUpdateOptions)
         if page_struct:
             logger.debug("Returned page struct from server with keys: %s", ", ".join("{} (len={})".format(key, len(val) if val and hasattr(val, '__len__') else None) for key, val in page_struct.items()))
