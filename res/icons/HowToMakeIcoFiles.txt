@@ -1,0 +1,3 @@
+
+1. Save as Tiff or PNG, using transparency and anti-aliasing.
+2. Use www.convertico.com to create ico file. (IrfanView does a HORRIBLE JOB).
