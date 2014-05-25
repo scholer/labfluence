@@ -860,6 +860,8 @@ class ExpConfigHandler(ConfigHandler):
         self.Pathfinder = PathFinder()
         pschemedict = self.Pathfinder.getScheme(pathscheme) if pathscheme else dict()
         systemconfigfn = systemconfigfn or pschemedict.get('sys')
+        if systemconfigfn and os.path.normpath('setup/configs/default') in systemconfigfn:
+            print "WARNING: Pathfinder picked up config in deprechated location 'setup/configs/default/' -- PLEASE MOVE/COPY THE CONFIG FROM HERE TO <install-dir>/config/ !"
         userconfigfn = userconfigfn or pschemedict.get('user')
         expconfigfn = expconfigfn or pschemedict.get('exp')
         # init super:
@@ -1279,7 +1281,7 @@ class PathFinder(object):
         self._schemeSearch = dict()
         # notation is:
         # configtype : (<filename to look for>, (list of directories to look in))
-        self._schemeSearch['default1'] = dict(sys=('labfluence_sys.yml', ('.', 'config', 'setup/configs/default/')),
+        self._schemeSearch['default1'] = dict(sys=('labfluence_sys.yml', ('.', 'config', 'configs', 'setup/configs/default/')),
                                               user=('labfluence_user.yml',
                                                     (os.path.expanduser(os.path.join('~', dir)) for dir in
                                                     ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence')))

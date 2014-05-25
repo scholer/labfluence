@@ -51,7 +51,7 @@ class ConfigInstaller(object):
         # Ordered dict of.
         # configtype : ( <copy from path>, <copy-to-path> )
         self.Paths = OrderedDict(system = (os.path.join('setup', 'configs', 'new_install', 'labfluence_sys.yml'),
-                                    os.path.join('configs', 'labfluence_sys.yml')),
+                                    os.path.join('config', 'labfluence_sys.yml')),
                             user = (os.path.join('setup', 'configs', 'new_install', 'labfluence_user.yml'),
                                     os.path.join(os.path.expanduser('~'), '.labfluence', 'labfluence_user.yml')),
                             exp = (os.path.join('setup', 'configs', 'new_install', 'labfluence_exp.yml'),
