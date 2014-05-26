@@ -80,6 +80,8 @@ from Tkinter import TclError
 
 from pathutils import getPathParents
 
+modeldir = os.path.dirname(__file__)
+appdir = os.path.dirname(modeldir)
 
 
 def check_cfgs_and_merge(cfginmemory, cfgfromfile):
@@ -301,8 +303,8 @@ class ConfigHandler(object):
         """
         Get the path for a particular config, has three return values:
             getConfigPath('all') -> returns self.ConfigPaths.values()
-            getConfigPath('sys') -> return self.ConfigPaths['sys']
-            getConfigPath('sys', aslist=True) -> return ( self.ConfigPaths['sys'], ) tuple.
+            getConfigPath('system') -> return self.ConfigPaths['system']
+            getConfigPath('system', aslist=True) -> return ( self.ConfigPaths['system'], ) tuple.
         """
         if what == 'all':
             return self.ConfigPaths.values()
@@ -318,9 +320,9 @@ class ConfigHandler(object):
         Five return behaviours:
         0) getConfig('combined') -> returns the combined, effective config for all configs.
         1) getConfig('combined') -> Return 1-element list with the combined, effective config as sole element.
-        2) getConfig('sys') -> returns the 'sys' config.
+        2) getConfig('system') -> returns the 'system' config.
         3) getConfig('all') -> returns self.Configs.values() list.
-        4) getConfig('sys', aslist=True) -> returns a tuple with the 'sys' config as sole element.
+        4) getConfig('system', aslist=True) -> returns a tuple with the 'system' config as sole element.
         """
         if what == 'combined':
             combined = dict()
@@ -520,8 +522,8 @@ class ConfigHandler(object):
         Persist config specified by what argument.
         Use as:
             saveConfigs('all') --> save all configs (default)
-            saveConfigs('sys') --> save the 'sys' config. (or use the simpler: saveConfig(cfgtype))
-            saveConfigs(('sys', 'exp') --> save the 'sys' and 'exp' config.
+            saveConfigs('system') --> save the 'system' config. (or use the simpler: saveConfig(cfgtype))
+            saveConfigs(('system', 'exp') --> save the 'system' and 'exp' config.
         """
         logger.info("saveConfigs invoked with configtosave '%s'", what)
         for cfgtype, outputfn in self.ConfigPaths.items():
@@ -843,14 +845,14 @@ class ExpConfigHandler(ConfigHandler):
         1) '2013/ProjectB/ExpAB123 Important experiment v11/.labfluence.yml'
         2) '2013/ProjectB/.labfluence.yml'
         3) '2013/.labfluence.yml'
-        4) Search the already loaded config types in order, e.g. 4.1) 'exp', 4.2) 'user', 4.3) 'sys'.
+        4) Search the already loaded config types in order, e.g. 4.1) 'exp', 4.2) 'user', 4.3) 'system'.
     3)  Relative experiment paths will be returned as absolute paths, i.e. for the config keys:
         if local_exp_rootDir = '2013' --> return os.path.join(exp_path, cfg[key]
         and equivalent for local_exp_subDir and local_exp_ignoreDirs (which is a list of paths).
     4)  It employs a PathFinder to automatically locate config paths by searching local directories,
         according to a specified path scheme.
         The default path scheme, 'default1', will e.g. search for the user config in '~/.Labfluence/',
-        while the path scheme 'test1' will search for both 'sys' and 'user' configs
+        while the path scheme 'test1' will search for both 'system' and 'user' configs
         in the relative directory 'setup/configs/test_configs/local_test_setup_1'.
 
     """
@@ -860,10 +862,11 @@ class ExpConfigHandler(ConfigHandler):
         self.Pathfinder = PathFinder()
         pschemedict = self.Pathfinder.getScheme(pathscheme) if pathscheme else dict()
         systemconfigfn = systemconfigfn or pschemedict.get('sys')
-        if systemconfigfn and os.path.normpath('setup/configs/default') in systemconfigfn:
-            print "WARNING: Pathfinder picked up config in deprechated location 'setup/configs/default/' -- PLEASE MOVE/COPY THE CONFIG FROM HERE TO <install-dir>/config/ !"
         userconfigfn = userconfigfn or pschemedict.get('user')
         expconfigfn = expconfigfn or pschemedict.get('exp')
+        logger.debug("Pathfinder located system, user and exp configs: %s, %s, %s", systemconfigfn, userconfigfn, expconfigfn)
+        if systemconfigfn and os.path.normpath('setup/configs/default') in systemconfigfn:
+            print "\nWARNING: Pathfinder picked up config in deprechated location 'setup/configs/default/' -- PLEASE MOVE/COPY THE CONFIG FROM HERE TO <install-dir>/config/ !\n"
         # init super:
         ConfigHandler.__init__(self, systemconfigfn, userconfigfn)
         self.Configs['exp'] = dict()
@@ -1281,19 +1284,21 @@ class PathFinder(object):
         self._schemeSearch = dict()
         # notation is:
         # configtype : (<filename to look for>, (list of directories to look in))
-        self._schemeSearch['default1'] = dict(sys=('labfluence_sys.yml', ('.', 'config', 'configs', 'setup/configs/default/')),
+        self._schemeSearch['default1'] = dict(sys=('labfluence_sys.yml',
+                                                   (os.path.join(appdir, subdir) for subdir in
+                                                    ('.', 'config', 'configs', os.path.join('setup', 'configs', 'default')))),
                                               user=('labfluence_user.yml',
                                                     (os.path.expanduser(os.path.join('~', dir)) for dir in
                                                     ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence')))
                                                     )
                                               )
-        self._schemeSearch['test1'] = dict(sys=('labfluence_sys.yml', ('setup/configs/test_configs/local_test_setup_1',)),
-                                           user=('labfluence_user.yml', ('setup/configs/test_configs/local_test_setup_1',))
+        self._schemeSearch['test1'] = dict(sys=('labfluence_sys.yml', (os.path.join(appdir, 'setup/configs/test_configs/local_test_setup_1'),)),
+                                           user=('labfluence_user.yml', (os.path.join(appdir, 'setup/configs/test_configs/local_test_setup_1'),))
                                            )
 
-        self._schemeSearch['install'] = dict(sys=('labfluence_sys.yml', ('setup/configs/new_install/',)),
-                                             user=('labfluence_user.yml', ('setup/configs/new_install/',)),
-                                             exp=('labfluence_exp.yml', ('setup/configs/new_install/',))
+        self._schemeSearch['install'] = dict(sys=('labfluence_sys.yml', (os.path.join(appdir, 'setup/configs/new_install/'),)),
+                                             user=('labfluence_user.yml', (os.path.join(appdir, 'setup/configs/new_install/'),)),
+                                             exp=('labfluence_exp.yml', (os.path.join('setup/configs/new_install/'),))
                                              )
 
         #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
