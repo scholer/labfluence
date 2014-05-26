@@ -27,6 +27,8 @@ The huge difference affecting all methods also means that no attempt was made to
 use class inheritance between the simple and the full server model. One might argue
 that this could have been implemented using method decorators to wrap the methods...
 
+
+
 """
 from __future__ import print_function
 import xmlrpclib
@@ -50,6 +52,15 @@ class SimpleConfluenceXmlRpcServer(object):
     This version does not use a confighandler object (or any other persistance),
     it is not able to report a "connection status", and most importantly
     it is not able to conduct automatic login if a failed login is encountered.
+
+    Example usage:
+    # Default: The server will ask for username + password if required:
+    >>> server = SimpleConfluenceXmlRpcServer("https://example.com/rpc/xmlrpc")
+    # Specify username and password manually:
+    >>> server = SimpleConfluenceXmlRpcServer("https://example.com/rpc/xmlrpc", username='jdoe', password='miss/gi')
+    # Create a server which uses existing token:
+    server = SimpleConfluenceXmlRpcServer("https://example.com/rpc/xmlrpc", token='12de4a837b')
+
     """
     def __init__(self, appurl, username=None, password=None, logintoken=None, autologin=True, prompt='auto', ui=None):
         self.UI = ui
