@@ -17,6 +17,8 @@
 # pylint: disable-msg=C0103,C0301,R0201,R0904,W0142
 """
 Server module. Provides classes to access e.g. a Confluence server through xmlrpc.
+
+
 """
 
 from __future__ import print_function, division
@@ -54,7 +56,7 @@ class AbstractServer(object):
         child class is unnessecary.
 
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, url=None,
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, #url=None,
                  confighandler=None, autologin=True, VERBOSE=0):
         """
         Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
@@ -72,7 +74,7 @@ class AbstractServer(object):
         #logger.debug("%s, init arguments: %s", self.__class__.__name__, locals())
         self._logintoken = logintoken
         self._autologin = autologin
-        self._url = url
+        #self._url = url
         self.Confighandler = confighandler
         self._loginpromptoptions = None
         self._defaultpromptoptions = dict(save_username_inmemory=True, save_password_inmemory=True)
@@ -285,7 +287,7 @@ class AbstractServer(object):
                 logger.warning("%s, token could not be obtained (is '%s'), aborting.", self.__class__.__name__, token)
                 return None
         try:
-            # function.__name__ should equal inspect.stack()[1][3]. 
+            # function.__name__ should equal inspect.stack()[1][3].
             # Edit: No, function is the xmlrpclib.ServerProxy.confluence2.<xmlrpc api method>
             # Whereas stack()[1][3] refers to the method which invoked this method, i.e. ConfluenceXmlRpcServer.<method>
             # If function is a function, name will be available as "function.func_name"...
@@ -486,26 +488,36 @@ class AbstractServer(object):
 class ConfluenceXmlRpcServerProxy(AbstractServer):
     """
 
-Note regarding long integer vs string for pageIds etc (from the docs):
-Confluence uses 64-bit long values for things like object IDs, but XML-RPC's largest supported numeric type is int32.
-As a result, all IDs and other long values are converted to Strings when passed through XML-RPC API.
+    Server interface to the XML-RPC API of a Confluence instance.
 
-Alternative to xmlrpc (at /rpc/xmlrpc) includes:
-* SOAP API, at /rpc/soap-axis/confluenceservice-v2?wsdl
-* JSON API, at /rpc/json-rpc/confluenceservice-v2
-* REST API, at /confluence/rest/prototype/1/space/ds (/context/rest/api-name/api-version/resource-name)
+    Note: If using from command line, consider using the simpleserver module instead!!
 
-https://developer.atlassian.com/display/CONFDEV/Confluence+XML-RPC+and+SOAP+APIs
-https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
-https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
-https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
-
-TODO: If a UI framework is available, it might be convenient to add a timer-based keep-alive callback
-to prevent the login token from expiring.
+    Example usage:
+    >>> serverparams={'appurl':"https://example.com/rpc/xmlrpc"}
+    # Default: The server will ask for username + password if required:
+    >>> server = ConfluenceXmlRpcServerProxy(serverparams)
+    # Specify username and password manually:
+    >>> server = ConfluenceXmlRpcServerProxy(serverparams, username='jdoe', password='miss/gi')
+    # Create a server which uses existing token:
+    server = ConfluenceXmlRpcServerProxy(serverparams, token='12de4a837b')
 
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, url=None,
-                 confighandler=None, autologin=True):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, # url=None,
+                 confighandler=None, autologin=True, VERBOSE=0):
+        """
+        Argument <url> is now deprecated.
+        Instead, use serverparams dict, which may include entries:
+        * appurl : <baseurl>:<urlpostfix>
+        * baseurl : <protocol>:<hostname>[:port]
+        * urlpostfix : path to the API, e.g. '/rpc/xmlrpc'
+        * hostname : e.g "localhost", "127.0.0.1" or wiki.cdna.au.dk
+        * post : e.g. 80, 443, 8080, etc.
+        * protocol : e.g. 'http', 'https'.
+        * raisetimeouterrors : bool (whether to raise timeout errors during run).
+        If e.g. appurl is not explicitly specified, it is generated from the noted sub-components.
+        Note that some primitives (e.g. urlpostfix) will vary depending on the server
+        implementation (XML-RPC vs REST). These defaults are usually specified in self._defaultparams.
+        """
                  #serverparams=None, username=None, password=None, logintoken=None,
                  #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
         #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
@@ -515,7 +527,7 @@ to prevent the login token from expiring.
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
         # Remember, super takes current class as first argument (python2)
         super(ConfluenceXmlRpcServer, self).__init__(serverparams=serverparams, username=username,
-                                                     password=password, logintoken=logintoken, url=url,
+                                                     password=password, logintoken=logintoken, #url=url,
                                                      confighandler=confighandler, autologin=autologin)
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
         #self.UI = ui # Is now a property that goes through confighandler.
@@ -1364,6 +1376,27 @@ if __name__ == "__main__":
 
 
 """
+
+### Notes regarding Confluence's interfaces ###
+
+Note regarding long integer vs string for pageIds etc (from the docs):
+Confluence uses 64-bit long values for things like object IDs, but XML-RPC's largest supported numeric type is int32.
+As a result, all IDs and other long values are converted to Strings when passed through XML-RPC API.
+
+Alternative to xmlrpc (at /rpc/xmlrpc) includes:
+* SOAP API, at /rpc/soap-axis/confluenceservice-v2?wsdl
+* JSON API, at /rpc/json-rpc/confluenceservice-v2
+* REST API, at /confluence/rest/prototype/1/space/ds (/context/rest/api-name/api-version/resource-name)
+
+https://developer.atlassian.com/display/CONFDEV/Confluence+XML-RPC+and+SOAP+APIs
+https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
+https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
+https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
+
+TODO: If a UI framework is available, it might be convenient to add a timer-based keep-alive callback
+to prevent the login token from expiring.
+
+
 
 Other Confluence xmlrpc API projects:
 * https://github.com/al3xandr3/ruby/blob/master/confluence.rb
