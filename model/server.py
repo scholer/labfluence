@@ -365,6 +365,8 @@ class AbstractServer(object):
         b) the server is already connected.
         This method should be defined/overridden by subclasses...
         """
+        if prompt is None:
+            prompt = login_prompt
         logger.warning("autologin called, but not implemented for class %s", self.__class__.__name__)
 
     def getToken(self, token_crypt=None):
@@ -853,15 +855,14 @@ class ConfluenceXmlRpcServerProxy(AbstractServer):
 
     def getServerInfo(self):
         """
-        returns a list of dicts with space info for spaces that the user can see.
+        Returns a dict with server information.
         """
         return self.execute(self.RpcServer.confluence2.getServerInfo)
-        #return self.RpcServer.confluence2.getServerInfo(token)
 
 
     def getSpaces(self):
         """
-        returns a list of dicts with space info for spaces that the user can see.
+        Returns a list of dicts with space info for spaces that the user can see.
         """
         logger.debug('self.RpcServer.confluence2.getSpaces() invoked...')
         return self.execute(self.RpcServer.confluence2.getSpaces)
@@ -873,7 +874,7 @@ class ConfluenceXmlRpcServerProxy(AbstractServer):
 
     def getUser(self, username):
         """
-        returns a dict with name, email, fullname, url and key.
+        Returns a dict with name, email, fullname, url and key.
         """
         return self.execute(self.RpcServer.confluence2.getUser, username)
 
@@ -902,7 +903,7 @@ class ConfluenceXmlRpcServerProxy(AbstractServer):
 
     def getPages(self, spaceKey):
         """
-        returns all the summaries in the space.
+        Returns all the summaries in the space.
         PageSummary datastructs are dicts, with:
 
 Key         Type   Value
@@ -967,7 +968,7 @@ current       Boolean whether the page is current and not deleted
 
     def movePage(self, sourcePageId, targetPageId, position='append'):
         """
-        moves a page's position in the hierarchy.
+        Moves a page's position in the hierarchy.
         takes pageIds as strings.
         Arguments:
         * sourcePageId - the id of the page to be moved.
@@ -992,7 +993,7 @@ current       Boolean whether the page is current and not deleted
 
     def getAncestors(self, pageId):
         """
-        # Returns list of page attachments
+        Returns list of page attachments
         takes pageId as string.
         """
         pageId = str(pageId)
@@ -1010,7 +1011,7 @@ current       Boolean whether the page is current and not deleted
 
     def getDescendents(self, pageId):
         """
-        # Returns all the descendants of this page (children, children's children etc).
+        Returns all the descendants of this page (children, children's children etc).
         takes pageId as string.
         """
         pageId = str(pageId)
@@ -1022,26 +1023,17 @@ current       Boolean whether the page is current and not deleted
     ##############################
 
     def getComments(self, pageId):
-        """
-        # Returns all the comments for this page.
-        takes pageId as string.
-        """
+        """ Returns all the comments for this page, takes pageId as string. """
         pageId = str(pageId)
         return self.execute(self.RpcServer.confluence2.getComments, pageId)
 
     def getComment(self, commentId):
-        """
-        # Returns an individual comment.
-        takes commentId as string.
-        """
+        """ Returns an individual comment, takes commentId as string. """
         commentId = str(commentId)
         return self.execute(self.RpcServer.confluence2.getComment, commentId)
 
     def removeComment(self, commentId):
-        """
-        # Returns an individual comment.
-        takes commentId as string.
-        """
+        """ Removes an individual comment, takes commentId as string. """
         commentId = str(commentId)
         return self.execute(self.RpcServer.confluence2.removeComment, commentId)
 
@@ -1096,12 +1088,11 @@ current       Boolean whether the page is current and not deleted
         return ret
 
     def removeAttachment(self, contentId, fileName):
-        """remove an attachment from a content entity object.
-        """
+        """ Remove an attachment from a content entity object. """
         return self.execute(self.RpcServer.confluence2.removeAttachment, contentId, fileName)
 
     def moveAttachment(self, originalContentId, originalName, newContentEntityId, newName):
-        """move an attachment to a different content entity object and/or give it a new name."""
+        """ Move an attachment to a different content entity object and/or give it a new name. """
         return self.execute(self.RpcServer.confluence2.moveAttachment, originalContentId, originalName, newContentEntityId, newName)
 
 
@@ -1111,7 +1102,7 @@ current       Boolean whether the page is current and not deleted
 
 
     def storePage(self, page_struct):
-        """ adds or updates a page.
+        """ Adds or updates a page.
 For adding, the Page given as an argument should have space, title and content fields at a minimum.
 For updating, the Page given should have id, space, title, content and version fields at a minimum.
 The parentId field is always optional. All other fields will be ignored.
@@ -1124,7 +1115,7 @@ Operates exactly like updatePage() if the page already exists.
         return self.execute(self.RpcServer.confluence2.storePage, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
-        """ updates a page.
+        """ Updates a page.
 The Page given should have id, space, title, content and version fields at a minimum.
 The parentId field is always optional. All other fields will be ignored.
 Note: the return value can be null, if an error that did not throw an exception occurred.
@@ -1165,7 +1156,8 @@ Note: the return value can be null, if an error that did not throw an exception 
     ##############################
 
     def search(self, query, maxResults, parameters=None):
-        """search
+        """
+        Search for page or other content.
 String token, String query, int maxResults, map parameters
  return a list of results which match a given search query (including pages and other content types). This is the same as a performing a parameterised search (see below) with an empty parameter map.
  with paramters argument:
@@ -1347,7 +1339,9 @@ contributor:
 
     def storePageContent(self, pageId, spaceKey, newContent, contentformat='xml'):
         """
-        Modifies the content of a Confluence page.
+        Convenience method to modify the content of a Confluence page.
+        Will convert newContent interpreting
+        newContent as being in format <contentformat>.
         :param page:
         :param space:
         :param content:
@@ -1362,16 +1356,14 @@ contributor:
         return page
 
 
+# Make ALIAS:
 ConfluenceXmlRpcServer = ConfluenceXmlRpcServerProxy
-
-# init: (host=None, url=None, port=None, username=None, password=None, logintoken=None, autologin=True, protocol=None, urlpostfix=None)
 
 
 
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
-
 
 
 
