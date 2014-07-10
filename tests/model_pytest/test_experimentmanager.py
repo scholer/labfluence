@@ -144,6 +144,10 @@ def em_with_fake_ch_and_patched_server(monkeypatch):
 
 
 def test_getLocalExperiments(experimentmanager_with_confighandler):
+    """
+    If this fails, ask someone to email you test_filestructure.zip
+    This isn't optimal, but works for now. It will be cleaned up if someone needs it.
+    """
     em = experimentmanager_with_confighandler
     expdir = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '2013_Aarhus')
     assert em.getLocalExpSubDir() == expdir
