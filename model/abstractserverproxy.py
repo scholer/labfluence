@@ -42,6 +42,7 @@ from utils import login_prompt, display_message
 # Decorators:
 from decorators.cache_decorator import cached_property
 
+__version__ = "0.1-dev"
 
 
 class AbstractServerProxy(object):
@@ -227,6 +228,14 @@ class AbstractServerProxy(object):
     def CachedConnectStatus(self):
         """ Cached connection status, returning result of self.test_connection. """
         return self.test_connection()
+
+
+    def UserAgent(self):
+        """ User-Agent string reported to the server, if applicable. """
+        return "{user} via {appname}/{version} (appurl; appemail)".format(
+            username=self.Username, appname="Labfluence", appversion=__version__ ,
+            appurl='http://bitbucket.org/rasmusscholer/labfluence/',
+            appemail='rasmusscholer@gmail.com')
 
 
     def __nonzero__(self):

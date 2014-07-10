@@ -16,6 +16,7 @@
 ##
 # pylint: disable-msg=C0103,C0301,R0201,R0904,W0142
 """
+
 XmlRpc serverproxy module.
 
 Provides classes to access e.g. a Confluence server through xmlrpc.
@@ -28,6 +29,13 @@ which is now deprecated.
 Since the focus for most wiki instances seems to be to support RESTful
 APIs, this module will probably not receive much care in the future.
 Consider that an eary deprecation warning.
+
+Some parts of this is inspired/derived/taken from the projects:
+    * legoktm/supersimplemediawiki  (copyright Kunal Mehta)
+    * goldsmith/Wikipedia  (copyright Jonathan Goldsmith)
+    * Riamse/ceterach (copyright Andrew Wang <andrewwang43@gmail.com>)
+All of this has been released to the public domain.
+
 
 """
 
@@ -53,14 +61,92 @@ defaultsockettimeout = 3.0
 from abstractserverproxy import AbstractServerProxy
 
 
+class RESTError(Exception):
+    """Any error"""
 
 
-class RestfulConfluenceServerProxy(AbstractServerProxy):
+class RestfulServerProxy(AbstractServerProxy):
+    """
+
+    Server interface to the REST API of a MediaWiki instance.
+    Introduced summer 2014.
+
+    Many parts of this is inspired/derived/taken from the projects:
+    * legoktm/supersimplemediawiki  (copyright Kunal Mehta)
+    * goldsmith/Wikipedia  (copyright Jonathan Goldsmith)
+
+    """
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, # url=None,
+                 confighandler=None, autologin=True, VERBOSE=0):
+        """
+        Use serverparams dict to specify API parameters, which may include entries:
+        * appurl : <baseurl>:<urlpostfix>   - main API entry point
+        * baseurl : <protocol>:<hostname>[:port]
+        * urlpostfix : path to the API, e.g. '/rpc/xmlrpc'
+        * hostname : e.g "localhost", "127.0.0.1" or wiki.cdna.au.dk
+        * post : e.g. 80, 443, 8080, etc.
+        * protocol : e.g. 'http', 'https'.
+        * raisetimeouterrors : bool (whether to raise timeout errors during run).
+        If e.g. appurl is not explicitly specified, it is generated from the noted sub-components.
+        Note that some primitives (e.g. urlpostfix) will vary depending on the server
+        implementation (XML-RPC vs REST). These defaults are usually specified in self._defaultparams.
+        """
+
+        logger.debug("New %s initializing...", self.__class__.__name__)
+        super(RestfulMediawikiServerProxy, self).__init__(serverparams=serverparams, username=username,
+                                                     password=password, logintoken=logintoken,
+                                                     confighandler=confighandler, autologin=autologin)
+        self._default_rest_params
+
+    def setup_rest_api(self):
+        """
+        Performs commont REST api setup.
+        Call after setting self._defaultparams
+        """
+        s = self.Session = requests.Session()
+        s.headers.update({'User-agent' : self.UserAgent})
+        #self.Cookies = dict() # Session handles cookies.
+        apiurl = self._apiurl = self.AppUrl # I cache this because I don't want to generate it with every call.
+        if not apiurl:
+            logger.warning("WARNING: Server's AppUrl is '%s', ABORTING init!", apiurl)
+            return None
+        logger.info("%s - Using REST API url: %s", self.__class__.__name__, apiurl)
+        if self.AutologinEnabled:
+            self.autologin()
+        logger.debug("%s initialized.", self.__class__.__name__)
+
+    def get(self, params=None, data=None, files=None):
+        """
+        Make a standard REST API HTTP GET request.
+        """
+        r = self.Session.get(self._apiurl, params=params, cookies=self.Cookies, headers=self.Headers, files=files, data=data)
+        return self.process_request(r)
+
+    def post(self, params=None, data=None, files=None):
+        """
+        Make a standard REST API HTTP POST request.
+        """
+        r = self.Session.post(self._apiurl, params=params, cookies=self.Cookies, headers=self.Headers, files=files, data=data)
+        return self.process_request(r)
+
+    def process_request(self, requst):
+        """
+        Does brief processing of request, saving cookies and raising errors if needed.
+        """
+        if not request.ok:
+            raise RESTError(request.text)
+        #self.Cookies.update(request.cookies) # Session handles cookies.
+        return request
+
+
+
+
+class RestfulConfluenceServerProxy(RestfulServerProxy):
     """
 
     Server interface to the REST API of a Confluence instance.
     Introduced summer 2014.
-    
+
     These methods are part of the standard 'labfluence server' API,
     defined by AbstractServerProxy (asterix marks platform-dependent methods):
     - login
@@ -92,23 +178,60 @@ class RestfulConfluenceServerProxy(AbstractServerProxy):
     - addPage
     - savePage
     - updatePage
-    
+
     Addotionally, RESTful serverproxies should provide generic query methods
     to the REST API. (This will usually be the case anyways...)
+
+    One thing I might consider: Implement REST API via an extremely SIMPLE
+    ServerProxy which SIMULATES the XML-RPC format.
+    Then consume this through ConfluenceXmlRpcServerProxy,
+    specifying self.RpcServer as this simulating server.
+    Then I would't have to change a thing in the rest of the
+    labfluence code, it would "just work".
+    On the other hand: Since logging in and error/exception handling
+    is so different - and since that is mostly what this feature would
+    utilize, this is probably a poor strategy.
+    It is probably better to implement the REST api from scratch,
+    keeping things as simple as possible.
+    Methods could take a
+       dataformat="confluencexmlrpc"
+    parameter, which would ensure that the returned data format is compatible
+    with the data returned by Confluence's old xml-rpc api.
 
     """
     pass
 
 
-class RestfulMediawikiServerProxy(AbstractServerProxy):
+class RestfulMediawikiServerProxy(RestfulServerProxy):
     """
 
     Server interface to the REST API of a MediaWiki instance.
     Introduced summer 2014.
 
-    """
-    pass
 
+    """
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, # url=None,
+                 confighandler=None, autologin=True, VERBOSE=0):
+        """
+        Use serverparams dict to specify API parameters, which may include entries:
+        * appurl : <baseurl>:<urlpostfix>   - main API entry point
+        * baseurl : <protocol>:<hostname>[:port]
+        * urlpostfix : path to the API, e.g. '/rpc/xmlrpc'
+        * hostname : e.g "localhost", "127.0.0.1" or wiki.cdna.au.dk
+        * post : e.g. 80, 443, 8080, etc.
+        * protocol : e.g. 'http', 'https'.
+        * raisetimeouterrors : bool (whether to raise timeout errors during run).
+        If e.g. appurl is not explicitly specified, it is generated from the noted sub-components.
+        Note that some primitives (e.g. urlpostfix) will vary depending on the server
+        implementation (XML-RPC vs REST). These defaults are usually specified in self._defaultparams.
+        """
+
+        logger.debug("New %s initializing...", self.__class__.__name__)
+        super(RestfulMediawikiServerProxy, self).__init__(serverparams=serverparams, username=username,
+                                                     password=password, logintoken=logintoken,
+                                                     confighandler=confighandler, autologin=autologin)
+        self._defaultparams = dict(port='80', urlpostfix='/w/api.php', protocol='http')
+        self.setup_rest_api()
 
 """
 
@@ -122,6 +245,18 @@ I suggest the following:
     * It would be nice if this could derive/subclass from the main AbstractServerProxy class....
 2) From this, derive your MediaWikiRestServerProxy and ConfluenceRestServerProxy classes
     * These (and preferably only these) will then import the correct abstraction classes for pages, etc.
+
+Using the requests module:
+ * http://docs.python-requests.org/en/latest/user/advanced/
+ * https://github.com/kennethreitz/requests/
+ * Using requests.session()  - or requests.Session() ?
+    * Yes, definitely use a session object. requests.session() function simply returns a requests.Session object with no parameters.
+
+Regarding AUTH:
+ * http://docs.python-requests.org/en/latest/user/authentication/
+ * See https://github.com/Riamse/ceterach/blob/master/ceterach/api.py
+ * https://github.com/yuvipanda/python-mwapi/blob/master/mwapi/__init__.py
+
 
 Things to keep in mind when implementing:
  * Client should provide a descriptive User Agent header, e.g. User-Agent: Username/email/framework
@@ -143,7 +278,7 @@ A note regarding attachments: I think in mediawiki, "images" may both refer to a
 Fromhttp://www.mediawiki.org/wiki/API:Client_code#Python ::
  * Pywikibot - A collection of python scripts. Seems up to date (Nov 2013) (IRC)(Evaluation)
     * MIT license, Very, very large collection of maintenance tools, provides an autonomous bot system.
-    * Uses urllib
+    * Uses urllib, NOT requests
     * Last commit 1 day ago. High commit frequency.
  * mwclient - A Python library that makes most of the API functions accessible. (PyPI)(Evaluation)
     * Uses urllib, urllib2, urlparse, httplib, NOT requests
@@ -165,12 +300,12 @@ Fromhttp://www.mediawiki.org/wiki/API:Client_code#Python ::
     * Does provide some abstraction classes and has a decent amount of examples.
     * Last commit less than a month ago. Medium-high commit frequency.
  * python-mwapi - A simple wrapper around the Mediawiki API, meant to closely mirror its interface (PyPI)
-    * Uses requests module.
+    * Uses requests module, with requests.session()
     * MIT license
     * Also very simple, too simple. No abstractions.
     * Last updated 2 years ago. Very low commit rate.
  * supersimplemediawiki - Similar to simplemediawiki, but does not handle tokens or compression.
-    * Uses requests module.
+    * Uses requests module (without requests.session() )
     * MIT license
     * Very, very simple, no mediawiki api specific stuff or abstractions, just a wrapper for the requests lib, making login, cookies, and new requests more manageable.
     * Last updated 9 months ago. Very low commit frequency.
@@ -179,7 +314,7 @@ Fromhttp://www.mediawiki.org/wiki/API:Client_code#Python ::
  * Pattern, [1] - web mining module, has classes for handling MediaWiki API requests, handles continuations
     * Huge project, Very excessive, and a lot bad code.
  * ceterach - Python3 library, fully PEP8 compliant.
-    * Uses requests lib, but also urllib.parse.urlparse.
+    * Uses requests lib with requests.session()  (also urllib.parse.urlparse, but as utility only).
     * Has abstractions in the form of Category, Page, File, User, etc classes.
     * Main MediaWiki class has some okay examples of how to use the mediawiki API with the requests module.
     * Last commit less than a month ago, medium commit frequency.

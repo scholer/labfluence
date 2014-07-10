@@ -95,7 +95,7 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
         #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
         # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
         # Remember, super takes current class as first argument (python2)
-        super(ConfluenceXmlRpcServer, self).__init__(serverparams=serverparams, username=username,
+        super(ConfluenceXmlRpcServerProxy, self).__init__(serverparams=serverparams, username=username,
                                                      password=password, logintoken=logintoken, #url=url,
                                                      confighandler=confighandler, autologin=autologin)
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
