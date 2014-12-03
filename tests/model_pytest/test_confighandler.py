@@ -14,13 +14,11 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0111,W0613
-
-
-from model.confighandler import ConfigHandler, PathFinder, ExpConfigHandler
+# pylint: disable=C0103,C0111,W0613
 
 import pytest
 import os
+import yaml
 from datetime import datetime
 import logging
 logger = logging.getLogger(__name__)
@@ -30,12 +28,47 @@ logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO, format=logfmt)
 #logging.getLogger("__main__").setLevel(logging.DEBUG)
 
+from os.path import dirname, realpath
+tests_dir = dirname(dirname(realpath(__file__)))
+app_dir = dirname(tests_dir)
+
+### System under test: ###
+import sys
+if app_dir not in sys.path:
+    sys.path.append(app_dir)
+
+from model.confighandler import ConfigHandler, PathFinder, ExpConfigHandler, check_cfgs_and_merge
 
 
 @pytest.fixture
 def confighandler1():
-    ch = ExpConfigHandler( pathscheme='test1' )
+    ch = ExpConfigHandler(pathscheme='test1')
     return ch
+
+@pytest.fixture
+def config1():
+    confstr = """
+    key_unique_to_config1: config1
+    key_in_all_configs: config1
+    lastsaved: 2014-10-15 20:30:25
+    """
+    return yaml.load(confstr)
+
+@pytest.fixture
+def config2():
+    confstr = """
+    key_unique_to_config2: config2
+    key_in_all_configs: config1
+    lastsaved: 2014-10-15 19:30:25
+    """
+    return yaml.load(confstr)
+
+
+def test_check_cfgs_and_merge(config1, config2):
+    cfginmemory = config1.copy()
+    cfgfromfile = config2.copy()
+    keysupdatedfromfile, keysupdatedinmemory, changedkeys = check_cfgs_and_merge(cfginmemory, cfgfromfile)
+
 
 
 def test_defaultscheme_test1():
@@ -66,13 +99,13 @@ def test_defaultscheme_default1():
 def test_schemes_test1_default1():
 
     pf = PathFinder()
-    testscheme = dict(  sys= os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml'.split('/')),
-                        user=os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_user.yml'.split('/')))
+    testscheme = {'sys':  os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_sys.yml'.split('/')),
+                  'user': os.path.join(*'setup/configs/test_configs/local_test_setup_1/labfluence_user.yml'.split('/'))}
 
     assert pf.getScheme('test1') == testscheme
 
-    defaultscheme = dict(   sys=os.path.join(*'setup/configs/default/labfluence_sys.yml'.split('/')),
-                            user=os.path.realpath(os.path.expanduser('~/.Labfluence/labfluence_user.yml')) )
+    defaultscheme = {'sys': os.path.join(*'setup/configs/default/labfluence_sys.yml'.split('/')),
+                     'user': os.path.realpath(os.path.expanduser('~/.Labfluence/labfluence_user.yml'))}
 
     assert pf.getScheme() == defaultscheme
     assert pf.getScheme('default1') == defaultscheme
@@ -80,26 +113,24 @@ def test_schemes_test1_default1():
 
 
 
+@pytest.mark.skipif(True, reason="Has changed, not very relevant test at the moment...")
 def test_addNewConfig():
-    ch = ExpConfigHandler( pathscheme='test1' )
+    ch = ExpConfigHandler(pathscheme='test1')
     ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
-    logger.info("ch.get('exp_subentry_template'):" )
-    logger.info(ch.get('exp_subentry_template'))
+    logger.info("ch.get('exp_subentry_template'): %s", ch.get('exp_subentry_template'))
 
 def test_cfgNewConfigDef():
-    ch = ExpConfigHandler( pathscheme='test1' )
+    ch = ExpConfigHandler(pathscheme='test1')
     #ch.addNewConfig("/home/scholer/Documents/labfluence_data_testsetup/.labfluence/templates.yml", "templates")
     # I have added the following to the 'exp' config:
     # config_define_new:
     #   templates: ./.labfluence/templates.yml
-    logger.info("ch.get('exp_subentry_template'):" )
-    logger.info(ch.get('exp_subentry_template') )
+    logger.info("ch.get('exp_subentry_template'): %s", ch.get('exp_subentry_template'))
 
 
 def notestExpConfig1():
     ch = ExpConfigHandler(pathscheme='test1')
-    logger.info("ch.HierarchicalConfigHandler.Configs:" )
-    ch.HierarchicalConfigHandler.printConfigs()
+    logger.info("ch.HierarchicalConfigHandler.Configs: %s", ch.HierarchicalConfigHandler.printConfigs())
     path = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS102 Strep-col11 TR annealed with biotin"
     cfg = ch.loadExpConfig(path)
     if cfg is None:
@@ -111,19 +142,19 @@ def notestExpConfig1():
 
 
 def test_registerEntryChangeCallback():
-    logger.info(">>>>>>>>>>>> starting test_registerEntryChangeCallback(): >>>>>>>>>>>>>>>>>>>>" )
+    logger.info(">>>>>>>>>>>> starting test_registerEntryChangeCallback(): >>>>>>>>>>>>>>>>>>>>")
     #registerEntryChangeCallback invokeEntryChangeCallback
     ch = ExpConfigHandler(pathscheme='test1')
     ch.setkey('testkey', 'random string')
     def printHej(who, *args):
         logger.info("hi %s, other args: %s", who, args)
     def printNej():
-        logger.info("no way!" )
+        logger.info("no way!")
     def argsAndkwargs(arg1, arg2, hej, der, **kwargs):
         logger.info("%s, %s, %s, %s, %s", arg1, arg2, hej, der, kwargs)
-    ch.registerEntryChangeCallback('app_active_experiments', printHej, ('morten', ) )
+    ch.registerEntryChangeCallback('app_active_experiments', printHej, ('morten', ))
     ch.registerEntryChangeCallback('app_recent_experiments', printNej)
-    ch.registerEntryChangeCallback('app_recent_experiments', argsAndkwargs, ('word', 'up'), dict(hej='tjubang', der='sjubang', my='cat') )
+    ch.registerEntryChangeCallback('app_recent_experiments', argsAndkwargs, ('word', 'up'), dict(hej='tjubang', der='sjubang', my='cat'))
     ch.ChangedEntriesForCallbacks.add('app_active_experiments')
     ch.ChangedEntriesForCallbacks.add('app_recent_experiments')
 

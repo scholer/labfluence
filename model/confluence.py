@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
+##    Copyright 2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
@@ -14,12 +14,3 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=W0611
-"""
-Server module. Provides classes to access e.g. a Confluence server through xmlrpc.
-"""
-
-
-from confluence_xmlrpc import ConfluenceXmlRpcServerProxy
-
-

@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# xxpylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221
+# pylint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221
 # pylint: disable-msg=W0142,R0904
 # messages:
 #   C0301: Line too long (max 80), R0902: Too many instance attributes (includes dict())
@@ -68,20 +68,21 @@ Alternatively, the announcement could go as:
 """
 
 
-import yaml
 import os
 import os.path
+import yaml
+import json
 from datetime import datetime
 import collections
 from collections import OrderedDict
 import logging
 logger = logging.getLogger(__name__)
-from Tkinter import TclError
+from Tkinter import TclError # Used by the callback system
 
 from pathutils import getPathParents
 
-modeldir = os.path.dirname(__file__)
-appdir = os.path.dirname(modeldir)
+MODELDIR = os.path.dirname(os.path.realpath(__file__))
+APPDIR = os.path.dirname(MODELDIR)
 
 
 def check_cfgs_and_merge(cfginmemory, cfgfromfile):
@@ -91,7 +92,15 @@ def check_cfgs_and_merge(cfginmemory, cfgfromfile):
     If it is, then update cfginmemory with cfgfromfile, keeping track
     of which config entries are truely new.
 
-    Returns two sets:
+    Usecase:
+        You have a config file in memory. You need to save that back to file.
+        However, the file may have been updated since the app loaded it, and
+        you do not want to overwrite any new or updated items.
+        Solution: Load the config file as the dict cfgfromfile, then use
+            check_cfgs_and_merge(cfginmemory, cfgfromfile)
+        to update the config you have in memory.
+
+    Returns three sets of keys:
 
         keysupdatedfromfile, keysupdatedinmemory, changedkeys
 
@@ -110,21 +119,32 @@ def check_cfgs_and_merge(cfginmemory, cfgfromfile):
         i.e. the keys that are present in one of the configs but not the other.
 
     """
-    keysupdatedinmemory = set()
-    keysupdatedfromfile = set()
+    #keysupdatedinmemory = set()
+    #keysupdatedfromfile = set()
     if not 'lastsaved' in cfgfromfile or cfgfromfile['lastsaved'] <= cfginmemory.get('lastsaved', datetime.fromordinal(1)):
         # cfgfromfile is NOT newer (they might be the same)
         # check what has been updated in cfginmemory since last save:
-        for keyinmemory, valueinmemory in cfginmemory.items():
-            if keyinmemory not in cfgfromfile or valueinmemory != cfgfromfile[keyinmemory]:
-                #cfginmemory[keyinmemory] = valueinmemory # does not make sense.
-                keysupdatedinmemory.add(keyinmemory)
-    # See which keys are updated in file, which are not in
+        # Note: Do not just use cfgfromfile.get(keyinmemory) - values that are boolean False may be significant.
+        #for keyinmemory, valueinmemory in cfginmemory.items():
+        #    if keyinmemory not in cfgfromfile or valueinmemory != cfgfromfile[keyinmemory]:
+        #        #cfginmemory[keyinmemory] = valueinmemory # does not make sense.
+        #        keysupdatedinmemory.add(keyinmemory)
+        # with set comprehension:
+        keysupdatedinmemory = {keyinmemory for keyinmemory, valueinmemory in cfginmemory.items()
+                               if keyinmemory not in cfgfromfile or valueinmemory != cfgfromfile[keyinmemory]}
+        # Should cfginmemory be updated with items in cfgfromfile that are not present in cfginmemory?
+        # Probably not; otherwise you would never be able to delete a key!
     else:
-        for keyfromfile, valuefromfile in cfgfromfile.items():
-            if keyfromfile not in cfginmemory or valuefromfile != cfginmemory[keyfromfile]:
-                cfginmemory[keyfromfile] = valuefromfile # update
-                keysupdatedfromfile.add(keyfromfile)
+        # cfgfromfile IS NEWER; update cfginmemory:
+        #for keyfromfile, valuefromfile in cfgfromfile.items():
+        #    if keyfromfile not in cfginmemory or valuefromfile != cfginmemory[keyfromfile]:
+        #        cfginmemory[keyfromfile] = valuefromfile # update
+        #        keysupdatedfromfile.add(keyfromfile)
+        # with set comprehension, plus just use update:
+        keysupdatedfromfile = {keyfromfile for keyfromfile, valuefromfile in cfgfromfile.items()
+                               if keyfromfile not in cfginmemory or valuefromfile != cfginmemory[keyfromfile]}
+        cfginmemory.update(cfgfromfile)
+
     ## Question: If a key is in cfginmemory but not in cfgfromfile AND cfgfromfile is newer,
     ## does it make sense to keep the key in cfginmemory or should it be removed?
     ## I say... It should stay. The risk is too high that you lose something critical if you drop keys.
@@ -177,13 +197,16 @@ def saveConfig(outputfn, config, updatelastsaved=True):
         logger.warning("Could not save config to file '%s', error raised: %s", outputfn, e)
         config['lastsaved'] = old_lastsaved
 
-def loadConfig(inputfn):
+def loadConfig(inputfn, storage_format='yaml'):
     """
     Load config (dict) from file.
     """
     logger.debug("Loading config from path: %s", inputfn)
     with open(inputfn) as fd:
-        cfg = yaml.load(fd)
+        if storage_format == 'json':
+            cfg = json.load(fd)
+        else:
+            cfg = yaml.load(fd)
     return cfg
 
 def _printConfig(config, indent=2):
@@ -233,17 +256,17 @@ class ConfigHandler(object):
 
     def __init__(self, systemconfigfn=None, userconfigfn=None):
         self.VERBOSE = 0
-        self.ConfigPaths = OrderedDict()
-        self.Configs = OrderedDict()
+        self.ConfigPaths = OrderedDict()    # dict of <cfgtype>: <config filepath>
+        self.Configs = OrderedDict()        # dict of <cfgtype>: <config dict>
         # For retrieving paths via config entries...
         self.Config_path_entries = dict(system='system_config_path', user='user_config_path')
         # Config_path_entries is used to map config entries to a config type,
         # for instance, with the setting above, the config key "system_config_path" can be used to
         # specify a file path for the 'system' config.
         self.ConfigPaths['system'], self.ConfigPaths['user'] = systemconfigfn, userconfigfn
-        self.Configs['system'] = dict()
-        self.Configs['user'] = dict()
-        self.Singletons = dict() # dict for singleton objects; makes it easy to share objects across application objects that already have access to the confighandler singleton.
+        self.Configs['system'] = {}
+        self.Configs['user'] = {}
+        self.Singletons = {} # dict for singleton objects; makes it easy to share objects across application objects that already have access to the confighandler singleton.
         self.DefaultConfig = 'user' # which config to save new config items to.
         self.AutoreadNewFnCache = dict() #list()
         self.ReadFiles = set() # which files have been read.
@@ -295,26 +318,27 @@ class ConfigHandler(object):
             return
         if rememberpath:
             self.ConfigPaths[cfgtype] = inputfn
-        self.Configs[cfgtype] = dict()
+        self.Configs[cfgtype] = {}
         self.readConfig(inputfn, cfgtype)
 
 
-    def getConfigPath(self, what='all', aslist=False):
+    def getConfigPath(self, cfgtype='all'):
         """
         Get the path for a particular config, has three return values:
             getConfigPath('all') -> returns self.ConfigPaths.values()
             getConfigPath('system') -> return self.ConfigPaths['system']
             getConfigPath('system', aslist=True) -> return ( self.ConfigPaths['system'], ) tuple.
+        Edit: Removed aslist argument.
+        Instead, control using cfgtype argument: If cfgtype is a list, return a list, otherwise return string.
         """
-        if what == 'all':
+        if cfgtype == 'all':
             return self.ConfigPaths.values()
-        elif aslist:
-            return self.ConfigPaths.get(what, None),
-        else:
-            return self.ConfigPaths.get(what, None)
+        elif not isinstance(cfgtype, basestring):
+            return [self.ConfigPaths.get(cfgtype, None) for cfgtype in cfgtype]
+        return self.ConfigPaths.get(cfgtype, None)
 
 
-    def getConfig(self, what='all', aslist=False):
+    def getConfig(self, cfgtype=None):
         """
         Returns the config for a particular config type.
         Five return behaviours:
@@ -322,23 +346,29 @@ class ConfigHandler(object):
         1) getConfig('combined') -> Return 1-element list with the combined, effective config as sole element.
         2) getConfig('system') -> returns the 'system' config.
         3) getConfig('all') -> returns self.Configs.values() list.
-        4) getConfig('system', aslist=True) -> returns a tuple with the 'system' config as sole element.
+
+        Edit: removed 'aslist' argument. If you want a list of configs, input a list as the cfgtype argument.
+
+        # Regarding using ChainMap:
+        # - Only native to Python 3.3, not available in python 2.7 (Although it can be added.)
+        # - Only provides index access, not keyword, i.e. chainmap[0] or chainmap[-1], not chainmap['system'],
+            so not a direct replacement for the current Configs ordereddict.
+        # ChainMap Refs
+        # - https://docs.python.org/3/library/collections.html#collections.ChainMap
+        # - http://code.activestate.com/recipes/305268-chained-map-lookups/
+        # - http://stackoverflow.com/questions/23392976/what-is-the-purpose-of-collections-chainmap
+        # - http://bugs.python.org/issue11089
+        # - http://bugs.python.org/issue11297
         """
-        if what == 'combined':
-            combined = dict()
+        if cfgtype is None or cfgtype == 'combined':
+            combined = {}
             for config in self.Configs.values():
                 combined.update(config)
-            if aslist:
-                return (combined, )
-            else:
-                return combined
-        elif what == 'all':
+        elif cfgtype == 'all':
             return self.Configs.values()
-        else:
-            if aslist:
-                return (self.Configs.get(what, None), )
-            else:
-                return self.Configs.get(what, None)
+        elif not isinstance(cfgtype, basestring):
+            return [self.Configs[cfg] for cfg in cfgtype]
+        return self.Configs.get(cfgtype, None)
 
     def get(self, key, default=None):
         """
@@ -346,7 +376,7 @@ class ConfigHandler(object):
         Note that the ExpConfigHandler's get() adds a bit more options...
         """
         # This is not usually used, since we almost always use ExpConfigHandler as confighandler.
-        return self.getConfig(what='combined').get(key, default)
+        return self.getConfig().get(key, default)
 
     def setdefault(self, key, value=None, autosave=None):
         """
@@ -389,6 +419,8 @@ class ConfigHandler(object):
 
         PLEASE NOTE THAT setkey IS DIFFERENT FROM A NORMAL set METHOD, IN THAT setkey()
         returns the cfgtype where the key was persisted, e.g. 'user'.
+        Also, setkey can be provided to arguments cfgtype, check_for_existing_entry and autosave
+        to alter the function behaviour.
         """
         if autosave is None:
             autosave = self.Autosave
@@ -440,17 +472,17 @@ class ConfigHandler(object):
         Reads a (yaml-based) configuration file from inputfn, loading the
         content into the config given by cfgtype.
         Note: This is a relatively low-level method.
+        Generally, you'd want to use addNewConfig().
         """
         VERBOSE = self.VERBOSE
         if cfgtype is None:
-            cfgtype = self.Configs.values()[0]
+            cfgtype = next(iter(self.Configs.keys()))
         if not self.AllowChainToSameType and cfgtype in self.ReadConfigTypes:
             return
         if inputfn in self.ReadFiles:
             logger.warning("WARNING, file already read: %s", inputfn)
             return
         try:
-            #newconfig = yaml.load(open(inputfn)) # I dont think this needs with... or open/close logic.
             newconfig = loadConfig(inputfn)
         except IOError as e:
             logger.warning("readConfig() :: ERROR, could not load yaml config, cfgtype: %s, error: %s", cfgtype, e)
@@ -458,16 +490,16 @@ class ConfigHandler(object):
         self.ReadConfigTypes.add(cfgtype)
         self.ReadFiles.add(inputfn) # To avoid recursion...
         self.Configs[cfgtype].update(newconfig)
+        logger.info("readConfig() :: New '%s'-type config loaded:", cfgtype)
         if VERBOSE > 3:
-            logger.info("readConfig() :: New '%s'-type config loaded:", cfgtype)
             logger.debug("Loaded config is: %s", newconfig)
             logger.debug("readConfig() :: Updated main '%s' config to be: %s", cfgtype, _printConfig(self.Configs[cfgtype]))
         if "next_config_override_fn" in newconfig and self.AllowNextConfigOverrideChain:
             # the next_config_override_fn are read-only, but their content will be persisted to the main configfile.when saved.
-            if VERBOSE:
-                logger.debug("readConfig() :: Reading config defined by next_config_override_fn entry: %s", newconfig["next_config_override_fn"])
+            logger.debug("readConfig() :: Reading config defined by next_config_override_fn entry: %s", newconfig["next_config_override_fn"])
             self.readConfig(newconfig["next_config_override_fn"], cfgtype)
         if "config_define_new" in newconfig and self.AllowNewConfigDefinitions:
+            # The config_define_new entry can be used to link to one or more other configs that should be loaded.
             for newtype, newconfigfn in newconfig["config_define_new"].items():
                 if not os.path.isabs(newconfigfn):
                     # isabs basically just checks if path[0] == '/'...
@@ -476,12 +508,16 @@ class ConfigHandler(object):
                 self.addNewConfig(newconfigfn, newtype)
 
         # Inputting configs through Config_path_entries:
-        reversemap = dict((val, key) for key, val in self.Config_path_entries.items())
-        for key in set(newconfig.keys()).intersection(self.Config_path_entries.values()):
-            if VERBOSE > 2:
+        # This is an alternative to using config_define_new.
+        # Where config_define_new can specify an arbitrary nwe config (but requires self.AllowNewConfigDefinitions to be set to True),
+        # Config_path_entries {cfgtype: <config_key>} is a pre-defined set of allowed cfgtypes and their corresponding config_keys.
+        cfgtypes_linked_in_newconfig = set(newconfig.keys()).intersection(self.Config_path_entries.values())
+        if cfgtypes_linked_in_newconfig:
+            reversemap = dict((val, key) for key, val in self.Config_path_entries.items())
+            for key in cfgtypes_linked_in_newconfig:
                 logger.debug("Found the following path_entries key '%s' in the new config: %s", key, newconfig[key])
-            self.readConfig(newconfig[key], reversemap[key])
-            self.AutoreadNewFnCache[reversemap[key]] = newconfig[key]
+                self.readConfig(newconfig[key], reversemap[key])
+                self.AutoreadNewFnCache[reversemap[key]] = newconfig[key]
         return newconfig
 
 
@@ -508,33 +544,36 @@ class ConfigHandler(object):
         Saves the config file that contains a particular entry.
         Useful if you have changed only a single config item and do not want to persist all config files.
         Example: The app changes the value of 'app_active_experiment' and invokes saveConfigForEntry('app_active_experiment')
-        Note: For Hierarchical configs, use the path-based save method in ExpConfigHandler.
+        Notes:
+         * In the example above, the app could also have used the 'autosave' argument when updating the key:
+            >>> confighandler.setkey(key, value, autosave=True)
+         * For Hierarchical configs, use the path-based save method in ExpConfigHandler.
         """
         for cfgtype, cfg in reversed(self.Configs.items()):
             if key in cfg:
-                self.saveConfigs(what=cfgtype)
+                self.saveConfigs(cfgtype=cfgtype)
                 return True
         logger.warning("saveConfigForEntry invoked with key '%s', but key not found in any of the loaded configs (%s)!",
                        key, ",".join(self.Configs))
 
-    def saveConfigs(self, what='all'):
+    def saveConfigs(self, cfgtype='all'):
         """
-        Persist config specified by what argument.
+        Persist config specified by cfgtype argument.
         Use as:
             saveConfigs('all') --> save all configs (default)
             saveConfigs('system') --> save the 'system' config. (or use the simpler: saveConfig(cfgtype))
             saveConfigs(('system', 'exp') --> save the 'system' and 'exp' config.
         """
-        logger.info("saveConfigs invoked with configtosave '%s'", what)
-        for cfgtype, outputfn in self.ConfigPaths.items():
-            if what == 'all' or cfgtype in what or cfgtype == what:
+        logger.info("saveConfigs invoked with configtosave '%s'", cfgtype)
+        for cfgname, outputfn in self.ConfigPaths.items():
+            if cfgtype == 'all' or cfgname in cfgtype or cfgname == cfgtype:
                 if outputfn:
-                    logger.info("Saving config '%s' to file: %s", cfgtype, outputfn)
-                    saveConfig(outputfn, self.Configs[cfgtype])
+                    logger.info("Saving config '%s' to file: %s", cfgname, outputfn)
+                    saveConfig(outputfn, self.Configs[cfgname])
                 else:
-                    logger.info("No filename specified for config '%s'", cfgtype)
+                    logger.info("No filename specified for config '%s'", cfgname)
             else:
-                logger.debug("configtosave '%s' not matching cfgtype '%s' with outputfn '%s'", what, cfgtype, outputfn)
+                logger.debug("configtosave '%s' not matching cfgtype '%s' with outputfn '%s'", cfgtype, cfgname, outputfn)
 
     def saveConfig(self, cfgtype):
         """
@@ -580,6 +619,17 @@ class ConfigHandler(object):
             return os.path.dirname(self.getConfigPath(cfgtype))
         else:
             logger.info("ConfigDir requested for config '%s', but that is not specified ('%s')", cfgtype, cfgpath)
+
+
+
+
+    ######     ###    ##       ##       ########     ###     ######  ##    ##     ######  ##    ##  ######  ######## ######## ##     ##
+   ##    ##   ## ##   ##       ##       ##     ##   ## ##   ##    ## ##   ##     ##    ##  ##  ##  ##    ##    ##    ##       ###   ###
+   ##        ##   ##  ##       ##       ##     ##  ##   ##  ##       ##  ##      ##         ####   ##          ##    ##       #### ####
+   ##       ##     ## ##       ##       ########  ##     ## ##       #####        ######     ##     ######     ##    ######   ## ### ##
+   ##       ######### ##       ##       ##     ## ######### ##       ##  ##            ##    ##          ##    ##    ##       ##     ##
+   ##    ## ##     ## ##       ##       ##     ## ##     ## ##    ## ##   ##     ##    ##    ##    ##    ##    ##    ##       ##     ##
+    ######  ##     ## ######## ######## ########  ##     ##  ######  ##    ##     ######     ##     ######     ##    ######## ##     ##
 
 
     def registerEntryChangeCallback(self, configentry, function, args=None, kwargs=None, pass_newvalue_as=False):
@@ -751,7 +801,7 @@ class ConfigHandler(object):
         can be removed by calling:
             unregisterEntryChangeCallback(configentries=None, function=None, args=None, kwargs={'hello': 'there'} )
         This is because all callbacks satisfying the filter:
-            all( criteria in (None, callbacktuple[i]) for i,criteria in enumerate( (function, args, kwargs) ) )
+            all( criteria in (None, callbacktuple[i]) for i, criteria in enumerate( (function, args, kwargs) ) )
         will be removed.
         Thus, if unregisterEntryChangeCallback() is called without arguments,
         ALL REGISTRERED CALLBACKS WILL BE REMOVED!
@@ -1285,19 +1335,19 @@ class PathFinder(object):
         # notation is:
         # configtype : (<filename to look for>, (list of directories to look in))
         self._schemeSearch['default1'] = dict(sys=('labfluence_sys.yml',
-                                                   (os.path.join(appdir, subdir) for subdir in
+                                                   (os.path.join(APPDIR, subdir) for subdir in
                                                     ('.', 'config', 'configs', os.path.join('setup', 'configs', 'default')))),
                                               user=('labfluence_user.yml',
                                                     (os.path.expanduser(os.path.join('~', dir)) for dir in
                                                     ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence')))
                                                     )
                                               )
-        self._schemeSearch['test1'] = dict(sys=('labfluence_sys.yml', (os.path.join(appdir, 'setup/configs/test_configs/local_test_setup_1'),)),
-                                           user=('labfluence_user.yml', (os.path.join(appdir, 'setup/configs/test_configs/local_test_setup_1'),))
+        self._schemeSearch['test1'] = dict(sys=('labfluence_sys.yml', (os.path.join(APPDIR, 'setup/configs/test_configs/local_test_setup_1'),)),
+                                           user=('labfluence_user.yml', (os.path.join(APPDIR, 'setup/configs/test_configs/local_test_setup_1'),))
                                            )
 
-        self._schemeSearch['install'] = dict(sys=('labfluence_sys.yml', (os.path.join(appdir, 'setup/configs/new_install/'),)),
-                                             user=('labfluence_user.yml', (os.path.join(appdir, 'setup/configs/new_install/'),)),
+        self._schemeSearch['install'] = dict(sys=('labfluence_sys.yml', (os.path.join(APPDIR, 'setup/configs/new_install/'),)),
+                                             user=('labfluence_user.yml', (os.path.join(APPDIR, 'setup/configs/new_install/'),)),
                                              exp=('labfluence_exp.yml', (os.path.join('setup/configs/new_install/'),))
                                              )
 

@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=W0612
+# pylint: disable-msg=W0612,C0103
 """
 Module with various utility functions.
 """
@@ -39,17 +39,62 @@ logging.addLevelName(4, 'SPAM') # Will convert LEVEL to 'SPAM' when printing log
 logger = logging.getLogger(__name__)
 
 try:
-    import magic
-    magic_available = True
-    if hasattr(magic, 'MAGIC_MIME_TYPE'):
-        magic_is_old = True
-    else:
-        magic_is_old = False
+    import magic        # pylint: disable=F0401
+    MAGIC_AVAILABLE = True
 except ImportError:
-    magic_available = False
-    magicmime = None
+    MAGIC_AVAILABLE = False
     logger.info("Notice: magic module is not available; mimetypes will be based on file extensions. See http://pypi.python.org/pypi/python-magic/ for info on installing the filemagic python module.")
     import mimetypes
+
+try:
+    # ASCII large-font print driver:
+    import pyfiglet
+    from pyfiglet import Figlet
+except ImportError:
+    Figlet = None
+
+
+def print_figlet(text, **kwargs):
+    """
+    Print text with figlet font.
+    There is also
+    """
+    if Figlet is None:
+        logger.warning("pyfiglet module not available.")
+        print(text)
+        return
+    pyfiglet.print_figlet(text) # This will print and not actually return anything.
+
+def figlet_header(text, font='colossal', smushMode=None):
+    """
+    Prints text with ascii print driver.
+    See available fonts with Figlet().getFonts()
+    or pyfiglet.FigletFont.getFonts()
+    Easy-to-read fonts include:
+    * Doh       (very big)
+    * Banner3   (Exclusively using '#')
+    * Block     (rather subtil)
+    * Colossal  (Easy to read, but set smushMode to 64 or lower for headers)
+    * Georgia11 (Very elegant)
+    * Roman
+    * Univers
+    """
+    if Figlet is None:
+        logger.warning("pyfiglet module not available.")
+        return
+    ## TODO: Add labfluence settings option to change font, etc.
+    f = Figlet(font=font)
+    if smushMode is not None:
+        # pyfiglet default smushMode is calculated by pyfiglet.FigletFont.loadFont()
+        # For some, e.g. colossal, the resulting smushMode of 128 smushes the characters a bit too much.
+        # I've made a fork of pyfiglet where you can adjust smushMode directly
+        # when instantiating a Figlet via argument fontkwargs.
+        f.Font.smushMode = smushMode
+    return f.renderText(text)
+
+
+
+
 
 
 def getmimetype(filepath):
@@ -57,13 +102,14 @@ def getmimetype(filepath):
     Returns the mime type of a file, using the best
     methods available on the current installation.
     """
-    if magic_available:
-        if magic_is_old:
-            with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
-                mimetype = m.id_filename(filepath)
+    if MAGIC_AVAILABLE:
+        if hasattr(magic, 'MAGIC_MIME_TYPE'):
+            # Old magic module:
+            with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as mimeprober:
+                mimetype = mimeprober.id_filename(filepath)
         else:
-            with magic.Magic(mime=True) as m:
-                mimetype = m.from_file(filepath)
+            with magic.Magic(mime=True) as mimeprober:
+                mimetype = mimeprober.from_file(filepath)
     else:
         # mimetypes.guess_type returns
         mimetype, encoding = mimetypes.guess_type(filepath, strict=False)
@@ -71,18 +117,19 @@ def getmimetype(filepath):
 
 def asciize(s):
     """ Return string s with all non-ascii chars removed """
-    return "".join( c for c in s if c in string.ascii_letters+string.digits+"().-_")
+    proper_letters = string.ascii_letters+string.digits+"().-_"
+    return "".join(c for c in s if c in proper_letters)
 
 
 def filehexdigest(filepath, digesttype='md5'):
     """
     Reference implementation. Returns hex digest of file in filepath.
     """
-    with open(filepath, 'rb') as f:
+    with open(filepath, 'rb') as fd:
         m = hashlib.new(digesttype) # generic; can also be e.g. hashlib.md5()
         # md5 sum default is 128 = 2**7-bytes digest block. However, file read is faster for e.g. 8 kb blocks.
         # http://stackoverflow.com/questions/1131220/get-md5-hash-of-big-files-in-python
-        for chunk in iter(lambda: f.read(128*m.block_size), b''):
+        for chunk in iter(lambda: fd.read(128*m.block_size), b''):
             m.update(chunk)
     return m.hexdigest()
 
@@ -149,7 +196,8 @@ def getvalidfilename(fileName):
     return "".join(c if c in validchars else replacement for c in fileName)
 
 
-def random_string(length, uppercase=True, lowercase=True, digits=True, punctuation=False, whitespace=False, ascii=True, allprintable=False, custom=None):
+def random_string(length, uppercase=True, lowercase=True, digits=True, punctuation=False,   # pylint: disable=R0913
+                  whitespace=False, ascii=True, allprintable=False, custom=None):
     """
     Returns a random string of length <length> consisting of
     the specified character types:
@@ -181,7 +229,7 @@ def random_string(length, uppercase=True, lowercase=True, digits=True, punctuati
             chars += string.whitespace
     if custom:
         chars += custom
-    return "".join( random.sample(chars, length) )
+    return "".join(random.sample(chars, length))
 
 def getnearestfile(startpath=None):
     """
@@ -211,7 +259,7 @@ def getnearestfile(startpath=None):
     return walkup(startpath)
 
 
-def login_prompt(username=None, msg="", options=None ):
+def login_prompt(username=None, msg="", options=None):
     """
     The third keyword argument, options, can be modified in-place by the login handler,
     changing e.g. persistance options ("save in memory").
@@ -229,7 +277,7 @@ def login_prompt(username=None, msg="", options=None ):
 
 def display_message(message):
     """Simply prints a message to the user, making sure to properly format it."""
-    print( "\n".join("\n\n", "-"*80, message, "-"*80, "\n\n") )
+    print("\n".join("\n\n", "-"*80, message, "-"*80, "\n\n"))
 
 
 
@@ -278,15 +326,15 @@ def findFieldByHint(candidates, hints, regex=False):
             score += 1 + float(len(hint))/len(candidate)
         return score
     for hint in hints:
-        scores = [ calculate_score(candidate.lower(), hint.lower()) for candidate in candidates ]
+        scores = [calculate_score(candidate.lower(), hint.lower()) for candidate in candidates]
         #print "="
         scores_list = [u"{} ({:.3f})".format(cand, score) for cand, score in zip(candidates, scores)]
         #print scores_list
-        scores_str = ", ".join( scores_list )
+        scores_str = ", ".join(scores_list)
         #print scores_str
         #print "--------"
         # do NOT attempt to use u"string" here, doesn't work?
-        logger.log(4, "Candidate scores for hint '%s': %s" , hint, scores_str)
+        logger.log(4, "Candidate scores for hint '%s': %s", hint, scores_str)
         if max(scores) > 0.2:
             return candidates[scores.index(max(scores))]
         #for candidate in candidates:
@@ -296,7 +344,7 @@ def findFieldByHint(candidates, hints, regex=False):
     return None
 
 def getNewFilename(basename, used_filenames, caseinsensitive=False,
-                   fnfmt=u"{fname}{num:0{p}}{ext}", powerrange=(2,) ):
+                   fnfmt=u"{fname}{num:0{p}}{ext}", powerrange=(2,)):
     """
     Returns a new filename based on basename that is not in used_filenames.
     If caseinsensitive is set to True (e.g. for windows filesystems),
@@ -338,9 +386,9 @@ def getNewFilename(basename, used_filenames, caseinsensitive=False,
     for p in powerrange:
         fngen = (fmt(basename, i) for i in xrange(1, 10**p))
         if caseinsensitive:
-            newfn = next( (fn for fn in fngen if fn.lower() not in used_filenames), None )
+            newfn = next((fn for fn in fngen if fn.lower() not in used_filenames), None)
         else:
-            newfn = next( (fn for fn in fngen if fn not in used_filenames), None )
+            newfn = next((fn for fn in fngen if fn not in used_filenames), None)
         if newfn:
             return newfn
 
@@ -356,7 +404,7 @@ def attachmentTupFromFilepath(filepath):
     # Note: comment not required, I believe.
     attInfo = dict(fileName=filename, contentType=mimetype)
     with open(filepath, 'rb') as fd:
-        #attData = base64.b64encode(fd.read('rb'))
+        # Remember to open file in binary mode, otherwise you'll get padding errors (and wrong data).
         # xmlrpclib.Binary also does base64.encode, but adds xml tag before and after.
         attData = xmlrpclib.Binary(fd.read())
     logger.debug("Read data for attachment '%s' with byte-length %s.", attInfo, len(str(attData)))

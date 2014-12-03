@@ -223,10 +223,7 @@ def getattachments(args):
     return att_structs
 
 
-
-
-if __name__ == '__main__':
-
+def get_parser():
     parser = argparse.ArgumentParser(description="Labfluence command line interface.")
 
 
@@ -303,12 +300,20 @@ Use "addattachments --help" to see help information for this command.')
     addattachmentsparser.set_defaults(func=getattachments)
 
 
+def parse_args(argv=None):
+
+    return get_parser().parse_args()
+
+
+
+def main():
 
     ##############################
     ###### Parse arguments: ######
     ##############################
 
-    argsns = parser.parse_args() # produces a namespace, not a dict.
+    #argsns = parser.parse_args() # produces a namespace, not a dict.
+    argsns = parse_args()
 
     #######################################
     ### Set up standard logging system ####
@@ -387,3 +392,6 @@ Use "addattachments --help" to see help information for this command.')
         ret = func(argsns)
     else:
         logger.error("No func specified...?")
+
+if __name__ == '__main__':
+    main()
