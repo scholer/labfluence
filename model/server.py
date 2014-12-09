@@ -17,9 +17,18 @@
 # pylint: disable-msg=W0611
 """
 Server module. Provides classes to access e.g. a Confluence server through xmlrpc.
+
+
 """
 
+from __future__ import print_function, division
+import logging
+logger = logging.getLogger(__name__)
 
-from confluence_xmlrpc import ConfluenceXmlRpcServerProxy
 
+from abstractserverproxy import AbstractServerProxy
+AbstractServer = AbstractServerProxy
+
+from xmlrpcserverproxies import ConfluenceXmlRpcServerProxy
+ConfluenceXmlRpcServer = ConfluenceXmlRpcServerProxy
 

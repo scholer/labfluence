@@ -281,9 +281,9 @@ class ExpJournalFrame(ExpFrame):
         Triggers JA.flush().
         Invoked when pressing the "flush" button, or automatically according to timer.
         """
-        logger.debug("ExpJournalFrame.flushcache() invoked.")
+        logger.debug("ExpJournalFrame.flushcache() invoked, flushing journal-assistant cache for exp '%s'", self.Experiment)
         res = self.Experiment.JournalAssistant.flush()
-        logger.debug("ExpJournalFrame.flushcache() :: res = '%s'", res)
+        logger.debug("%s :: res is %s", self.__class__.__name__, "dict with keys: {}".format(res.keys()) if hasattr(res, 'keys') else "type: {}".format(type(res)))
         self.update_cacheview()
         self.update_wikiview()
 

@@ -106,6 +106,11 @@ def getPageXhtml(pageId):
     else:
         logger.info("getPage(%s) returned page with no struct. Page is: %s", pageId, page)
 
+#def addAttachment(pageId, fp):
+#    attachmentInfo, attachmentData = attachmentTupFromFilepath(fp)
+#    page = getPage(pageId)
+#    att_info = page.addAttachment(attachmentInfo, attachmentData)
+#    return att_info
 
 
 def outputres(res, outputfmt):
@@ -183,11 +188,16 @@ def getserverinfo(args):
     outputres( info, args.outputformat )
     return info
 
-#def addAttachment(pageId, fp):
-#    attachmentInfo, attachmentData = attachmentTupFromFilepath(fp)
-#    page = getPage(pageId)
-#    att_info = page.addAttachment(attachmentInfo, attachmentData)
-#    return att_info
+
+def getspaces(args):
+    """
+    Queries the server instance for server info and returns as struct.
+    """
+    wikiserver = confighandler.Singletons['server']
+    info = wikiserver.getSpaces()
+    outputres( info, args.outputformat )
+    return info
+
 
 def addattachment(args):
     """
@@ -277,6 +287,10 @@ def get_parser():
     subparser = subparsers.add_parser('getserverinfo', help='Retrieve server info from the server.')
     subparser.set_defaults(func=getserverinfo)
 
+    # getspaces command:
+    subparser = subparsers.add_parser('getspaces', help='Retrieve all visible spaces from the server.')
+    subparser.set_defaults(func=getspaces)
+
 
     ########################################
     ### Advanced command line functions ####
@@ -292,7 +306,7 @@ Use "addattachments --help" to see help information for this command.')
                                       help='Paths for the files to upload.')
     addattachmentsparser.set_defaults(func=addattachment)
 
-    # addattachments command:
+    # getattachments command:
     addattachmentsparser = subparsers.add_parser('getattachments',
                                                  help='Returns a list of attachments of a page.')
     addattachmentsparser.add_argument('pageid', type=int,
