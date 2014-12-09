@@ -32,21 +32,19 @@ Consider that an eary deprecation warning.
 """
 
 from __future__ import print_function, division
-import xmlrpclib
+try:
+    import xmlrpclib
+except ImportError:
+    import xmlrpc.client as xmlrpclib
 import socket
-import itertools
-import string
-from Crypto.Cipher import AES
-from Crypto.Random import random as crypt_random
 import inspect
 import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from utils import login_prompt, display_message
+from utils import login_prompt
 
 # Decorators:
-from decorators.cache_decorator import cached_property
 
 defaultsockettimeout = 3.0
 
@@ -148,7 +146,7 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
                 elif self.find_and_test_tokens(doset=True):
                     logger.info('Token found in the config is valid, login ok...')
                     token = self._logintoken
-                elif prompt in ('auto'):
+                elif prompt in ('auto', ):
                     logger.debug("Trying to obtain credentials via login(prompt=True)...")
                     token = self.login(prompt=True)
                     logger.debug("login(prompt=True) returned token of type: %s", type(token))
@@ -158,7 +156,7 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
             logger.warning("%s - socket error prevented login, probably timeout, error is: %s", self.__class__.__name__, e)
         #self._raiseerrors = oldflag
         except xmlrpclib.ProtocolError as err:
-            logger.warning("ProtocolError raised; This is probably because XML-RPC is not enabled for your Confluence instance under general configuration. Error: %s", err )
+            logger.warning("ProtocolError raised; This is probably because XML-RPC is not enabled for your Confluence instance under general configuration. Error: %s", err)
         if self.Logintoken:
             self.setok()
         else:
@@ -1099,4 +1097,3 @@ OTHER CONFLUENCE RPC API refs:
 * https://bobswift.atlassian.net/wiki/display/CSOAP
 
 """
-

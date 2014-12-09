@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -40,21 +40,14 @@ All of this has been released to the public domain.
 """
 
 from __future__ import print_function, division
-import xmlrpclib
-import socket
-import itertools
-import string
-from Crypto.Cipher import AES
-from Crypto.Random import random as crypt_random
-import inspect
+import requests
+
 import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from utils import login_prompt, display_message
 
 # Decorators:
-from decorators.cache_decorator import cached_property
 
 defaultsockettimeout = 3.0
 
@@ -76,8 +69,8 @@ class RestfulServerProxy(AbstractServerProxy):
     * goldsmith/Wikipedia  (copyright Jonathan Goldsmith)
 
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, # url=None,
-                 confighandler=None, autologin=True, VERBOSE=0):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None,
+                 confighandler=None, autologin=True):
         """
         Use serverparams dict to specify API parameters, which may include entries:
         * appurl : <baseurl>:<urlpostfix>   - main API entry point
@@ -93,14 +86,18 @@ class RestfulServerProxy(AbstractServerProxy):
         """
 
         logger.debug("New %s initializing...", self.__class__.__name__)
-        super(RestfulMediawikiServerProxy, self).__init__(serverparams=serverparams, username=username,
-                                                     password=password, logintoken=logintoken,
-                                                     confighandler=confighandler, autologin=autologin)
-        self._default_rest_params
+        super(RestfulServerProxy, self).__init__(serverparams=serverparams, username=username,
+                                                 password=password, logintoken=logintoken,
+                                                 confighandler=confighandler, autologin=autologin)
+        self._default_rest_params = {}  # TODO: Specify default REST parameters.
+        self.Cookies = None
+        self.Headers = None
+        self.Session = None
+        self._apiurl = None
 
     def setup_rest_api(self):
         """
-        Performs commont REST api setup.
+        Performs common REST api setup.
         Call after setting self._defaultparams
         """
         s = self.Session = requests.Session()
@@ -129,7 +126,7 @@ class RestfulServerProxy(AbstractServerProxy):
         r = self.Session.post(self._apiurl, params=params, cookies=self.Cookies, headers=self.Headers, files=files, data=data)
         return self.process_request(r)
 
-    def process_request(self, requst):
+    def process_request(self, request):
         """
         Does brief processing of request, saving cookies and raising errors if needed.
         """
@@ -210,8 +207,8 @@ class RestfulMediawikiServerProxy(RestfulServerProxy):
 
 
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, # url=None,
-                 confighandler=None, autologin=True, VERBOSE=0):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None,
+                 confighandler=None, autologin=True):
         """
         Use serverparams dict to specify API parameters, which may include entries:
         * appurl : <baseurl>:<urlpostfix>   - main API entry point
@@ -228,8 +225,8 @@ class RestfulMediawikiServerProxy(RestfulServerProxy):
 
         logger.debug("New %s initializing...", self.__class__.__name__)
         super(RestfulMediawikiServerProxy, self).__init__(serverparams=serverparams, username=username,
-                                                     password=password, logintoken=logintoken,
-                                                     confighandler=confighandler, autologin=autologin)
+                                                          password=password, logintoken=logintoken,
+                                                          confighandler=confighandler, autologin=autologin)
         self._defaultparams = dict(port='80', urlpostfix='/w/api.php', protocol='http')
         self.setup_rest_api()
 
@@ -332,6 +329,3 @@ Frances Hocutt's project page: https://www.mediawiki.org/wiki/Evaluating_and_Imp
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
-
-
-
