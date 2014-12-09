@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
+##    Copyright 2013-2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
@@ -27,71 +27,62 @@ to all implemented server proxies.
 """
 
 from __future__ import print_function, division
-import socket
-import itertools
+try:
+    from itertools import izip
+except ImportError:
+    izip = zip
 import string
 from Crypto.Cipher import AES
 from Crypto.Random import random as crypt_random
-import inspect
 import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from utils import login_prompt, display_message
+
+def display_message(message):
+    """Simply prints a message to the user, making sure to properly format it."""
+    print("\n".join("\n\n", "-"*80, message, "-"*80, "\n\n"))
+
 
 # Decorators:
-from decorators.cache_decorator import cached_property
+#from ..decorators.cache_decorator import cached_property
+from .. import decorators
+cached_property = decorators.cached_decorator.cached_property
 
 __version__ = "0.1-dev"
+VERBOSE = 0
 
 
 class AbstractServerProxy(object):
     """
-    To test if server is connected, just use "if server".
-    (To test whether server is was not initialized, use the more specific "if server is None")
-
-    Edits:
-    -   Well, the whole ConfigEntries and automatic attribute creation was a bit overly complicated.
-        Especially considering that it was only used once, to make the URL from which the RpcServer
-        is initialized. Then, the RpcServer object is used the rest of the time.
-        Also, the whole "uh, I gotta make sure the base class does not override any attributes in the
-        child class is unnessecary.
-
+    Base class for all "Server/ServerProxy/Client" classes.
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, #url=None,
-                 confighandler=None, autologin=True, VERBOSE=0):
-        """
-        Using a lot of hasattr checks to make sure not to override in case this is set by class descendants.
-        However, this could also be simplified using getattr...
-        """
-        logger.debug("AbstractServer init started.")
-        self.VERBOSE = VERBOSE
-        #dict(host=None, url=None, port=None, protocol=None, urlpostfix=None)
-        self._defaultparams = dict(host="localhost", port='80', protocol='http',
-                                   urlpostfix='/rpc/xmlrpc', username='', logintoken='',
-                                   raisetimeouterrors=False)
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, confighandler=None, autologin=True):
+        logger.debug("AbstractServerProxy init started.")
+        self._defaultparams = None  # override in sub-classes
         self._serverparams = serverparams
         self._username = username
         self._password = password
-        #logger.debug("%s, init arguments: %s", self.__class__.__name__, locals())
         self._logintoken = logintoken
         self._autologin = autologin
-        #self._url = url
         self.Confighandler = confighandler
         self._loginpromptoptions = None
         self._defaultpromptoptions = dict(save_username_inmemory=True, save_password_inmemory=True)
-        self._raiseerrors = None # For temporary overwrite.
-        #self._raisetimeouterrors = True # Edit: Hardcoded not here but in the attribute getter.
         self._connectionok = None # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
-        ## THIS is essentially just to make it easy to take config entries and make them local object attributes.
-        ## It is nice, but not sure why this was so important, though...
+        # I intend to eventually support a multi-server config. The server's config would then be
+        # saved as config['serverparams']['servername']
+        self._configservername = None
+        # But, for now, I just use a prefix, e.g. server_username, or mediawiki_serverparams.
         if not hasattr(self, 'CONFIG_FORMAT'):
             self.CONFIG_FORMAT = 'server_{}'
+        self._raiseerrors = None # For temporary overwrite.
 
     # Properties
     @property
     def Username(self):
-        "Property: Returns the username to use (if available)."
+        """
+        Property: Returns the username to use (if available).
+        """
         return  self._username or \
                 self.Confighandler.get(self.CONFIG_FORMAT.format('username'), None) or \
                 self.Confighandler.get('username', None)
@@ -153,7 +144,7 @@ class AbstractServerProxy(object):
                             or self.Confighandler.get('serverparams', dict())
             logger.debug("config_params: %s", config_params)
             params.update(config_params)
-        runtime_params =  self._serverparams or dict()
+        runtime_params = self._serverparams or dict()
         params.update(runtime_params)
         return params
 
@@ -161,8 +152,8 @@ class AbstractServerProxy(object):
         """ Returns an iterator over the various config sources. """
         yield ('runtime params', self._serverparams)
         if self.Confighandler:
-            yield ('config params', self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), dict()) \
-                        or self.Confighandler.get('serverparams', dict()) )
+            yield ('config params', self.Confighandler.get(self.CONFIG_FORMAT.format('serverparams'), {}) \
+                        or self.Confighandler.get('serverparams', {}))
         yield ('hardcoded defaults', self._defaultparams)
 
     def getServerParam(self, key, default=None):
@@ -189,8 +180,19 @@ class AbstractServerProxy(object):
         return self.getServerParam('port')
     @property
     def Protocol(self):
-        """ Returns the protocol by which to connect to the server (http/https) by querying the server config. """
-        return self.getServerParam('protocol')
+        """
+        Returns the protocol by which to connect to the server (http/https) by querying the server config.
+        UPDATE: 'protocol' is actually the wrong term here; what we are using is the URI scheme, not protocol.
+            See http://en.wikipedia.org/wiki/URI_scheme
+        This property is now simply an alias for Scheme.
+        """
+        return self.Scheme
+    @property
+    def Scheme(self):
+        """
+        Returns the URI scheme (e.g. http/https) by querying the server config.
+        """
+        return self.getServerParam('scheme') or self.getServerParam('protocol')
     @property
     def UrlPostfix(self):
         """ Returns the server's url postfix (e.g. /rpc/xmlrpc/ by querying the server config. """
@@ -202,7 +204,7 @@ class AbstractServerProxy(object):
         if 'baseurl' in serverparams:
             return serverparams['baseurl']
         try:
-            url = "://".join( serverparams[itm] for itm in ("protocol", "hostname") )
+            url = "://".join(serverparams[itm] for itm in ("protocol", "hostname"))
         except KeyError:
             return None
         port = serverparams.get('port', None)
@@ -229,11 +231,11 @@ class AbstractServerProxy(object):
         """ Cached connection status, returning result of self.test_connection. """
         return self.test_connection()
 
-
+    @property
     def UserAgent(self):
         """ User-Agent string reported to the server, if applicable. """
-        return "{user} via {appname}/{version} (appurl; appemail)".format(
-            username=self.Username, appname="Labfluence", appversion=__version__ ,
+        return "{username} via {appname}/{appversion} ({appurl}; {appemail})".format(
+            username=self.Username, appname="Labfluence", appversion=__version__,
             appurl='http://bitbucket.org/rasmusscholer/labfluence/',
             appemail='rasmusscholer@gmail.com')
 
@@ -255,7 +257,8 @@ class AbstractServerProxy(object):
             if self.Confighandler:
                 logger.debug("Invoking confighandler entry change callbacks for 'wiki_server_status'")
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        logger.debug( "Server: _connectionok is now: %s", self._connectionok)
+        logger.debug("Server: _connectionok is now: %s", self._connectionok)
+
     def notok(self):
         """ Invoke to indicate that the serverproxy NOT is properly connected. """
         logger.debug("server.notok() invoked, earlier value of self._connectionok is: %s", self._connectionok)
@@ -265,8 +268,7 @@ class AbstractServerProxy(object):
                 # If you implement a per-object callback system (instead of having it all in the confighandler),
                 # This is a suitable candidate for a callback property.
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
-        logger.debug( "Server: _connectionok is now: %s", self._connectionok)
-
+        logger.debug("Server: _connectionok is now: %s", self._connectionok)
 
     def display_message(self, message):
         """
@@ -289,8 +291,6 @@ class AbstractServerProxy(object):
         b) the server is already connected.
         This method should be defined/overridden by subclasses...
         """
-        if prompt is None:
-            prompt = login_prompt
         logger.warning("autologin called, but not implemented for class %s", self.__class__.__name__)
 
     def getToken(self, token_crypt=None):
@@ -322,7 +322,7 @@ class AbstractServerProxy(object):
         token = cryptor.decrypt(token_crypt)
         # Perform a check; I believe the tokens consists of string.ascii_letters+string.digits only.
         char_space = string.ascii_letters+string.digits
-        if not all( char in char_space for char in token ):
+        if not all(char in char_space for char in token):
             logger.error("getToken() :: ERROR, invalid token decrypted, decrypted token is '%s'", token)
             return None
         logger.debug("getToken returns token of type %s and length %s", type(token), len(token))
@@ -339,7 +339,7 @@ class AbstractServerProxy(object):
         """
         if token is None:
             logger.error("AbstractServer.saveToken() :: ERROR, token is None; aborting...")
-            return
+            raise ValueError("ERROR, token is None")
         crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', '6xytURQ4JITKMhgN') # crypt key should generally be stored in the system config; different from the one where crypt_iv is stored...
         # Note: I'm pretty sure the initiation vector needs to be randomly generated on each encryption,
@@ -392,21 +392,18 @@ class AbstractServerProxy(object):
         """
         self.Logintoken = None
         cfgtypes = set()
-        for key in ('wiki_logintoken','wiki_logintoken_crypt'):
+        for key in ('wiki_logintoken', 'wiki_logintoken_crypt'):
             res = self.Confighandler.popkey(key, check_all_configs=True)
             if res:
                 # How to use izip to add every other entry in list/tuple:
                 # izip(iter, iter) makes pairs (iter[0]+iter[1]), (iter[2], iter[3]), ...)
                 # Note that this ONLY works because iterators are single-run generators; does not work with e.g. lists.
-                cfgs = ( pair[1] for pair in itertools.izip(*[(x for x in res)]*2) )
+                cfgs = (pair[1] for pair in izip(*[(x for x in res)]*2))
                 cfgtypes.add(cfgs) # only adding the first key, but should be ok I believe.
         self.Confighandler.saveConfigs(cfgtypes)
-
 
     def determineFaultCause(self, e):
         """
         Subclass this, depending on the serverproxy type. (server and API, for confluence server e.g. xmlrpc, REST.)
         """
         pass
-
-

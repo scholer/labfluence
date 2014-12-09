@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ##    Copyright 2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -17,7 +17,10 @@
 
 
 from __future__ import print_function, division
-import xmlrpclib
+try:
+    import xmlrpclib
+except ImportError:
+    import xmlrpc.client as xmlrpclib
 import socket
 #import itertools
 #import string
@@ -28,7 +31,7 @@ import logging
 logger = logging.getLogger(__name__) # pylint: disable=C0103
 
 # Labfluence modules and classes:
-from utils import login_prompt
+from ..utils import login_prompt
 
 # Decorators:
 #from decorators.cache_decorator import cached_property
@@ -356,6 +359,94 @@ to prevent the login token from expiring.
                 return cause
         return None
 
+
+    def execute(self, function, *args):
+        """
+        For XmlRpc servers we encapsulate the xmlrpc function call like this to catch missing
+        or expired logintokens. These can then be obtained via a new login and the call repeated.
+
+        Update: the args should now NOT include the token.
+        This is managed by this method, in order to avoid sending a None-type token.
+        Executes a server method, setting self._connectionok on suceed and fail on error.
+        If the server connection fails and raisetimeouterrors is set to true,
+        a socket.error will be raised. Otherwise, this will return None.
+        (Which might be hard to check...)
+        Note: raiseerrors only apply to e.g. timeout errors, i.e. permanent issues that will not
+        change by changing e.g. parameters.
+        It does not appy to e.g. xmlrpclib.Fault, which is raised from e.g. an erroneous token
+        and can be corrected by providing a correct token or logging in anew.
+
+        Edit: changed policy, execute() and autologin() will always catch socket errors;
+        test_token() and login() are allowed to catch xmlrpclib.Fault exceptions,
+        while all other methods should not catch any exceptions.
+        """
+        token = self.Logintoken
+        if not token:
+            logger.info("%s, self.Logintoken is '%s', will try to obtain anew..", self.__class__.__name__, token)
+            if self.AutologinEnabled:
+                logger.debug("%s, attempting autologin()...", self.__class__.__name__)
+                token = self.autologin() # autologin will setok/notok
+            else:
+                logger.debug("AotologinEnabled is False.")
+            if not token:
+                logger.warning("%s, token could not be obtained (is '%s'), aborting.", self.__class__.__name__, token)
+                return None
+        try:
+            # function.__name__ should equal inspect.stack()[1][3].
+            # Edit: No, function is the xmlrpclib.ServerProxy.confluence2.<xmlrpc api method>
+            # Whereas stack()[1][3] refers to the method which invoked this method, i.e. ConfluenceXmlRpcServer.<method>
+            # If function is a function, name will be available as "function.func_name"...
+            # If function is a method, name will be available as .__name__ and .im_func.func_name
+            # Edit: Do not try to log function.__name__, that does not work for xmlrpclib.
+            #logger.debug("%s, trying to execute for function '%s()' with args: %s", self.__class__.__name__, function.__name__, [type(arg) for arg in args])
+            logger.debug("%s: trying to execute for function '%s()' with args: %s", self.__class__.__name__, inspect.stack()[1][3], [type(arg) for arg in args])
+            ret = function(token, *args)
+            self.setok()
+            logger.debug("server request completed, returned value is type: %s", type(ret))
+            return ret
+        except socket.error as e:
+            #logger.debug("%s, socket error during execution of function '%s()': %s", self.__class__.__name__, function.__name__, e)
+            logger.debug("%s, socket error during execution of function '%s()': %s", self.__class__.__name__, inspect.stack()[1][3], e)
+            self.notok()
+            logger.debug("Probably a network issue, no reason to try again, invoking self.notok().")
+            #if raiseerrors is None:
+            #raiseerrors = self._raiseerrors
+            #if raiseerrors is None:
+            #    raiseerrors = self.RaiseTimeoutErrors
+            #if raiseerrors:
+            #    raise e
+        except xmlrpclib.Fault as e:
+            logger.debug("%s: xmlrpclib.Fault exception raised during execution of function %s: %s", self.__class__.__name__, inspect.stack()[1][3], e)
+            cause = self.determineFaultCause(e)
+            # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
+            logger.debug("Cause of xmlrpclib.Fault determined to be: '%s'", cause)
+            if cause in ('TokenExpired', 'IncorrectUserPassword'):
+                if self.AutologinEnabled:
+                    prompt = 'force' if cause == 'IncorrectUserPassword' else 'auto'
+                    logger.debug("%s: invoking self.autologin with prompt=%s", self.__class__.__name__, prompt)
+                    token = self.autologin(prompt=prompt) # autologin will set connectionok status
+                    if self._connectionok:
+                        # try once more:
+                        #try:
+                        logger.debug("%s, attempting once more to invoke %s with args %s", self.__class__.__name__, inspect.stack()[1][3], args)
+                        ret = function(token, *args)
+                        self.setok()
+                        logger.debug("%s, %s returned %s (returning)", self.__class__.__name__, inspect.stack()[1][3], ret)
+                        return ret
+                else:
+                    self.notok()
+                    logger.debug("%s: Autologin disabled. self._connectionok set to '%s'", self.__class__.__name__, self._connectionok)
+            elif cause == 'TooManyFailedLogins':
+                self.display_message("Server ERROR, too many failed logins. Determined from exception: %r" % e)
+                logger.warning("%s: Server ERROR, too many failed logins. Determined from exception: %s", self.__class__.__name__, e)
+            elif cause == 'PageNotAvailable':
+                logger.info("PageNotAvailable: %s called with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
+                raise e
+            else:
+                logger.info("Unknown Fault excepted after calling %s with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
+                raise e
+        logger.debug("end of execute method reached. This should not happen.")
+        return None # Default if... But consider raising an exception instead.
 
 
 

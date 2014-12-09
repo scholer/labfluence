@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-##    Copyright 2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
+##    Copyright 2013-2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
@@ -14,27 +14,42 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable=C0103,W0142,R0902,R0904,R0913,R0201,R0912
+# pylint: disable=C0103,C0301,W0142,R0902,R0904,R0913,R0201,R0912
+"""
+Abstract clients module. Provides Abstract client base classes.
+
+AbstractClient serves two purposes:
+1) Define a standard "client" interface, specifying what methods and
+properties a server is expected to implement.
+2) Define some of the basic client functionality which is common
+to all implemented server proxies, e.g. properties, etc.
+
+"""
 
 from __future__ import print_function, division
-import xmlrpclib
-import socket
-import itertools
+try:
+    from itertools import izip # pylint: disable=E0611
+except ImportError:
+    izip = zip
 import string
 from Crypto.Cipher import AES
 from Crypto.Random import random as crypt_random
-import inspect
 import logging
-logger = logging.getLogger(__name__)    # pylint: disable=C0103
+logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from utils import display_message
+
+def display_message(message):
+    """Simply prints a message to the user, making sure to properly format it."""
+    print("\n".join("\n\n", "-"*80, message, "-"*80, "\n\n"))
+
 
 # Decorators:
-from decorators.cache_decorator import cached_property
+#from ..decorators.cache_decorator import cached_property
+from .. import decorators
+cached_property = decorators.cached_decorator.cached_property
 
-defaultsockettimeout = 3.0    # pylint: disable=C0103
-
+__version__ = "0.1-dev"
 VERBOSE = 0
 
 
@@ -42,7 +57,7 @@ class AbstractClient(object):
     """
     Base class, from which both the old AbstractXmlRpcClient and the new AbstractRestClient derives.
     """
-    def __init__(self, serverparams, username, password, logintoken, url, confighandler, autologin):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, confighandler=None, autologin=True):
         logger.debug("AbstractClient init started.")
         self._defaultparams = None  # override in sub-classes
         self._serverparams = serverparams
@@ -50,13 +65,10 @@ class AbstractClient(object):
         self._password = password
         self._logintoken = logintoken
         self._autologin = autologin
-        self._url = url
         self.Confighandler = confighandler
-        # To keep track of connection status:
-        # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
-        self._connectionok = None
         self._loginpromptoptions = None
         self._defaultpromptoptions = dict(save_username_inmemory=True, save_password_inmemory=True)
+        self._connectionok = None # None = Not tested, False/True: Whether the last connection attempt failed or succeeded.
         # I intend to eventually support a multi-server config. The server's config would then be
         # saved as config['serverparams']['servername']
         self._configservername = None
@@ -70,11 +82,6 @@ class AbstractClient(object):
     def Username(self):
         """
         Property: Returns the username to use (if available).
-        User self.CONFIG_FORMAT to adjust which config keys are found,
-        e.g. change from "server_username" to "confluence_username".
-        Not really sure this is the best way to do it, however.
-        It might be better to have a "serverparams" dict, where each element is
-        a dict with serverparams for that server. Like Mediawiker.
         """
         return  self._username or \
                 self.Confighandler.get(self.CONFIG_FORMAT.format('username'), None) or \
@@ -179,15 +186,13 @@ class AbstractClient(object):
             See http://en.wikipedia.org/wiki/URI_scheme
         This property is now simply an alias for Scheme.
         """
-        return self.Scheme()
+        return self.Scheme
     @property
     def Scheme(self):
         """
         Returns the URI scheme (e.g. http/https) by querying the server config.
         """
         return self.getServerParam('scheme') or self.getServerParam('protocol')
-
-
     @property
     def UrlPostfix(self):
         """ Returns the server's url postfix (e.g. /rpc/xmlrpc/ by querying the server config. """
@@ -226,6 +231,14 @@ class AbstractClient(object):
         """ Cached connection status, returning result of self.test_connection. """
         return self.test_connection()
 
+    @property
+    def UserAgent(self):
+        """ User-Agent string reported to the server, if applicable. """
+        return "{username} via {appname}/{appversion} ({appurl}; {appemail})".format(
+            username=self.Username, appname="Labfluence", appversion=__version__,
+            appurl='http://bitbucket.org/rasmusscholer/labfluence/',
+            appemail='rasmusscholer@gmail.com')
+
 
     def __nonzero__(self):
         return bool(self._connectionok)
@@ -245,6 +258,7 @@ class AbstractClient(object):
                 logger.debug("Invoking confighandler entry change callbacks for 'wiki_server_status'")
                 self.Confighandler.invokeEntryChangeCallback('wiki_server_status')
         logger.debug("Server: _connectionok is now: %s", self._connectionok)
+
     def notok(self):
         """ Invoke to indicate that the serverproxy NOT is properly connected. """
         logger.debug("server.notok() invoked, earlier value of self._connectionok is: %s", self._connectionok)
@@ -279,11 +293,9 @@ class AbstractClient(object):
         """
         logger.warning("autologin called, but not implemented for class %s", self.__class__.__name__)
 
-
     def getToken(self, token_crypt=None):
         """
         Get encrypted token from the confighandler and decrypt it.
-        Is there any reason this cannot be in AbstractClient?
         """
         # Obtain encrypted token from sources (currently only confighandler)
         if token_crypt is None:
@@ -327,7 +339,7 @@ class AbstractClient(object):
         """
         if token is None:
             logger.error("AbstractServer.saveToken() :: ERROR, token is None; aborting...")
-            return
+            raise ValueError("ERROR, token is None")
         crypt_key_default = '6xytURQ4JITKMhgN'
         crypt_key = self.Confighandler.get('crypt_key', '6xytURQ4JITKMhgN') # crypt key should generally be stored in the system config; different from the one where crypt_iv is stored...
         # Note: I'm pretty sure the initiation vector needs to be randomly generated on each encryption,
@@ -386,7 +398,7 @@ class AbstractClient(object):
                 # How to use izip to add every other entry in list/tuple:
                 # izip(iter, iter) makes pairs (iter[0]+iter[1]), (iter[2], iter[3]), ...)
                 # Note that this ONLY works because iterators are single-run generators; does not work with e.g. lists.
-                cfgs = (pair[1] for pair in itertools.izip(*[(x for x in res)]*2))
+                cfgs = (pair[1] for pair in izip(*[(x for x in res)]*2))
                 cfgtypes.add(cfgs) # only adding the first key, but should be ok I believe.
         self.Confighandler.saveConfigs(cfgtypes)
 
@@ -425,94 +437,6 @@ class AbstractXmlRpcClient(AbstractClient):
                                    urlpostfix='/rpc/xmlrpc', username='', logintoken='',
                                    raisetimeouterrors=False)
 
-
-    def execute(self, function, *args):
-        """
-        For XmlRpc servers we encapsulate the xmlrpc function call like this to catch missing
-        or expired logintokens. These can then be obtained via a new login and the call repeated.
-
-        Update: the args should now NOT include the token.
-        This is managed by this method, in order to avoid sending a None-type token.
-        Executes a server method, setting self._connectionok on suceed and fail on error.
-        If the server connection fails and raisetimeouterrors is set to true,
-        a socket.error will be raised. Otherwise, this will return None.
-        (Which might be hard to check...)
-        Note: raiseerrors only apply to e.g. timeout errors, i.e. permanent issues that will not
-        change by changing e.g. parameters.
-        It does not appy to e.g. xmlrpclib.Fault, which is raised from e.g. an erroneous token
-        and can be corrected by providing a correct token or logging in anew.
-
-        Edit: changed policy, execute() and autologin() will always catch socket errors;
-        test_token() and login() are allowed to catch xmlrpclib.Fault exceptions,
-        while all other methods should not catch any exceptions.
-        """
-        token = self.Logintoken
-        if not token:
-            logger.info("%s, self.Logintoken is '%s', will try to obtain anew..", self.__class__.__name__, token)
-            if self.AutologinEnabled:
-                logger.debug("%s, attempting autologin()...", self.__class__.__name__)
-                token = self.autologin() # autologin will setok/notok
-            else:
-                logger.debug("AotologinEnabled is False.")
-            if not token:
-                logger.warning("%s, token could not be obtained (is '%s'), aborting.", self.__class__.__name__, token)
-                return None
-        try:
-            # function.__name__ should equal inspect.stack()[1][3].
-            # Edit: No, function is the xmlrpclib.ServerProxy.confluence2.<xmlrpc api method>
-            # Whereas stack()[1][3] refers to the method which invoked this method, i.e. ConfluenceXmlRpcServer.<method>
-            # If function is a function, name will be available as "function.func_name"...
-            # If function is a method, name will be available as .__name__ and .im_func.func_name
-            # Edit: Do not try to log function.__name__, that does not work for xmlrpclib.
-            #logger.debug("%s, trying to execute for function '%s()' with args: %s", self.__class__.__name__, function.__name__, [type(arg) for arg in args])
-            logger.debug("%s: trying to execute for function '%s()' with args: %s", self.__class__.__name__, inspect.stack()[1][3], [type(arg) for arg in args])
-            ret = function(token, *args)
-            self.setok()
-            logger.debug("server request completed, returned value is type: %s", type(ret))
-            return ret
-        except socket.error as e:
-            #logger.debug("%s, socket error during execution of function '%s()': %s", self.__class__.__name__, function.__name__, e)
-            logger.debug("%s, socket error during execution of function '%s()': %s", self.__class__.__name__, inspect.stack()[1][3], e)
-            self.notok()
-            logger.debug("Probably a network issue, no reason to try again, invoking self.notok().")
-            #if raiseerrors is None:
-            #raiseerrors = self._raiseerrors
-            #if raiseerrors is None:
-            #    raiseerrors = self.RaiseTimeoutErrors
-            #if raiseerrors:
-            #    raise e
-        except xmlrpclib.Fault as e:
-            logger.debug("%s: xmlrpclib.Fault exception raised during execution of function %s: %s", self.__class__.__name__, inspect.stack()[1][3], e)
-            cause = self.determineFaultCause(e)
-            # causes: PageNotAvailable, IncorrectUserPassword, TooManyFailedLogins, TokenExpired
-            logger.debug("Cause of xmlrpclib.Fault determined to be: '%s'", cause)
-            if cause in ('TokenExpired', 'IncorrectUserPassword'):
-                if self.AutologinEnabled:
-                    prompt = 'force' if cause == 'IncorrectUserPassword' else 'auto'
-                    logger.debug("%s: invoking self.autologin with prompt=%s", self.__class__.__name__, prompt)
-                    token = self.autologin(prompt=prompt) # autologin will set connectionok status
-                    if self._connectionok:
-                        # try once more:
-                        #try:
-                        logger.debug("%s, attempting once more to invoke %s with args %s", self.__class__.__name__, inspect.stack()[1][3], args)
-                        ret = function(token, *args)
-                        self.setok()
-                        logger.debug("%s, %s returned %s (returning)", self.__class__.__name__, inspect.stack()[1][3], ret)
-                        return ret
-                else:
-                    self.notok()
-                    logger.debug("%s: Autologin disabled. self._connectionok set to '%s'", self.__class__.__name__, self._connectionok)
-            elif cause == 'TooManyFailedLogins':
-                self.display_message("Server ERROR, too many failed logins. Determined from exception: %r" % e)
-                logger.warning("%s: Server ERROR, too many failed logins. Determined from exception: %s", self.__class__.__name__, e)
-            elif cause == 'PageNotAvailable':
-                logger.info("PageNotAvailable: %s called with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
-                raise e
-            else:
-                logger.info("Unknown Fault excepted after calling %s with args %s. Re-raising the xmlrpclib.Fault exception.", inspect.stack()[1][3], args)
-                raise e
-        logger.debug("end of execute method reached. This should not happen.")
-        return None # Default if... But consider raising an exception instead.
 
 
 
