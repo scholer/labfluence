@@ -30,6 +30,7 @@ SatelliteMgr
             SatelliteLocation
 """
 from __future__ import print_function
+#from six import string_types
 import os
 from datetime import datetime
 import yaml
@@ -43,6 +44,11 @@ from utils import filehexdigest, attachmentTupFromFilepath
 class Filemanager(object):
     """
     Class for all (most) file- and attachment related operations.
+    Note that this should actually be named "ExpFileManager":
+        It is NOT a generic class to deal with all files.
+        It is specifically designed to deal with a single experiment's files.
+        It is basically just refactoring out file-specific logic from the (very large) experiment module.
+        It is implemented as a class, because it is also designed to keep track of file history, etc.
     """
     def __init__(self, experiment=None):
         """
@@ -90,7 +96,7 @@ class Filemanager(object):
     @property
     def WikiPage(self):
         """
-        I'm *was* trying out a slightly different paradigm here in filemanager:
+        I *was* trying out a slightly different paradigm here in filemanager:
         Instead of getting a wiki-page that might be None and checking "if wikipage is None: ..."
         I raise an attribute error:
         try:
@@ -98,7 +104,7 @@ class Filemanager(object):
         except AttributeError as e:
             logger.error("Could not get wikipage, returning fake None to avoid failover; error was: %s", e)
             return None
-        However, that is not really any better than:
+        HOWEVER, that is not really any better than:
         wikipage = self.WikiPage
         if wikipage is None:
             logger.error("Could not get wikipage, returning fake None to avoid failover; error was: %s", e)
@@ -132,7 +138,7 @@ class Filemanager(object):
             filepath = os.path.normpath(os.path.join(self.Localdirpath, filepath))
         relpath = os.path.relpath(filepath, self.Localdirpath)
         fileshistory = self.Fileshistory
-        digestentry = dict( (digesttype, filehexdigest(filepath, digesttype)) for digesttype in digesttypes)
+        digestentry = {digesttype: filehexdigest(filepath, digesttype) for digesttype in digesttypes}
         digestentry['datetime'] = datetime.now()
         if relpath in fileshistory:
             # if hexdigest is present, then no need to add it...? Well, now that you have hashed it, just add it anyways.

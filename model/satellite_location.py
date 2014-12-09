@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
+##    Copyright 2013-2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
 ##    This program is free software: you can redistribute it and/or modify
 ##    it under the terms of the GNU General Public License as published by
@@ -34,58 +34,54 @@ Code for dealing with satellite locations.
 Consider using virtualfs python module to normalize external locations,
 rather than implementing ftp, etc...
 
+Object graph:
+                        Experiment
+                       /          \
+            Filemanager             WikiPage
+           /
+SatelliteMgr
+           \
+            SatelliteLocation
+
+
 In general, I imagine this being used in two ways:
 
 1)  Location-centric: You ask a satellite location if something has changed (possibly as part
     of a loop over all locations). If something has changed, it figures out which experiment(s)
     the change(s) is (are) related to and syncs to the local directory tree.
 
-2)  Experiment-centric: You ask the satellite location to identify folders related to a specific
+2)  Experiment-centric: You (or an experiment object) ask the satellite location to identify folders related to a specific
     experiment and then syncs just those folders to the experiment's folders.
     (Note: Probably cache the local directory tree in memory for maybe 1 min so you can
     rapidly sync multiple experiments...)
+
+What about the use case where I simply want to do a one-way sync, pulling new files from a
+satellite location to the local experiment data directory?
+  - This should not be handled here; A satellite location knows nothing about the local
+    experiment data file structure.
+    Two questions: WHERE should this be handled/implemented and HOW?
+
+HOW to implement "one-way sync to pull new files from sat loc to local exp data file structure":
+ a) ExpManager parses local experiment directory tree, getting a list of expids.
+    SatLoc parses remote tree, getting a list of expids.
+    For each local experiment, sync all remote subentry folders into the experiment's local directory.
+    This could be handled by the (already large) experimentmanager module, or it could be
+    delegated to a separate module, syncmanager.py
+
+    All other ways I've found is either where the local experiment folder is specified
+    (effectively the same as the "experiment centric" implementation/usage above)
+    or where an experiment ID is provided, effectively just applying the above for
+    a single expid instead of all expids.
 
 As default, sync should be one-way only: from satellite location to local data tree.
 Only exception might be to update foldernames on the satellite location to match the
 foldernames in the data tree.
 
 
-"""
-import os
-import re
-import shutil
-import time
-# FTP not yet implemented...
-#from ftplib import FTP
-import logging
-logger = logging.getLogger(__name__)
+TODO:
+    # TODO: Consolidate all file structure parsing to a single module.
 
-from decorators.cache_decorator import cached_property
-
-class SatelliteLocation(object):
-    """
-    Base class for satellite locations, treats the location as if it is a locally available file system.
-    Notes:
-    Protocol is used to determine how to access the file (handled by subclassing).
-    URI, rootdir, and folderscheme is used to access the files.
-    - URI is the "mount point", FTP server, or NFS share or similar,
-        e.g. /mnt/typhoon_ftp/
-        (Currently, only local file protocol is supported...)
-    - Rootdir is the directory on the URI where your files are located, e.g.
-        /scholer/   or  /typhoon_data/jk/Rasmus/
-    - Folderscheme is used to figure out how to handle/sync files from the satellite location
-        into the main experiment data tree. Examples of Folderschemes:
-        ./subentry/     -> Means that data is stored in folders named after the subentry related to that data.
-                        e.g. /mnt/typhoon_ftp/scholer/RS190c PAGE analysis of b/RS190c_PAGE_sybr_600V.gel
-        ./              -> data is just stored in a big bunch within the root folder.
-                        Use filenames to interpret what experiments/subentries they belong to, e.g.:
-                            /mnt/typhoon_ftp/scholer/RS190c_PAGE_sybr_600V.gel
-        ./year/experiment/subentry/  -> data is stored, e.g.
-                        /mnt/typhoon_ftp/scholer/2014/RS190 Test experiment/RS190c PAGE analysis of b/RS190c_PAGE_sybr_600V.gel
-
-    QUESTION: If the subentryId (expid+subentry_idx) does not match the experiment id, which takes preference?
-    E.g. for folder:    <rootdir>/RS190 Test experiment/RS191c PAGE analysis of b/
-    which takes preference?
+== Other design considerations: ==
 
     It is a design target that the subentry folder on the satellite location DOES NOT have
     to match the name of the subentry folder in the main data tree exactly, but can be
@@ -93,6 +89,9 @@ class SatelliteLocation(object):
     will be interpreted correctly as Experiment=RS190, subentry=c.
     The experiment/subentry folder can then optionally be renamed to match the name in the main
     data tree, if the program has read permissions. (Possibly extending this to files...)
+
+
+== Discussion: Monitoring filesystem changes: ==
 
     Consideration: Which approach is better if I want to be able to check if something has changed?
         a)  Keep a full directory list structure in memory and check against this?
@@ -123,6 +122,97 @@ class SatelliteLocation(object):
     - http://pyinotify.sourceforge.net/  (relies on inotify in linux kernel)
     With PyQt:
     - http://stackoverflow.com/questions/182197/how-do-i-watch-a-file-for-changes-using-python (also links other solutions)
+
+
+"""
+from __future__ import print_function
+from six import string_types
+
+import os
+import re
+import shutil
+import time
+# FTP not yet implemented...
+#from ftplib import FTP
+import logging
+logger = logging.getLogger(__name__)
+
+from decorators.cache_decorator import cached_property
+
+class SatelliteLocation(object):
+    """
+    Base class for satellite locations, treats the location as if it is a locally available file system.
+
+    Initialize with a locationparams dict and an optional satellite manager.
+    Locationparams is generally specified in a yaml/json configuration file.
+    Location params dict can include the following:
+        name:       The display name of the satellite location.
+        description: Description of the satellite location.
+        protocol:   The protocol to use. Currently, only file protocol is supported.
+        uri:        The location of the satellite directory, e.g. Z:\.
+        rootdir:    The folder on the satellite location, e.g. Microscopy\Rasmus.
+        folderscheme: String specifying how the folders are organized, e.g. {year}/{experiment}/{subentry}. Defaults to {subentry}.
+        ignoredirs: A list of directories to ignore when parsing the satellite location for experiments/subentries.
+        mountcommand: Specifies how to mount the satellite location as a local, virtual filesystem.
+        regexs:     A dict with regular expressions specifying how to parse each element in the folderscheme.
+                    The key must correspond to the name in the folderscheme, e.g. 'experiment': r'(?P<expid>RS[0-9]{3})[_ ]+(?P<exp_titledesc>.+)'
+
+    The rationale for keeping uri and rootdir separate is that the uri can be mounted, e.g. if it is an FTP server,
+    followed by a 'cd' to the root dir.
+
+    Notes:
+    Protocol is used to determine how to access the file. This is generally handled by subclassing with the location_factory module function,
+        which e.g. returns a SatelliteFileLocation subclass for 'file' protocol locations.
+    URI, rootdir, and folderscheme is used to access the files.
+    - URI is the "mount point", FTP server, or NFS share or similar,
+        e.g. /mnt/typhoon_ftp/
+        (Currently, only local file protocol is supported...)
+    - Rootdir is the directory on the URI where your files are located, e.g.
+        /scholer/   or  /typhoon_data/jk/Rasmus/
+    - Folderscheme is used to figure out how to handle/sync files from the satellite location
+        into the main experiment data tree. Examples of Folderschemes:
+        ./subentry/     -> Means that data is stored in folders named after the subentry related to that data.
+                        e.g. /mnt/typhoon_ftp/scholer/RS190c PAGE analysis of b/RS190c_PAGE_sybr_600V.gel
+        ./              -> data is just stored in a big bunch within the root folder.
+                        Use filenames to interpret what experiments/subentries they belong to, e.g.:
+                            /mnt/typhoon_ftp/scholer/RS190c_PAGE_sybr_600V.gel
+        ./year/experiment/subentry/  -> data is stored, e.g.
+                        /mnt/typhoon_ftp/scholer/2014/RS190 Test experiment/RS190c PAGE analysis of b/RS190c_PAGE_sybr_600V.gel
+
+    QUESTION: If the subentryId (expid+subentry_idx) does not match the experiment id, which takes preference?
+    E.g. for folder:    <rootdir>/RS190 Test experiment/RS191c PAGE analysis of b/
+    which takes preference?
+
+    == Methods and Usage: ==
+    This class contains a lot of code intended for a persistent/long-lived satellite location object.
+    This includes code to parse a full directory tree to produce a central data structure consisting of
+        dict[expid][subentry_idx] = filepath
+    e.g.
+        ds['RS123']['a'] = "2014/RS123 Some experiment/RS123a Relevant subentry"
+    The primary file tree parsing methods are:
+        genPathmatchTupsByPathscheme
+        getSubentryfoldersByExpidSubidx
+
+    Many of the methods are used to either extract info from this datastructure,
+    or update this data structure:
+        update_expsubfolders : Updates the two catalogs _expidsubidxbyfolder, _subentryfolderset
+            and returns a three-tuple specifying what has been updated since it was last invoked.
+
+    A few methods are intended to update the satellite location's file structure (keeping the database updated in the process).
+        renameexpfolder
+        renamesubentryfolder
+        ensuresubentryfoldername
+
+    Subclasses provides med-level methods for one-way syncing:
+        syncToLocalDir      Syncs a satellite directory to a local directory.
+        syncFileToLocalDir  Syncs a satellite file to a local path.
+
+    Each subclass additionally provides some low-level "file system" methods, e.g. rename, copy, etc.
+        rename
+        listdir, isdir, join,
+
+    Additionally, there are a few rarely-used methods:
+        getFilepathsByExpIdSubIdx: Like getSubentryfoldersByExpidSubidx, but returns a list of files within the folder.
 
 
     """
@@ -201,7 +291,7 @@ class SatelliteLocation(object):
         """
         if not self._regexpats:
             ch = self.Confighandler
-            if 'regex' in self.LocationParams:
+            if 'regexs' in self.LocationParams:
                 regexs = self.LocationParams['regexs']
             elif ch:
                 regexs = ch.get('satellite_regexs') or ch.get('exp_folder_regexs')
@@ -216,7 +306,7 @@ class SatelliteLocation(object):
         Set regexs. Format must be a dict where key corresponds to a pathscheme element (e.g. 'experiment')
         and the values must be either regex patterns or strings (which will then be compiled...)
         """
-        self._regexpats = {key : re.compile(regex) if isinstance(regex, basestring) else regex for key, regex in regexs.items()}
+        self._regexpats = {key : re.compile(regex) if isinstance(regex, string_types) else regex for key, regex in regexs.items()}
         logger.debug("self._regexpats set to {}".format(self._regexpats))
 
     ##################################
@@ -451,6 +541,9 @@ class SatelliteLocation(object):
         """
         Return datastructure:
             [expid][subentry_idx] = <filepath relative to basedir/rootdir>
+        Usage:
+            ds = getSubentryfoldersByExpidSubidx(...)
+            subentry_fpath = ds['RS123']['a'] # returns e.g. "2014/RS123 Some experiment/RS123a Relevant subentry"
         """
         # logger.debug("getSubentryfoldersByExpidSubidx(regexs=%s, basedir='%s', folderscheme='%s')", regexs, basedir, folderscheme)
         subentryfoldermatchtuples = self.genPathmatchTupsByPathscheme(regexs, basedir, folderscheme, includefiles=False)
@@ -505,7 +598,9 @@ class SatelliteLocation(object):
         # so only make a cached_property for this.
         if clearcache:
             logger.debug("Clearing cache for self.SubentryfoldersByExpidSubidx")
-            del self.SubentryfoldersByExpidSubidx # Note: This will delete most references to the SubentryfoldersByExpidSubidx
+            # Note: This will delete most references to the SubentryfoldersByExpidSubidx. Maybe clear it rather than delete/reassign?
+            # How is the property's del defined?
+            del self.SubentryfoldersByExpidSubidx
         if foldersbyexpidsubidx is None:
             logger.debug("Obtaining foldersbyexpidsubidx = self.SubentryfoldersByExpidSubidx")
             foldersbyexpidsubidx = self.SubentryfoldersByExpidSubidx
@@ -756,6 +851,9 @@ class SatelliteFileLocation(SatelliteLocation):
     def syncToLocalDir(self, satellitepath, localpath):
         """
         Consider making a call to rsync and see if that is available, and only use the rest as a fallback...
+        # Note, if satellitepath ends with a '/', the basename will be ''.
+        # This will thus cause the contents of satellitepath to be copied into localpath, rather than localpath/foldername
+        # I guess this is also the behaviour of e.g. rsync, so should be ok. Just be aware of it.
         """
         if not os.path.isdir(localpath):
             logger.debug("SatelliteFileLocation.syncToLocalDir() :: localpath '%s' is not a directory, skipping...", localpath)
@@ -769,9 +867,6 @@ class SatelliteFileLocation(SatelliteLocation):
             logger.debug("SatelliteFileLocation.syncToLocalDir() :: satellitepath '%s' is not a file or directory, skipping...", realpath)
             return
         # We have a folder:
-        # Note, if satellitepath ends with a '/', the basename will be ''.
-        # This will thus cause the contents of satellitepath to be copied into localpath, rather than localpath/foldername
-        # I guess this is also the behaviour of e.g. rsync, so should be ok. Just be aware of it.
         foldername = os.path.basename(satellitepath)
         # If the folder does not exists in localpath destination, just use copytree:
         if not os.path.exists(os.path.join(localpath, foldername)):

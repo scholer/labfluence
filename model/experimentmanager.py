@@ -319,9 +319,9 @@ class ExperimentManager(LabfluenceBase):
 
 
 
-    ########################################
-    ### Loading/parsing wiki experiments ###
-    ########################################
+    #########################################
+    ### Loading/parsing local experiments ###
+    #########################################
 
     def getLocalExperimentFolderpaths(self, directory=None):
         """
@@ -376,7 +376,7 @@ class ExperimentManager(LabfluenceBase):
         and compares that with the experiments_by_id.
 
         ret argument specifies how/what you want returned:
-        - 'experiment-object'  -> Returns instantiated experimentobject based on the directory listing
+        - 'experiment-object'   -> Returns instantiated experiment objects based on the directory listing
         - 'regex-match'         -> Returns the regex match objects from matching directory listings
         - 'properties'          -> Returns a dict with 'localdir' and match.groupdict
         - 'tuple'               -> Returns a tuple of ( expid, exp_titledesc, date )
