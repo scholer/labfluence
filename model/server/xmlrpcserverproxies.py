@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -32,8 +32,9 @@ Consider that an eary deprecation warning.
 """
 
 from __future__ import print_function, division
+from six import string_types
 try:
-    import xmlrpclib
+    import xmlrpclib # pylint: disable=E0611,F0401
 except ImportError:
     import xmlrpc.client as xmlrpclib
 import socket
@@ -42,19 +43,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from utils import login_prompt
-
-# Decorators:
-
-defaultsockettimeout = 3.0
-
+from serverutils import login_prompt
 from abstractserverproxy import AbstractServerProxy
+
+
+# Module constants:
+defaultsockettimeout = 3.0  # pylint: disable=C0103
+VERBOSE = 0     # Setting this to a non-zero value may print confidential info to log. Take care.
+
 
 
 
 class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
     """
-
     Server interface to the XML-RPC API of a Confluence instance.
 
     Note: If using from command line, consider using the simpleserver module instead!!
@@ -69,8 +70,7 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
     server = ConfluenceXmlRpcServerProxy(serverparams, token='12de4a837b')
 
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, # url=None,
-                 confighandler=None, autologin=True, VERBOSE=0):
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, confighandler=None, autologin=True):
         """
         Argument <url> is now deprecated.
         Instead, use serverparams dict, which may include entries:
@@ -85,19 +85,12 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
         Note that some primitives (e.g. urlpostfix) will vary depending on the server
         implementation (XML-RPC vs REST). These defaults are usually specified in self._defaultparams.
         """
-                 #serverparams=None, username=None, password=None, logintoken=None,
-                 #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
-        #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
         logger.debug("New %s initializing...", self.__class__.__name__)
         self.CONFIG_FORMAT = 'wiki_{}'
-        #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
-        # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
-        # Remember, super takes current class as first argument (python2)
         super(ConfluenceXmlRpcServerProxy, self).__init__(serverparams=serverparams, username=username,
-                                                     password=password, logintoken=logintoken, #url=url,
+                                                     password=password, logintoken=logintoken,
                                                      confighandler=confighandler, autologin=autologin)
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
-        #self.UI = ui # Is now a property that goes through confighandler.
         appurl = self.AppUrl
         if not appurl:
             logger.warning("WARNING: Server's AppUrl is '%s', ABORTING init!", appurl)
@@ -362,12 +355,11 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
         # <source-dir>/confluence-project/confluence-core/confluence/src/java/com/atlassian/confluence/rpc
         logger.debug("Determining cause of Fault with attributes: faultCode=%s, faultString=%s, message=%s, args=%s", e.faultCode, e.faultString, e.message, e.args)
         import re
-        faultRegexs = [
-                ("PageNotAvailable",        r"com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
-                ("IncorrectUserPassword",   r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
-                ("TooManyFailedLogins",     r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
-                ("TokenExpired",            r"User not authenticated or session expired"),
-                ]
+        faultRegexs = [("PageNotAvailable", r"com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
+                       ("IncorrectUserPassword", r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
+                       ("TooManyFailedLogins", r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
+                       ("TokenExpired", r"User not authenticated or session expired")
+                      ]
         for cause, regexpat in faultRegexs:
             match = re.search(regexpat, e.faultString)
             if match:
@@ -376,10 +368,11 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
         return None
 
 
-
-
     def execute(self, function, *args):
         """
+        For XmlRpc servers we encapsulate the xmlrpc function call like this to catch missing
+        or expired logintokens. These can then be obtained via a new login and the call repeated.
+
         Update: the args should now NOT include the token.
         This is managed by this method, in order to avoid sending a None-type token.
         Executes a server method, setting self._connectionok on suceed and fail on error.
@@ -462,8 +455,6 @@ class ConfluenceXmlRpcServerProxy(AbstractServerProxy):
                 raise e
         logger.debug("end of execute method reached. This should not happen.")
         return None # Default if... But consider raising an exception instead.
-
-
 
 
 
@@ -756,24 +747,26 @@ current       Boolean whether the page is current and not deleted
 
 
     def storePage(self, page_struct):
-        """ Adds or updates a page.
-For adding, the Page given as an argument should have space, title and content fields at a minimum.
-For updating, the Page given should have id, space, title, content and version fields at a minimum.
-The parentId field is always optional. All other fields will be ignored.
-The content is in storage format.
-Note: the return value can be null, if an error that did not throw an exception occurred.
-Operates exactly like updatePage() if the page already exists.
-"""
-        if self.VERBOSE:
+        """
+        Adds or updates a page.
+        For adding, the Page given as an argument should have space, title and content fields at a minimum.
+        For updating, the Page given should have id, space, title, content and version fields at a minimum.
+        The parentId field is always optional. All other fields will be ignored.
+        The content is in storage format.
+        Note: the return value can be null, if an error that did not throw an exception occurred.
+        Operates exactly like updatePage() if the page already exists.
+        """
+        if VERBOSE:
             logger.info("server.storePage() :: Storing page: %s", page_struct)
         return self.execute(self.RpcServer.confluence2.storePage, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
-        """ Updates a page.
-The Page given should have id, space, title, content and version fields at a minimum.
-The parentId field is always optional. All other fields will be ignored.
-Note: the return value can be null, if an error that did not throw an exception occurred.
-"""
+        """
+        Updates a page.
+        The Page given should have id, space, title, content and version fields at a minimum.
+        The parentId field is always optional. All other fields will be ignored.
+        Note: the return value can be null, if an error that did not throw an exception occurred.
+        """
         return self.execute(self.RpcServer.confluence2.updatePage, page_struct, pageUpdateOptions)
 
 
@@ -1015,11 +1008,6 @@ ConfluenceXmlRpcServer = ConfluenceXmlRpcServerProxy
 
 
 
-if __name__ == "__main__":
-
-    logging.basicConfig(level=logging.INFO)
-
-
 
 """
 
@@ -1048,52 +1036,5 @@ Other Confluence xmlrpc API projects:
 * https://github.com/al3xandr3/ruby/blob/master/confluence.rb
 * https://confluence.atlassian.com/x/cITjCg
 
-
-NOTES ON ENCRYPTION:
-- Currently using pycrypto with CFB mode AES. Requires combiling platform-dependent binaries.
---- I previously used CBC mode, but that requires plaintext and cipertext lenghts being an integer of 16. CFB does not require this.
---- Although according to litterature, OCB mode would be better. But this is patented and not available in pycrypto as far as I can tell.
-- SimpleCrypt module also requires pycrypto.
---- Only uses pycrypto for legacy encryption; uses openssl (via process call) for encryption. Not sure how this ports to e.g. windows?
---- Both new and legacy methods uses CBC MODE with AES.
---- It also currently uses random.randint as entrypy provider which is not as good as the random library provided by pycrypto.
-- alo-aes 0.3: Does not seem mature; very little documentation.
-- M2Crypto
---- Rather big, contains functionality for ssl certificates, etc.
-- m2secret
---- Easy-to-use interface to M2Crypto, contained in a single file.
-- pyOCB, https://github.com/kravietz/pyOCB
---- This seems to be a pure-python OCB mode AES cryptography module. Only two files.
---- When mature, this is probably the best option for small passwords...
-- AESpython (aka pythonAES)
---- another pure-python implementation. However, does not have an easy-to-use interface.
-- wheezy.security: simple wrapper for pycrypto.
-- https://github.com/alex/cryptography
---- discussion in https://news.ycombinator.com/item?id=6194102
-
-In conclusion:
-- I currently use PyCrypto which should be good, except that it requires separate installation
-  of platform-dependent binaries.
-- pyOCB is probably the best pure-python replacement: only depends on the build-in math module,
-  is contained in just two files (__init__.py and AES.py).
-
-REGARDING MODE:
-- input length and padding:
---- http://stackoverflow.com/questions/14179784/python-encrypting-with-pycrypto-aes
-
-
-CRYPTOGRAPHY REFS:
-- pycrypto: www.dlitz.net/software/pycrypto/
-- http://stackoverflow.com/questions/1220751/how-to-choose-an-aes-encryption-mode-cbc-ecb-ctr-ocb-cfb
-- http://www.codinghorror.com/blog/2009/05/why-isnt-my-encryption-encrypting.html (mostly the comments...)
-- http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
-- https://github.com/dlitz/pycrypto/pull/33 <- This discussion (from 2013) is interesting. It discusses addition of AEAD modes, of which OCB is one type.
-- http://scienceblogs.com/goodmath/2008/08/07/encryption-privacy-and-you/ (OT)
-
-
-
-
-OTHER CONFLUENCE RPC API refs:
-* https://bobswift.atlassian.net/wiki/display/CSOAP
-
 """
+

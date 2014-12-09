@@ -407,3 +407,55 @@ class AbstractServerProxy(object):
         Subclass this, depending on the serverproxy type. (server and API, for confluence server e.g. xmlrpc, REST.)
         """
         pass
+
+
+
+"""
+NOTES ON ENCRYPTION:
+- Currently using pycrypto with CFB mode AES. Requires combiling platform-dependent binaries.
+--- I previously used CBC mode, but that requires plaintext and cipertext lenghts being an integer of 16. CFB does not require this.
+--- Although according to litterature, OCB mode would be better. But this is patented and not available in pycrypto as far as I can tell.
+- SimpleCrypt module also requires pycrypto.
+--- Only uses pycrypto for legacy encryption; uses openssl (via process call) for encryption. Not sure how this ports to e.g. windows?
+--- Both new and legacy methods uses CBC MODE with AES.
+--- It also currently uses random.randint as entrypy provider which is not as good as the random library provided by pycrypto.
+- alo-aes 0.3: Does not seem mature; very little documentation.
+- M2Crypto
+--- Rather big, contains functionality for ssl certificates, etc.
+- m2secret
+--- Easy-to-use interface to M2Crypto, contained in a single file.
+- pyOCB, https://github.com/kravietz/pyOCB
+--- This seems to be a pure-python OCB mode AES cryptography module. Only two files.
+--- When mature, this is probably the best option for small passwords...
+- AESpython (aka pythonAES)
+--- another pure-python implementation. However, does not have an easy-to-use interface.
+- wheezy.security: simple wrapper for pycrypto.
+- https://github.com/alex/cryptography
+--- discussion in https://news.ycombinator.com/item?id=6194102
+
+In conclusion:
+- I currently use PyCrypto which should be good, except that it requires separate installation
+  of platform-dependent binaries.
+- pyOCB is probably the best pure-python replacement: only depends on the build-in math module,
+  is contained in just two files (__init__.py and AES.py).
+
+REGARDING MODE:
+- input length and padding:
+--- http://stackoverflow.com/questions/14179784/python-encrypting-with-pycrypto-aes
+
+
+CRYPTOGRAPHY REFS:
+- pycrypto: www.dlitz.net/software/pycrypto/
+- http://stackoverflow.com/questions/1220751/how-to-choose-an-aes-encryption-mode-cbc-ecb-ctr-ocb-cfb
+- http://www.codinghorror.com/blog/2009/05/why-isnt-my-encryption-encrypting.html (mostly the comments...)
+- http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
+- https://github.com/dlitz/pycrypto/pull/33 <- This discussion (from 2013) is interesting. It discusses addition of AEAD modes, of which OCB is one type.
+- http://scienceblogs.com/goodmath/2008/08/07/encryption-privacy-and-you/ (OT)
+
+
+
+
+OTHER CONFLUENCE RPC API refs:
+* https://bobswift.atlassian.net/wiki/display/CSOAP
+
+"""

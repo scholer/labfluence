@@ -14,74 +14,79 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
+# pylint: disable=C0301,C0103
+"""
+Main module for Confluence-specific XmlRpc Client.
 
+Provides classes to access e.g. a Confluence server through xmlrpc.
+
+Implements XML-RPC based ServerProxies from AbstractServerProxy base class.
+
+Note that Atlassian is deprechating the xml-rpc api in favor of the new REST API.
+
+This module will similarly be slowly deprechated in favor of the REST equivalent.
+"""
 
 from __future__ import print_function, division
+from six import string_types
 try:
-    import xmlrpclib
+    import xmlrpclib # pylint: disable=E0611,F0401
 except ImportError:
     import xmlrpc.client as xmlrpclib
 import socket
-#import itertools
-#import string
-#from Crypto.Cipher import AES
-#from Crypto.Random import random as crypt_random
-#import inspect
+import inspect
 import logging
-logger = logging.getLogger(__name__) # pylint: disable=C0103
+logger = logging.getLogger(__name__)
 
 # Labfluence modules and classes:
-from ..utils import login_prompt
-
-# Decorators:
-#from decorators.cache_decorator import cached_property
-
-defaultsockettimeout = 3.0  # pylint: disable=C0103
-
-
+from serverutils import login_prompt
 from abstract_clients import AbstractXmlRpcClient
 
 
-class ConfluenceXmlRpcServerProxy(AbstractXmlRpcClient):
+# Module constants:
+defaultsockettimeout = 3.0  # pylint: disable=C0103
+VERBOSE = 0     # Setting this to a non-zero value may print confidential info to log. Take care.
+
+
+
+
+class ConfluenceXmlRpcClient(AbstractXmlRpcClient):
     """
+    Server interface to the XML-RPC API of a Confluence instance.
 
-Note regarding long integer vs string for pageIds etc (from the docs):
-Confluence uses 64-bit long values for things like object IDs, but XML-RPC's largest supported numeric type is int32.
-As a result, all IDs and other long values are converted to Strings when passed through XML-RPC API.
+    Note: If using from command line, consider using the simpleserver module instead!!
 
-Alternative to xmlrpc (at /rpc/xmlrpc) includes:
-* SOAP API, at /rpc/soap-axis/confluenceservice-v2?wsdl
-* JSON API, at /rpc/json-rpc/confluenceservice-v2
-* REST API, at /confluence/rest/prototype/1/space/ds (/context/rest/api-name/api-version/resource-name)
-
-https://developer.atlassian.com/display/CONFDEV/Confluence+XML-RPC+and+SOAP+APIs
-https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
-https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
-https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
-
-OTHER CONFLUENCE RPC API refs:
-* https://bobswift.atlassian.net/wiki/display/CSOAP
-
-
-TODO: If a UI framework is available, it might be convenient to add a timer-based keep-alive callback
-to prevent the login token from expiring.
+    Example usage:
+    >>> serverparams={'appurl':"https://example.com/rpc/xmlrpc"}
+    # Default: The server will ask for username + password if required:
+    >>> server = ConfluenceXmlRpcServerProxy(serverparams)
+    # Specify username and password manually:
+    >>> server = ConfluenceXmlRpcServerProxy(serverparams, username='jdoe', password='miss/gi')
+    # Create a server which uses existing token:
+    server = ConfluenceXmlRpcServerProxy(serverparams, token='12de4a837b')
 
     """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, url=None,
-                 confighandler=None, autologin=True):
-                 #serverparams=None, username=None, password=None, logintoken=None,
-                 #protocol=None, urlpostfix=None, confighandler=None, VERBOSE=0):
-        #self._urlformat = "{}:{}/rpc/xmlrpc" if port else "{}/rpc/xmlrpc"
+    def __init__(self, serverparams=None, username=None, password=None, logintoken=None, confighandler=None, autologin=True):
+        """
+        Argument <url> is now deprecated.
+        Instead, use serverparams dict, which may include entries:
+        * appurl : <baseurl>:<urlpostfix>
+        * baseurl : <protocol>:<hostname>[:port]
+        * urlpostfix : path to the API, e.g. '/rpc/xmlrpc'
+        * hostname : e.g "localhost", "127.0.0.1" or wiki.cdna.au.dk
+        * post : e.g. 80, 443, 8080, etc.
+        * protocol : e.g. 'http', 'https'.
+        * raisetimeouterrors : bool (whether to raise timeout errors during run).
+        If e.g. appurl is not explicitly specified, it is generated from the noted sub-components.
+        Note that some primitives (e.g. urlpostfix) will vary depending on the server
+        implementation (XML-RPC vs REST). These defaults are usually specified in self._defaultparams.
+        """
         logger.debug("New %s initializing...", self.__class__.__name__)
         self.CONFIG_FORMAT = 'wiki_{}'
-        #self.ConfigEntries = dict( (key, self.CONFIG_FORMAT.format(key.lower()) ) for key in ['Host', 'Port', 'Protocol', 'Urlpostfix', 'Url', 'Username', 'Password', 'Logintoken'] )
-        # configentries are set by parent AbstractServer using self.CONFIG_FORMAT
-        # Remember, super takes current class as first argument (python2)
-        super(ConfluenceXmlRpcServer, self).__init__(serverparams=serverparams, username=username,
-                                                     password=password, logintoken=logintoken, url=url,
+        super(ConfluenceXmlRpcClient, self).__init__(serverparams=serverparams, username=username,
+                                                     password=password, logintoken=logintoken,
                                                      confighandler=confighandler, autologin=autologin)
         self._defaultparams = dict(port='8090', urlpostfix='/rpc/xmlrpc', protocol='https')
-        #self.UI = ui # Is now a property that goes through confighandler.
         appurl = self.AppUrl
         if not appurl:
             logger.warning("WARNING: Server's AppUrl is '%s', ABORTING init!", appurl)
@@ -130,7 +135,7 @@ to prevent the login token from expiring.
                 elif self.find_and_test_tokens(doset=True):
                     logger.info('Token found in the config is valid, login ok...')
                     token = self._logintoken
-                elif prompt in ('auto'):
+                elif prompt in ('auto',):
                     logger.debug("Trying to obtain credentials via login(prompt=True)...")
                     token = self.login(prompt=True)
                     logger.debug("login(prompt=True) returned token of type: %s", type(token))
@@ -140,7 +145,7 @@ to prevent the login token from expiring.
             logger.warning("%s - socket error prevented login, probably timeout, error is: %s", self.__class__.__name__, e)
         #self._raiseerrors = oldflag
         except xmlrpclib.ProtocolError as err:
-            logger.warning("ProtocolError raised; This is probably because XML-RPC is not enabled for your Confluence instance under general configuration. Error: %s", err )
+            logger.warning("ProtocolError raised; This is probably because XML-RPC is not enabled for your Confluence instance under general configuration. Error: %s", err)
         if self.Logintoken:
             self.setok()
         else:
@@ -237,7 +242,7 @@ to prevent the login token from expiring.
             logger.debug("Calling login prompt...")
             username, password = self.promptForUserPass(username=username, msg=msg)
         if not (username and password):
-            logger.info( "%s :: Username or password is boolean False; retrying...", self.__class__.__name__ )
+            logger.info("%s :: Username or password is boolean False; retrying...", self.__class__.__name__)
             newmsg = "Empty username or password; please try again. Use Ctrl+C (or cancel) to cancel."
             if password is None:
                 logger.info("Password is %s, indicating an aborted prompt, will abort without further retries...", type(password))
@@ -266,7 +271,7 @@ to prevent the login token from expiring.
                     self._password = password
             logger.info("Logged in as '%s', received token of length %s", username, len(token))
         except xmlrpclib.Fault as err:
-            err_msg = "Login error, catched xmlrpclib.Fault. faultCode and -String is:\n%s: %s" % ( err.faultCode, err.faultString )
+            err_msg = "Login error, catched xmlrpclib.Fault. faultCode and -String is:\n%s: %s" % (err.faultCode, err.faultString)
             logger.info(err_msg)
             # NOTE: In case of too many failed logins, it will not be possible to log in with xmlrpc,
             # and a browser login is required.
@@ -280,7 +285,7 @@ to prevent the login token from expiring.
             if not prompt and self._password:
                 # The password did not work. Make sure to unset it, so automatic login attempts will not try to use it again.
                 self._password = None
-            if prompt and int(retry)>0:
+            if prompt and int(retry) > 0:
                 token = self.login(username, doset=doset, prompt=prompt, retry=retry-1, msg=err_msg)
             else:
                 logger.info("server.login failed completely, prompt is '%s' and retry is %s.", prompt, retry)
@@ -346,12 +351,11 @@ to prevent the login token from expiring.
         # <source-dir>/confluence-project/confluence-core/confluence/src/java/com/atlassian/confluence/rpc
         logger.debug("Determining cause of Fault with attributes: faultCode=%s, faultString=%s, message=%s, args=%s", e.faultCode, e.faultString, e.message, e.args)
         import re
-        faultRegexs = [
-                ("PageNotAvailable",        r"com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
-                ("IncorrectUserPassword",   r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
-                ("TooManyFailedLogins",     r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
-                ("TokenExpired",            r"User not authenticated or session expired"),
-                ]
+        faultRegexs = [("PageNotAvailable", r"com\.atlassian\.confluence\.rpc\.RemoteException.* You're not allowed to view that page, or it does not exist"),
+                       ("IncorrectUserPassword", r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed - incorrect username/password combination"),
+                       ("TooManyFailedLogins", r"com\.atlassian\.confluence\.rpc\.AuthenticationFailedException.* Attempt to log in user .* failed\. The maximum number of failed login attempts has been reached\. Please log into the web application through the web interface to reset the number of failed login attempts"),
+                       ("TokenExpired", r"User not authenticated or session expired")
+                      ]
         for cause, regexpat in faultRegexs:
             match = re.search(regexpat, e.faultString)
             if match:
@@ -491,17 +495,12 @@ to prevent the login token from expiring.
 
 
     def getServerInfo(self):
-        """
-        returns a list of dicts with space info for spaces that the user can see.
-        """
+        """ Returns a dict with server information. """
         return self.execute(self.RpcServer.confluence2.getServerInfo)
-        #return self.RpcServer.confluence2.getServerInfo(token)
 
 
     def getSpaces(self):
-        """
-        returns a list of dicts with space info for spaces that the user can see.
-        """
+        """ Returns a list of dicts with space info for spaces that the user can see. """
         logger.debug('self.RpcServer.confluence2.getSpaces() invoked...')
         return self.execute(self.RpcServer.confluence2.getSpaces)
 
@@ -511,9 +510,7 @@ to prevent the login token from expiring.
     ################################
 
     def getUser(self, username):
-        """
-        returns a dict with name, email, fullname, url and key.
-        """
+        """ Returns a dict with name, email, fullname, url and key. """
         return self.execute(self.RpcServer.confluence2.getUser, username)
 
     def createUser(self, newuserinfo, newuserpasswd):
@@ -541,7 +538,7 @@ to prevent the login token from expiring.
 
     def getPages(self, spaceKey):
         """
-        returns all the summaries in the space.
+        Returns all the summaries in the space.
         PageSummary datastructs are dicts, with:
 
 Key         Type   Value
@@ -606,7 +603,7 @@ current       Boolean whether the page is current and not deleted
 
     def movePage(self, sourcePageId, targetPageId, position='append'):
         """
-        moves a page's position in the hierarchy.
+        Moves a page's position in the hierarchy.
         takes pageIds as strings.
         Arguments:
         * sourcePageId - the id of the page to be moved.
@@ -631,7 +628,7 @@ current       Boolean whether the page is current and not deleted
 
     def getAncestors(self, pageId):
         """
-        # Returns list of page attachments
+        Returns list of page attachments
         takes pageId as string.
         """
         pageId = str(pageId)
@@ -649,7 +646,7 @@ current       Boolean whether the page is current and not deleted
 
     def getDescendents(self, pageId):
         """
-        # Returns all the descendants of this page (children, children's children etc).
+        Returns all the descendants of this page (children, children's children etc).
         takes pageId as string.
         """
         pageId = str(pageId)
@@ -661,26 +658,17 @@ current       Boolean whether the page is current and not deleted
     ##############################
 
     def getComments(self, pageId):
-        """
-        # Returns all the comments for this page.
-        takes pageId as string.
-        """
+        """ Returns all the comments for this page, takes pageId as string. """
         pageId = str(pageId)
         return self.execute(self.RpcServer.confluence2.getComments, pageId)
 
     def getComment(self, commentId):
-        """
-        # Returns an individual comment.
-        takes commentId as string.
-        """
+        """ Returns an individual comment, takes commentId as string. """
         commentId = str(commentId)
         return self.execute(self.RpcServer.confluence2.getComment, commentId)
 
     def removeComment(self, commentId):
-        """
-        # Returns an individual comment.
-        takes commentId as string.
-        """
+        """ Removes an individual comment, takes commentId as string. """
         commentId = str(commentId)
         return self.execute(self.RpcServer.confluence2.removeComment, commentId)
 
@@ -735,12 +723,11 @@ current       Boolean whether the page is current and not deleted
         return ret
 
     def removeAttachment(self, contentId, fileName):
-        """remove an attachment from a content entity object.
-        """
+        """ Remove an attachment from a content entity object. """
         return self.execute(self.RpcServer.confluence2.removeAttachment, contentId, fileName)
 
     def moveAttachment(self, originalContentId, originalName, newContentEntityId, newName):
-        """move an attachment to a different content entity object and/or give it a new name."""
+        """ Move an attachment to a different content entity object and/or give it a new name. """
         return self.execute(self.RpcServer.confluence2.moveAttachment, originalContentId, originalName, newContentEntityId, newName)
 
 
@@ -750,24 +737,26 @@ current       Boolean whether the page is current and not deleted
 
 
     def storePage(self, page_struct):
-        """ adds or updates a page.
-For adding, the Page given as an argument should have space, title and content fields at a minimum.
-For updating, the Page given should have id, space, title, content and version fields at a minimum.
-The parentId field is always optional. All other fields will be ignored.
-The content is in storage format.
-Note: the return value can be null, if an error that did not throw an exception occurred.
-Operates exactly like updatePage() if the page already exists.
-"""
-        if self.VERBOSE:
+        """
+        Adds or updates a page.
+        For adding, the Page given as an argument should have space, title and content fields at a minimum.
+        For updating, the Page given should have id, space, title, content and version fields at a minimum.
+        The parentId field is always optional. All other fields will be ignored.
+        The content is in storage format.
+        Note: the return value can be null, if an error that did not throw an exception occurred.
+        Operates exactly like updatePage() if the page already exists.
+        """
+        if VERBOSE:
             logger.info("server.storePage() :: Storing page: %s", page_struct)
         return self.execute(self.RpcServer.confluence2.storePage, page_struct)
 
     def updatePage(self, page_struct, pageUpdateOptions):
-        """ updates a page.
-The Page given should have id, space, title, content and version fields at a minimum.
-The parentId field is always optional. All other fields will be ignored.
-Note: the return value can be null, if an error that did not throw an exception occurred.
-"""
+        """
+        Updates a page.
+        The Page given should have id, space, title, content and version fields at a minimum.
+        The parentId field is always optional. All other fields will be ignored.
+        Note: the return value can be null, if an error that did not throw an exception occurred.
+        """
         return self.execute(self.RpcServer.confluence2.updatePage, page_struct, pageUpdateOptions)
 
 
@@ -804,7 +793,8 @@ Note: the return value can be null, if an error that did not throw an exception 
     ##############################
 
     def search(self, query, maxResults, parameters=None):
-        """search
+        """
+        Search for page or other content.
 String token, String query, int maxResults, map parameters
  return a list of results which match a given search query (including pages and other content types). This is the same as a performing a parameterised search (see below) with an empty parameter map.
  with paramters argument:
@@ -901,14 +891,14 @@ contributor:
             logger.debug("len(results)=%s returned from search_filter_rank()", len(results))
             if len(results) == 1:
                 pagestruct = results[0]
-                logger.info("pagestruct keys: %s", pagestruct.keys() )
+                logger.info("pagestruct keys: %s", pagestruct.keys())
                 # pagestruct keys returned for a server search is: 'id', 'title', 'type', 'url', 'excerpt'
                 logger.info("Experiment.searchForWikiPageWithQuery() :: A single hit found : '%s: %s: %s'",
-                              pagestruct['space'], pagestruct['id'], pagestruct['title'] )
+                            pagestruct['space'], pagestruct['id'], pagestruct['title'])
                 return pagestruct
             elif len(results) > 1:
                 logger.info("Many hits found, but only allowed to return a single match: %s",
-                [ u"{} ({})".format(page['title'], page['id']) for page in results ] )
+                            [u"{} ({})".format(page['title'], page['id']) for page in results])
                 return False
         logger.debug("Unable to locate wiki page. Returning None...")
         return None
@@ -937,7 +927,7 @@ contributor:
         """
         # pylint: disable-msg=C0111,W0613
         def evaluate_criteria(criteria, value):
-            if isinstance(criteria, basestring):
+            if isinstance(criteria, string_types):
                 if criteria in value:
                     return len(criteria)/len(value)
                 else:
@@ -952,8 +942,8 @@ contributor:
         else:
             def score_result(result):
                 return sum(evaluate_criteria(criteria, result[key])
-                                for key, criterias in optional.items()
-                                    for criteria in criterias)
+                           for key, criterias in optional.items()
+                           for criteria in criterias)
         if not required:
             def result_passes_required(result):
                 return True
@@ -961,16 +951,16 @@ contributor:
             logger.debug("Required filter: %s", required)
             def result_passes_required(result):
                 return all(evaluate_criteria(criteria, result[key])
-                                for key, criterias in required.items()
-                                    for criteria in criterias)
+                           for key, criterias in required.items()
+                           for criteria in criterias)
 
         results = self.search(query, 30, parameters)
         logger.debug("Query and parameters returned %s results, filtering and ranking...", len(results))
         if results:
             if required:
-                if any(isinstance(value, basestring) for value in required.values()):
+                if any(isinstance(value, string_types) for value in required.values()):
                     logger.warning("Basestrings found directly in required dict and not as list/tuples as they should be! required = %s", required)
-                results = [page for page in results if result_passes_required(page) ]
+                results = [page for page in results if result_passes_required(page)]
             return sorted(results, key=score_result, reverse=True)
         return results
 
@@ -986,7 +976,9 @@ contributor:
 
     def storePageContent(self, pageId, spaceKey, newContent, contentformat='xml'):
         """
-        Modifies the content of a Confluence page.
+        Convenience method to modify the content of a Confluence page.
+        Will convert newContent interpreting
+        newContent as being in format <contentformat>.
         :param page:
         :param space:
         :param content:
@@ -1001,9 +993,8 @@ contributor:
         return page
 
 
-ConfluenceXmlRpcServer = ConfluenceXmlRpcServerProxy
-
-# init: (host=None, url=None, port=None, username=None, password=None, logintoken=None, autologin=True, protocol=None, urlpostfix=None)
+# Make ALIAS:
+ConfluenceXmlRpcServer = ConfluenceXmlRpcServerProxy = ConfluenceXmlRpcClient
 
 
 
@@ -1014,5 +1005,29 @@ Other Confluence xmlrpc API projects:
 * https://github.com/al3xandr3/ruby/blob/master/confluence.rb
 * https://confluence.atlassian.com/x/cITjCg
 
+
+
+### Notes regarding Confluence's interfaces ###
+
+Note regarding long integer vs string for pageIds etc (from the docs):
+Confluence uses 64-bit long values for things like object IDs, but XML-RPC's largest supported numeric type is int32.
+As a result, all IDs and other long values are converted to Strings when passed through XML-RPC API.
+
+Alternative to xmlrpc (at /rpc/xmlrpc) includes:
+* SOAP API, at /rpc/soap-axis/confluenceservice-v2?wsdl
+* JSON API, at /rpc/json-rpc/confluenceservice-v2
+* REST API, at /confluence/rest/prototype/1/space/ds (/context/rest/api-name/api-version/resource-name)
+
+https://developer.atlassian.com/display/CONFDEV/Confluence+XML-RPC+and+SOAP+APIs
+https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Methods
+https://developer.atlassian.com/display/CONFDEV/Remote+Confluence+Data+Objects
+https://confluence.atlassian.com/display/DISC/Confluence+RPC+Cmd+Line+Script  (uses XML-RPC API v1, not v2)
+
+OTHER CONFLUENCE RPC API refs:
+* https://bobswift.atlassian.net/wiki/display/CSOAP
+
+
+TODO: If a UI framework is available, it might be convenient to add a timer-based keep-alive callback
+to prevent the login token from expiring.
 
 """
