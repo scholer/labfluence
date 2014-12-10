@@ -17,189 +17,26 @@
 # pylint: disable-msg=C0103,C0301,R0201,R0904,W0142
 """
 
-XmlRpc serverproxy module.
-
-Provides classes to access e.g. a Confluence server through xmlrpc.
-
-Implements XML-RPC based ServerProxies from AbstractServerProxy base class.
-
-Currently the only supported XML-RPC server API is the Confluence XML-RPC API,
-which is now deprecated.
-
-Since the focus for most wiki instances seems to be to support RESTful
-APIs, this module will probably not receive much care in the future.
-Consider that an eary deprecation warning.
-
 Some parts of this is inspired/derived/taken from the projects:
     * legoktm/supersimplemediawiki  (copyright Kunal Mehta)
     * goldsmith/Wikipedia  (copyright Jonathan Goldsmith)
     * Riamse/ceterach (copyright Andrew Wang <andrewwang43@gmail.com>)
 All of this has been released to the public domain.
 
-
 """
 
+
 from __future__ import print_function, division
-import requests
 
 import logging
 logger = logging.getLogger(__name__)
 
-# Labfluence modules and classes:
 
-# Decorators:
-
-defaultsockettimeout = 3.0
-
-from abstractserverproxy import AbstractServerProxy
-
-
-class RESTError(Exception):
-    """Any error"""
-
-
-class RestfulServerProxy(AbstractServerProxy):
-    """
-
-    Server interface to the REST API of a MediaWiki instance.
-    Introduced summer 2014.
-
-    Many parts of this is inspired/derived/taken from the projects:
-    * legoktm/supersimplemediawiki  (copyright Kunal Mehta)
-    * goldsmith/Wikipedia  (copyright Jonathan Goldsmith)
-
-    """
-    def __init__(self, serverparams=None, username=None, password=None, logintoken=None,
-                 confighandler=None, autologin=True):
-        """
-        Use serverparams dict to specify API parameters, which may include entries:
-        * appurl : <baseurl>:<urlpostfix>   - main API entry point
-        * baseurl : <protocol>:<hostname>[:port]
-        * urlpostfix : path to the API, e.g. '/rpc/xmlrpc'
-        * hostname : e.g "localhost", "127.0.0.1" or wiki.cdna.au.dk
-        * post : e.g. 80, 443, 8080, etc.
-        * protocol : e.g. 'http', 'https'.
-        * raisetimeouterrors : bool (whether to raise timeout errors during run).
-        If e.g. appurl is not explicitly specified, it is generated from the noted sub-components.
-        Note that some primitives (e.g. urlpostfix) will vary depending on the server
-        implementation (XML-RPC vs REST). These defaults are usually specified in self._defaultparams.
-        """
-
-        logger.debug("New %s initializing...", self.__class__.__name__)
-        super(RestfulServerProxy, self).__init__(serverparams=serverparams, username=username,
-                                                 password=password, logintoken=logintoken,
-                                                 confighandler=confighandler, autologin=autologin)
-        self._default_rest_params = {}  # TODO: Specify default REST parameters.
-        self.Cookies = None
-        self.Headers = None
-        self.Session = None
-        self._apiurl = None
-
-    def setup_rest_api(self):
-        """
-        Performs common REST api setup.
-        Call after setting self._defaultparams
-        """
-        s = self.Session = requests.Session()
-        s.headers.update({'User-agent' : self.UserAgent})
-        #self.Cookies = dict() # Session handles cookies.
-        apiurl = self._apiurl = self.AppUrl # I cache this because I don't want to generate it with every call.
-        if not apiurl:
-            logger.warning("WARNING: Server's AppUrl is '%s', ABORTING init!", apiurl)
-            return None
-        logger.info("%s - Using REST API url: %s", self.__class__.__name__, apiurl)
-        if self.AutologinEnabled:
-            self.autologin()
-        logger.debug("%s initialized.", self.__class__.__name__)
-
-    def get(self, params=None, data=None, files=None):
-        """
-        Make a standard REST API HTTP GET request.
-        """
-        r = self.Session.get(self._apiurl, params=params, cookies=self.Cookies, headers=self.Headers, files=files, data=data)
-        return self.process_request(r)
-
-    def post(self, params=None, data=None, files=None):
-        """
-        Make a standard REST API HTTP POST request.
-        """
-        r = self.Session.post(self._apiurl, params=params, cookies=self.Cookies, headers=self.Headers, files=files, data=data)
-        return self.process_request(r)
-
-    def process_request(self, request):
-        """
-        Does brief processing of request, saving cookies and raising errors if needed.
-        """
-        if not request.ok:
-            raise RESTError(request.text)
-        #self.Cookies.update(request.cookies) # Session handles cookies.
-        return request
+from abstract_rest_client import AbstractRestClient
 
 
 
-
-class RestfulConfluenceServerProxy(RestfulServerProxy):
-    """
-
-    Server interface to the REST API of a Confluence instance.
-    Introduced summer 2014.
-
-    These methods are part of the standard 'labfluence server' API,
-    defined by AbstractServerProxy (asterix marks platform-dependent methods):
-    - login
-    - logout
-    - getServerInfo
-    - getSpaces (if applicable)
-    - getUser
-    - createUser
-    - getGroups*
-    - getGroup*
-    - getPages
-    - getPage
-    - movePage
-    - removePage
-    - getChildren*
-    - getDescendents*
-    - getComments*
-    - getComment*
-    - addComment*
-    - editComment*
-    - removeComment*
-    - getPageAttachments
-    - getAttachment
-    - getAttachmentData
-    - addAttachment
-    - moveAttachment
-    - removeAttachment
-    - storePage (or should I have add/save/updatePage methods?)
-    - addPage
-    - savePage
-    - updatePage
-
-    Addotionally, RESTful serverproxies should provide generic query methods
-    to the REST API. (This will usually be the case anyways...)
-
-    One thing I might consider: Implement REST API via an extremely SIMPLE
-    ServerProxy which SIMULATES the XML-RPC format.
-    Then consume this through ConfluenceXmlRpcServerProxy,
-    specifying self.RpcServer as this simulating server.
-    Then I would't have to change a thing in the rest of the
-    labfluence code, it would "just work".
-    On the other hand: Since logging in and error/exception handling
-    is so different - and since that is mostly what this feature would
-    utilize, this is probably a poor strategy.
-    It is probably better to implement the REST api from scratch,
-    keeping things as simple as possible.
-    Methods could take a
-       dataformat="confluencexmlrpc"
-    parameter, which would ensure that the returned data format is compatible
-    with the data returned by Confluence's old xml-rpc api.
-
-    """
-    pass
-
-
-class RestfulMediawikiServerProxy(RestfulServerProxy):
+class MediawikiRestClient(AbstractRestClient):
     """
 
     Server interface to the REST API of a MediaWiki instance.
@@ -224,9 +61,9 @@ class RestfulMediawikiServerProxy(RestfulServerProxy):
         """
 
         logger.debug("New %s initializing...", self.__class__.__name__)
-        super(RestfulMediawikiServerProxy, self).__init__(serverparams=serverparams, username=username,
-                                                          password=password, logintoken=logintoken,
-                                                          confighandler=confighandler, autologin=autologin)
+        super(MediawikiRestClient, self).__init__(serverparams=serverparams, username=username,
+                                                  password=password, logintoken=logintoken,
+                                                  confighandler=confighandler, autologin=autologin)
         self._defaultparams = dict(port='80', urlpostfix='/w/api.php', protocol='http')
         self.setup_rest_api()
 
