@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -90,3 +90,6 @@ class SatelliteManager(LabfluenceBase):
         for name, locationparams in locationscfg.items():
             self._satellitelocations[name] = loc = location_factory(locationparams)
             logger.debug("Location added: %s : %s", name, loc)
+
+    def get(self, name):
+        return self.SatelliteLocations[name]

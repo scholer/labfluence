@@ -70,10 +70,10 @@ If cancel is
 """
 
 
-# python 3.x:
-#from tkinter import ttk
-# python 2.7:
-import Tkinter as tk
+try:
+    import tkinter as tk
+except ImportError:
+    import Tkinter as tk
 
 # Other standard lib modules:
 #import socket

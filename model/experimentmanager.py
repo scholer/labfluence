@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
     # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=R0904,W0142
+# pylint: disable=C0103,C0301,R0904,W0142
 # R0904: Too many public methods,
 # W0142: *, ** magic.
 
@@ -23,11 +23,16 @@ experiment_manager module with ExperimentManager class,
 handles logic related to managing experiment objects.
 """
 
+from __future__ import print_function
+from six import string_types
 import os
 import re
 import logging
 from collections import OrderedDict
-from itertools import ifilter
+try:
+    from itertools import ifilter   # pylint: disable=E0611
+except ImportError:
+    ifilter = filter
 logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
 
 # Model classes:
@@ -156,7 +161,7 @@ class ExperimentManager(LabfluenceBase):
         Marks an experiment as archived by removing it from the active experiments list,
         and adding it to the list of recent experiments instead.
         """
-        if not isinstance(exp, basestring):
+        if not isinstance(exp, string_types):
             expid = exp.Props['expid'] # When you eventually implement file: and wiki: notations in addition to expid:, use try-except clause
         else:
             expid = exp
@@ -183,7 +188,7 @@ class ExperimentManager(LabfluenceBase):
         and not for actual experiment objects.
         """
         for exp in exps:
-            if not isinstance(exp, basestring):
+            if not isinstance(exp, string_types):
                 # Assume Experiment-like object, or fail hard.
                 exp = exp.Props['expid']
             self.addActiveExperimentId(exp, removeFromRecent)
@@ -365,7 +370,7 @@ class ExperimentManager(LabfluenceBase):
         pathgds = ((path, match.groupdict()) for path, match in self.getLocalExpsDirMatchTuples(basedir))
         return ((path, dict(date=next(ifilter(None, [gd.pop('date', None), gd.pop('date1', None), gd.pop('date2', None)]), None),
                             **gd))
-                    for path, gd in pathgds)
+                for path, gd in pathgds)
 
 
     def getLocalExperiments(self, ret='experiment-object', basedir=None):
@@ -503,7 +508,7 @@ class ExperimentManager(LabfluenceBase):
         pagegds = ((page, match.groupdict()) for page, match in self.getCurrentWikiExpsPageMatchTuples())
         return ((page, dict(title=page['title'], expid=gd['expid'], exp_titledesc=gd['exp_titledesc'],
                             date=gd.get('date', gd.get('date1', gd.get('date2', None)))))
-                    for page, gd in pagegds)
+                for page, gd in pagegds)
 
     def getCurrentWikiExperiments(self, ret='pagestruct'):
         """
@@ -545,14 +550,14 @@ class ExperimentManager(LabfluenceBase):
             # Note: this tuple is NOT the same as the display tuple used for lists!
             # This is a memory efficient (pagetitle, expid, exp_titledesc, date) tuple
             exps = ((gd['title'], gd['expid'], gd.get('exp_titledesc'), gd['date'])
-                        for page, gd in self.getCurrentWikiExpsPageGroupdictTuples())
+                    for page, gd in self.getCurrentWikiExpsPageGroupdictTuples())
         elif ret in ('expid', 'expids'):
             exps = (gd.get('expid') for page, gd in self.getCurrentWikiExpsPageGroupdictTuples())
         elif ret in ('display-tuple', 'display-tuples'):
             exps = ((page['title'], match.groupdict().get('expid'), None) for page, match in self.getCurrentWikiExpsPageMatchTuples())
         elif ret in ('experiment-object', 'experiment-objects'):
             exps = (Experiment(regex_match=match, manager=self, confighandler=self.Confighandler, wikipage=page)
-                        for page, match in self.getCurrentWikiExpsPageMatchTuples())
+                    for page, match in self.getCurrentWikiExpsPageMatchTuples())
         else:
             logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
             return
@@ -674,7 +679,7 @@ class ExperimentManager(LabfluenceBase):
         #return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
 
         return sorted((x for x in (int(match.group(1)) for match in (regex_prog.match(expid) for expid in expByIdMap.keys()))
-                            if x is not None))
+                       if x is not None))
 
 #        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
 
@@ -752,5 +757,5 @@ if __name__ == "__main__":
     proxy = ConfluenceXmlRpcServer(confighandler=ch, serverparams=serverparams)
 
     exppages = proxy.getChildren('524296')
-    print "Experiment pages:"
-    print exppages
+    print("Experiment pages:")
+    print(exppages)

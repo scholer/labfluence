@@ -36,7 +36,10 @@ from model.model_testdoubles.fake_server import FakeConfluenceServer
 
 # Non-faked dependencies:
 from model.experimentmanager import ExperimentManager
-import Tkinter as tk
+try:
+    import tkinter as tk
+except ImportError:
+    import Tkinter as tk
 
 
 @pytest.fixture

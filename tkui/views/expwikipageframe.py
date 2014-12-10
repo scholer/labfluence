@@ -20,10 +20,12 @@ Module with a simple frame with a JournalViewer frame and controls (buttons) to 
 """
 
 
-# python 2.7:
-#import Tkinter as tk
-import ttk
-#import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+try:
+    #import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    #import Tkinter as tk
+    import ttk
 
 #import htmllib, formatter
 import logging

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ##    Copyright 2013 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -67,7 +67,8 @@ Alternatively, the announcement could go as:
 
 """
 
-
+from __future__ import print_function
+from six import string_types
 import os
 import os.path
 import yaml
@@ -77,7 +78,10 @@ import collections
 from collections import OrderedDict
 import logging
 logger = logging.getLogger(__name__)
-from Tkinter import TclError # Used by the callback system
+try:
+    from tkinter import TclError # Used by the callback system
+except ImportError:
+    from Tkinter import TclError # Python 2
 
 from pathutils import getPathParents
 
@@ -192,7 +196,7 @@ def saveConfig(outputfn, config, updatelastsaved=True):
         yaml.dump(config, open(outputfn, 'wb'), default_flow_style=False, width=400)
         logger.info("Config saved to file: %s", outputfn)
         return True
-    except IOError, e:
+    except IOError as e:
         # This is to be expected for the system config...
         logger.warning("Could not save config to file '%s', error raised: %s", outputfn, e)
         config['lastsaved'] = old_lastsaved
@@ -333,7 +337,7 @@ class ConfigHandler(object):
         """
         if cfgtype == 'all':
             return self.ConfigPaths.values()
-        elif not isinstance(cfgtype, basestring):
+        elif not isinstance(cfgtype, string_types):
             return [self.ConfigPaths.get(cfgtype, None) for cfgtype in cfgtype]
         return self.ConfigPaths.get(cfgtype, None)
 
@@ -348,6 +352,7 @@ class ConfigHandler(object):
         3) getConfig('all') -> returns self.Configs.values() list.
 
         Edit: removed 'aslist' argument. If you want a list of configs, input a list as the cfgtype argument.
+        Edit edit: This method can no longer return a list of configs. Use getConfigs (plural) to get more than one.
 
         # Regarding using ChainMap:
         # - Only native to Python 3.3, not available in python 2.7 (Although it can be added.)
@@ -364,11 +369,18 @@ class ConfigHandler(object):
             combined = {}
             for config in self.Configs.values():
                 combined.update(config)
-        elif cfgtype == 'all':
-            return self.Configs.values()
-        elif not isinstance(cfgtype, basestring):
-            return [self.Configs[cfg] for cfg in cfgtype]
         return self.Configs.get(cfgtype, None)
+
+    def getConfigs(self, cfgtypes):
+        """
+        Returns a list of the specified configs.
+        cfgtypes is a list of config types/names.
+        If cfgtypes is "all", then all configs are returned.
+        """
+        if cfgtypes == 'all':
+            return self.Configs.values()
+        return [self.Configs[cfg] for cfg in cfgtypes]
+
 
     def get(self, key, default=None):
         """
@@ -430,8 +442,8 @@ class ConfigHandler(object):
             #        config[key] = value
             #        return cfgtyp
             cfgtype = next((cfgtype for cfgtype, config in self.Configs.items()
-                                if key in config),
-                            self.DefaultConfig)
+                            if key in config),
+                           self.DefaultConfig)
         else:
             # If key is not found in any of the existing configs, set in default config type:
             if cfgtype is None:
@@ -549,7 +561,7 @@ class ConfigHandler(object):
             >>> confighandler.setkey(key, value, autosave=True)
          * For Hierarchical configs, use the path-based save method in ExpConfigHandler.
         """
-        for cfgtype, cfg in reversed(self.Configs.items()):
+        for cfgtype, cfg in reversed(list(self.Configs.items())):
             if key in cfg:
                 self.saveConfigs(cfgtype=cfgtype)
                 return True
@@ -600,13 +612,13 @@ class ConfigHandler(object):
         """
         for cfgtype, outputfn in self.ConfigPaths.items():
             if cfgtypestoprint == 'all' or cfgtype in cfgtypestoprint or cfgtype == cfgtypestoprint:
-                print u"\nConfig '{}' in file: {}".format(cfgtype, outputfn)
-                print _printConfig(self.Configs[cfgtype])
+                print(u"\nConfig '{}' in file: {}".format(cfgtype, outputfn))
+                print(_printConfig(self.Configs[cfgtype]))
         return "\n".join("\n".join([u"\nConfig '{}' in file: {}".format(cfgtype, outputfn),
-                                      _printConfig(self.Configs[cfgtype])])
-                          for cfgtype, outputfn in self.ConfigPaths.items()
-                          if (cfgtypestoprint == 'all' or cfgtype in cfgtypestoprint or cfgtype == cfgtypestoprint)
-                         )
+                                    _printConfig(self.Configs[cfgtype])])
+                         for cfgtype, outputfn in self.ConfigPaths.items()
+                         if (cfgtypestoprint == 'all' or cfgtype in cfgtypestoprint or cfgtype == cfgtypestoprint)
+                        )
 
 
     def getConfigDir(self, cfgtype='user'):
@@ -813,7 +825,7 @@ class ConfigHandler(object):
                 logger.info("Removing all registrered callbacks for configentries '%s' - since unregisterEntryChangeCallback was called with configentries as only argument.", configentries)
         if configentries is None:
             configentries = self.EntryChangeCallbacks.keys()
-        elif isinstance(configentries, basestring):
+        elif isinstance(configentries, string_types):
             configentries = (configentries, )
 
         for configentry in configentries:
@@ -821,8 +833,8 @@ class ConfigHandler(object):
             # Changed, now using generator alternative instead of filter builtin (which is in bad
             # standing with the BDFL, http://www.artima.com/weblogs/viewpost.jsp?thread=98196)
             removelist = (callbacktuple for callbacktuple in self.EntryChangeCallbacks[configentry]
-                            if all(criteria in (None, callbacktuple[i])
-                                   for i, criteria in enumerate((function, args, kwargs)))
+                          if all(criteria in (None, callbacktuple[i])
+                                 for i, criteria in enumerate((function, args, kwargs)))
                          )
             logger.debug("Removing callbacks from self.EntryChangeCallbacks[%s]: %s", configentry, removelist)
             for callbacktuple in removelist:
@@ -907,8 +919,8 @@ class ExpConfigHandler(ConfigHandler):
 
     """
     def __init__(self, systemconfigfn=None, userconfigfn=None, expconfigfn=None,
-                readfiles=True, pathscheme='default1', hierarchy_rootdir_config_key='local_exp_rootDir',
-                enableHierarchy=True, hierarchy_ignoredirs_config_key='local_exp_ignoreDirs'):
+                 readfiles=True, pathscheme='default1', hierarchy_rootdir_config_key='local_exp_rootDir',
+                 enableHierarchy=True, hierarchy_ignoredirs_config_key='local_exp_ignoreDirs'):
         self.Pathfinder = PathFinder()
         pschemedict = self.Pathfinder.getScheme(pathscheme) if pathscheme else dict()
         systemconfigfn = systemconfigfn or pschemedict.get('sys')
@@ -916,7 +928,7 @@ class ExpConfigHandler(ConfigHandler):
         expconfigfn = expconfigfn or pschemedict.get('exp')
         logger.debug("Pathfinder located system, user and exp configs: %s, %s, %s", systemconfigfn, userconfigfn, expconfigfn)
         if systemconfigfn and os.path.normpath('setup/configs/default') in systemconfigfn:
-            print "\nWARNING: Pathfinder picked up config in deprechated location 'setup/configs/default/' -- PLEASE MOVE/COPY THE CONFIG FROM HERE TO <install-dir>/config/ !\n"
+            print("\nWARNING: Pathfinder picked up config in deprechated location 'setup/configs/default/' -- PLEASE MOVE/COPY THE CONFIG FROM HERE TO <install-dir>/config/ !\n")
         # init super:
         ConfigHandler.__init__(self, systemconfigfn, userconfigfn)
         self.Configs['exp'] = dict()
@@ -972,7 +984,7 @@ class ExpConfigHandler(ConfigHandler):
             if val is not None:
                 return val
         # Optimized, and accounting for the fact that later added cfgs overrides the first added
-        for cfg in reversed(self.Configs.values()):
+        for cfg in reversed(list(self.Configs.values())):
             if key in cfg:
                 ## special cases, e.g. paths: ##
                 # Case 1, config keys specifying a single path:
@@ -1008,7 +1020,7 @@ class ExpConfigHandler(ConfigHandler):
         logger.debug("invoked with path=%s, cfg=%s", path, cfg)
         keysupdatedfromfile, keysupdatedinmemory, changedkeys = self.HierarchicalConfigHandler.saveConfig(path, cfg)
         logger.info("self.HierarchicalConfigHandler.saveConfig(%s, %s) returned with tuple: (%s, %s, %s)",
-                     path, cfg, keysupdatedfromfile, keysupdatedinmemory, changedkeys)
+                    path, cfg, keysupdatedfromfile, keysupdatedinmemory, changedkeys)
         self.invokeEntryChangeCallback(path, keysupdatedfromfile)
         logger.info("Invoking self.invokeEntryChangeCallback(%s, %s)", path, keysupdatedfromfile)
         return keysupdatedfromfile, keysupdatedinmemory, changedkeys
@@ -1168,7 +1180,7 @@ class HierarchicalConfigHandler(object):
                     self.Configs[dpath].update(cfg)
             else:
                 self.Configs[dpath] = cfg
-        except IOError, e:
+        except IOError as e:
             if self.VERBOSE:
                 logger.warning("HierarchicalConfigHandler.loadConfig() :: Could not open path '%s'. Error is: %s", path, e)
             if os.path.exists(fpath):
@@ -1339,17 +1351,17 @@ class PathFinder(object):
                                                     ('.', 'config', 'configs', os.path.join('setup', 'configs', 'default')))),
                                               user=('labfluence_user.yml',
                                                     (os.path.expanduser(os.path.join('~', dir)) for dir in
-                                                    ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence')))
-                                                    )
-                                              )
+                                                     ('.labfluence', '.Labfluence', os.path.join('.config', '.labfluence')))
+                                                   )
+                                             )
         self._schemeSearch['test1'] = dict(sys=('labfluence_sys.yml', (os.path.join(APPDIR, 'setup/configs/test_configs/local_test_setup_1'),)),
                                            user=('labfluence_user.yml', (os.path.join(APPDIR, 'setup/configs/test_configs/local_test_setup_1'),))
-                                           )
+                                          )
 
         self._schemeSearch['install'] = dict(sys=('labfluence_sys.yml', (os.path.join(APPDIR, 'setup/configs/new_install/'),)),
                                              user=('labfluence_user.yml', (os.path.join(APPDIR, 'setup/configs/new_install/'),)),
                                              exp=('labfluence_exp.yml', (os.path.join('setup/configs/new_install/'),))
-                                             )
+                                            )
 
         #self.mkschemedict() # I've adjusted the getScheme() method so that this will happen on-request.
         logger.debug("%s initialized, self.Defaultscheme='%s'", self.__class__.__name__, self.Defaultscheme)

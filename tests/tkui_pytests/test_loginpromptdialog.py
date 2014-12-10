@@ -36,7 +36,10 @@ from tkui.views.loginprompt import LoginPrompt
 
 # Non-faked dependencies:
 #from model.experimentmanager import ExperimentManager
-import Tkinter as tk
+try:
+    import tkinter as tk
+except ImportError:
+    import Tkinter as tk
 
 
 #@pytest.fixture

@@ -24,9 +24,12 @@ The xhtml can be displayed as raw code, or parsed and formatted
 using a primitive HTML parser.
 """
 
-# python 2.7:
-import Tkinter as tk
-import ttk
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
 
 #from subentrieslistbox import SubentriesListbox
 from shared_ui_utils import ExpFrame

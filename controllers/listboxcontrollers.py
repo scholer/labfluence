@@ -16,10 +16,13 @@
 ##
 
 # python 3.x:
-#from tkinter import ttk
-# python 2.7:
-import Tkinter as tk
-import ttk
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    # python 2.7:
+    import Tkinter as tk
+    import ttk
 
 import logging
 logger = logging.getLogger(__name__)

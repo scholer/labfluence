@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ##    Copyright 2013-2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -349,6 +349,10 @@ class SatelliteLocation(object):
     @cached_property(ttl=60)
     def SubentryfoldersByExpidSubidx(self):
         """
+        Returns a dict-dict with subentry folders as:
+            ds[expid][subidx] = <filepath>
+
+        Implementation discussion:
         I guess this should really be the other way around.
         But currently, update_expsubfolders() takes care of resetting the cache items.
         self.update_expsubfolders() will calculate:

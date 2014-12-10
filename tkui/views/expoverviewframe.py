@@ -15,10 +15,13 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-# python 2.7:
-import Tkinter as tk
-import ttk
-#import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
+
 import logging
 logger = logging.getLogger(__name__)
 

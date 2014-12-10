@@ -16,8 +16,13 @@
 ##
 
 # python 2.7:
-import Tkinter as tk
-import ttk
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
+
 # import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 from collections import OrderedDict
 import os

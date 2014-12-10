@@ -15,12 +15,13 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-# python 3.x:
-#from tkinter import ttk
-# python 2.7:
-import Tkinter as tk
-#import ttk
-#import tkFont
+from __future__ import print_function
+from six import string_types
+try:
+    import tkinter as tk
+except ImportError:
+    import Tkinter as tk
+
 
 # Other standard lib modules:
 #import socket
@@ -200,7 +201,7 @@ class LabfluenceTkRoot(tk.Tk):
         Returns a 2-tuple consisting of expid, experiment object instance.
         Input experiment can be either a string or an experiment instance.
         """
-        if isinstance(experiment, basestring):
+        if isinstance(experiment, string_types):
             expid = experiment
             experiment = self.getExperimentManager().ExperimentsById[expid]
         elif isinstance(experiment, Experiment):

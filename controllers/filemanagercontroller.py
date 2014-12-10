@@ -16,10 +16,13 @@
 ##
 
 # python 3.x:
-#from tkinter import ttk
-# python 2.7:
-import Tkinter as tk
-import ttk
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    # python 2.7:
+    import Tkinter as tk
+    import ttk
 
 """
 Moving control logic to separate class, since I am starting to have quite a lot of different
@@ -65,4 +68,3 @@ class ExpFilemanagerController(object):
     def updatefilelist(self):
         pass
         #self.FilemanagerFrame.localfilelistframe.updatefilelist()
-

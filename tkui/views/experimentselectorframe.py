@@ -16,8 +16,13 @@
 ##
 
 # Tkinter import:
-import Tkinter as tk
-import ttk
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
+
 
 # Other standard lib modules:
 import logging

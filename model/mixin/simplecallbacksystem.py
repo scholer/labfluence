@@ -32,7 +32,10 @@ This module includes a base class that enables a simple callback system.
 import logging
 logger = logging.getLogger(__name__)
 
-from Tkinter import TclError
+try:
+    from tkinter import TclError
+except ImportError:
+    from Tkinter import TclError
 
 
 

@@ -24,10 +24,12 @@ Created by Rasmus S. Sorensen <rasmusscholer@gmail.com>
 """
 
 
-# python 3.x:
-#from tkinter import ttk
-# python 2.7:
-import Tkinter as tk
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
 
 from collections import OrderedDict
 import logging

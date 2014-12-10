@@ -24,12 +24,15 @@ from __future__ import print_function
 import os
 import sys
 import random
-import xmlrpclib
 import string
 import hashlib
 import re
 import logging
 from datetime import datetime
+try:
+    import xmlrpc.client as xmlrpclib
+except ImportError:
+    import xmlrpclib
 
 
 # Uh, this makes "from utils import *" a bit dangerous:

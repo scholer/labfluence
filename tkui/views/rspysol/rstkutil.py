@@ -36,7 +36,13 @@
 
 # imports
 import sys, os, re, string, time, types
-import Tkinter
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
+
 
 # Toolkit imports
 #import tkinit  # Fixes some bugs in tkinter for python. Not sure this is really needed...
@@ -89,7 +95,7 @@ def wm_deiconify(window):
         try:
             window.wm_iconify()
             window.update_idletasks()
-        except Tkinter.TclError:
+        except tk.TclError:
             # wm_iconify() may fail if the window is transient
             pass
     window.wm_deiconify()
@@ -114,7 +120,7 @@ def wm_get_geometry(window):
     g = window.wm_geometry()
     m = __wm_get_geometry_re.search(g)
     if not m:
-        raise Tkinter.TclError, "invalid geometry " + str(g)
+        raise tk.TclError, "invalid geometry " + str(g)
     l = map(int, m.groups())
     if window.wm_state() == "zoomed":
         # workaround as Tk returns the "unzoomed" origin
@@ -164,9 +170,9 @@ def makeToplevel(parent, title=None, class_=None):
     # This is a shortcut for a Toplevel() instantiation plus calls to
     # set the title and icon name of the window.
     if class_:
-        window = Tkinter.Toplevel(parent, class_=class_)
+        window = tk.Toplevel(parent, class_=class_)
     else:
-        window = Tkinter.Toplevel(parent)
+        window = tk.Toplevel(parent)
     ##window.wm_group(parent)
     ##window.wm_command("")
     if os.name == "posix":
@@ -260,7 +266,7 @@ def unbind_destroy(widget):
                     ##widget.deletecommand(funcid)
                 else:
                     widget.unbind(sequence, funcid)
-            except Tkinter.TclError:
+            except tk.TclError:
                 pass
         del __mfx_bindings[k]
     ##for k in __mfx_bindings.keys(): print __mfx_bindings[k]
@@ -284,7 +290,7 @@ def after_cancel(t):
         t[2].after_cancel(t[0])
         try:
             t[2].deletecommand(t[1])
-        except Tkinter.TclError:
+        except tk.TclError:
             pass
 
 
@@ -306,12 +312,12 @@ def makeImage(file=None, data=None, dither=None, alpha=None):
         #    kw["dither"] = dither
         if alpha is not None:
             kw["alpha"] = alpha
-    return apply(Tkinter.PhotoImage, (), kw)
+    return apply(tk.PhotoImage, (), kw)
 
 loadImage = makeImage
 
 def copyImage(image, x, y, width, height):
-    dest = Tkinter.PhotoImage(width=width, height=height)
+    dest = tk.PhotoImage(width=width, height=height)
     assert dest.width() == width
     assert dest.height() == height
     dest.blank()
@@ -352,7 +358,7 @@ def fillImage(image, fill, outline=None):
         image.put(f)
 
 def createImage(width, height, fill, outline=None):
-    image = Tkinter.PhotoImage(width=width, height=height)
+    image = tk.PhotoImage(width=width, height=height)
     assert image.width() == width
     assert image.height() == height
     image.blank()

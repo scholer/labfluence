@@ -17,9 +17,11 @@
 # pylint: disable-msg=R0901,R0924
 
 # python 2.7:
-import Tkinter as tk
-#import ttk
-#import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
+try:
+    import tkinter as tk
+except ImportError:
+    import Tkinter as tk
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -185,8 +187,3 @@ class SubentriesListbox(ExpListbox):
         """ Returns currently selected subentries """
         curselection = [int(i) for i in self.curselection()]
         return [self.Subentrylist[2][i] for i in curselection] # Subentrylist[1] is list of subentry_idxs
-
-
-
-
-

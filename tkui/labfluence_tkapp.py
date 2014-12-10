@@ -41,7 +41,10 @@ tkui/labfluence_app     - Could provide a base class that could be derived in
 #import Tkinter as tk
 #import ttk
 #import tkFont
-from Tkinter import TclError
+try:
+    from tkinter import TclError
+except ImportError:
+    from Tkinter import TclError
 
 # Other standard lib modules:
 #import socket

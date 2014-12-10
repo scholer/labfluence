@@ -37,7 +37,12 @@
 # imports
 import os, sys, re, string, types
 import htmllib, formatter
-import Tkinter
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
 import webbrowser
 
 # PySol imports
@@ -100,7 +105,7 @@ class Struct:
 # //
 # ************************************************************************/
 
-class MfxScrolledText(Tkinter.Text):
+class MfxScrolledText(tk.Text):
     def __init__(self, parent=None, **cnf):
         fcnf = {}
         for k in cnf.keys():
@@ -109,17 +114,17 @@ class MfxScrolledText(Tkinter.Text):
                 del cnf[k]
         if cnf.has_key("bg"):
             fcnf["bg"] = cnf["bg"]
-        self.frame = apply(Tkinter.Frame, (parent,), fcnf) # apply is deprechated Python build-in.
-        self.vbar = Tkinter.Scrollbar(self.frame, name="vbar")
-        self.vbar.pack(side=Tkinter.RIGHT, fill=Tkinter.Y)
+        self.frame = apply(tk.Frame, (parent,), fcnf) # apply is deprechated Python build-in.
+        self.vbar = tk.Scrollbar(self.frame, name="vbar")
+        self.vbar.pack(side=tk.RIGHT, fill=tk.Y)
         cnf["name"] = "text"
-        apply(Tkinter.Text.__init__, (self, self.frame), cnf)
-        self.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=1)
+        apply(tk.Text.__init__, (self, self.frame), cnf)
+        self.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
         self["yscrollcommand"] = self.vbar.set
         self.vbar["command"] = self.yview
 
         # FIXME: copy Pack methods of self.frame -- this is a hack!
-        for m in Tkinter.Pack.__dict__.keys():
+        for m in tk.Pack.__dict__.keys():
             if m[0] != "_" and m != "config" and m != "configure":
                 ##print m, getattr(self.frame, m)
                 setattr(self, m, getattr(self.frame, m))
@@ -128,7 +133,7 @@ class MfxScrolledText(Tkinter.Text):
         self.vbar["highlightthickness"] = 0
         ##print self.__dict__
 
-    # XXX these are missing in Tkinter.py
+    # XXX these are missing in tk.py
     def xview_moveto(self, fraction):
         return self.tk.call(self._w, "xview", "moveto", fraction)
     def xview_scroll(self, number, what):
@@ -359,18 +364,18 @@ class tkHTMLViewer(object):
         self.handcursor = "hand2"
 
         # create buttons
-        frame = self.frame = Tkinter.Frame(parent)
+        frame = self.frame = tk.Frame(parent)
         frame.pack(side="bottom", fill="x")
-        self.homeButton = Tkinter.Button(frame, text="Index",
+        self.homeButton = tk.Button(frame, text="Index",
                                          command=self.goHome)
         self.homeButton.pack(side="left")
-        self.backButton = Tkinter.Button(frame, text="Back",
+        self.backButton = tk.Button(frame, text="Back",
                                          command=self.goBack)
         self.backButton.pack(side="left")
-        self.forwardButton = Tkinter.Button(frame, text="Forward",
+        self.forwardButton = tk.Button(frame, text="Forward",
                                             command=self.goForward)
         self.forwardButton.pack(side="left")
-        self.closeButton = Tkinter.Button(frame, text="Close",
+        self.closeButton = tk.Button(frame, text="Close",
                                           command=self.destroy)
         self.closeButton.pack(side="right")
 
@@ -381,7 +386,7 @@ class tkHTMLViewer(object):
             ##basefont = ("comic sans ms", -14, "bold", "italic")
             ##basefont = ("Arial", 14)
             basefont = ("Times New Roman", 12)
-        self.text = Tkinter.Text(parent)
+        self.text = tk.Text(parent)
         self.text2 = MfxReadonlyScrolledText(parent,
                                     fg="#000000", bg="#f7f3ff",
                                     cursor=self.defcursor,
@@ -582,7 +587,7 @@ def tkhtml_main(args):
         url = args[1]
     except:
         url = os.path.join("test-data", "hg.1.html")
-    top = Tkinter.Tk()
+    top = tk.Tk()
     top.wm_minsize(400, 200)
     viewer = tkHTMLViewer(top)
     viewer.display(url)

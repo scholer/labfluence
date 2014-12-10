@@ -15,12 +15,16 @@
 ##    You should have received a copy of the GNU General Public License
 ##
 
-# python 3.x:
-#from tkinter import ttk
-# python 2.7:
-import Tkinter as tk
-import ttk
-import tkFont
+
+try:
+    import tkinter as tk
+    from tkinter import tkFont
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
+    import tkFont
+
 
 # Other standard lib modules:
 import socket

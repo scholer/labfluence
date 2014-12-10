@@ -18,9 +18,14 @@
 """
 Module with a tk frame for displaying and editing an experiment's wiki page journal.
 """
-# python 2.7:
-import Tkinter as tk
-import ttk
+
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    import Tkinter as tk
+    import ttk
+
 #import Tix # Lots of widgets, but tix is not being developed anymore, so only use if you really must.
 
 from datetime import datetime
