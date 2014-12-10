@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 from collections import OrderedDict
 
-from satellite_location import SatelliteLocation, SatelliteFileLocation, location_factory
+from satellite_location import location_factory
 
 from labfluencebase import LabfluenceBase
 
@@ -49,16 +49,14 @@ class SatelliteManager(LabfluenceBase):
     """
     def __init__(self, confighandler):
         LabfluenceBase.__init__(self, confighandler)
-        #self._confighandler = confighandler
         if 'satellitemanager' not in confighandler.Singletons:
             confighandler.Singletons['satellitemanager'] = self
-        self._satellitelocations = dict() # dict name : satellite-location-object
+        # Initialize dict:
+        self._satellitelocations = {} # dict with name : satellite-location-object
+        self.loadLocations()
 
 
-    #@property
-    #def Confighandler(self):
-    #    """ The universal confighandler """
-    #    return self._confighandler
+
 
     @property
     def SatelliteLocations(self):
@@ -87,9 +85,12 @@ class SatelliteManager(LabfluenceBase):
         invoke saveLocations().
         """
         locationscfg = self.Confighandler.get('satellite_locations')
+        if not locationscfg:
+            return {}
         for name, locationparams in locationscfg.items():
             self._satellitelocations[name] = loc = location_factory(locationparams)
             logger.debug("Location added: %s : %s", name, loc)
 
     def get(self, name):
+        """ Return location object for specified location. """
         return self.SatelliteLocations[name]

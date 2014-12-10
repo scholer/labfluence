@@ -93,6 +93,7 @@ import yaml
 import re
 from datetime import datetime
 from collections import OrderedDict
+from operator import itemgetter
 import logging
 logger = logging.getLogger(__name__)
 
@@ -953,7 +954,8 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         subentries = self.Subentries
         logger.debug("Parsing directory '%s' for subentries using regex = '%s', localdirs = %s, subentries before parsing = %s",
                      directory, regex_prog.pattern, localdirs, subentries)
-        matchsubdirs = sorted((match.group('subentry_idx'), match) for match in (regex_prog.match(subdir) for subdir in localdirs) if match)
+        matchsubdirs = sorted(((match.group('subentry_idx'), match) for match in (regex_prog.match(subdir) for subdir in localdirs) if match),
+                              key=itemgetter(0))
         count = 0
         for idx, match in matchsubdirs:
             gd = match.groupdict()

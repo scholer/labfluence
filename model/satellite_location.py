@@ -152,10 +152,10 @@ class SatelliteLocation(object):
         uri:        The location of the satellite directory, e.g. Z:\.
         rootdir:    The folder on the satellite location, e.g. Microscopy\Rasmus.
         folderscheme: String specifying how the folders are organized, e.g. {year}/{experiment}/{subentry}. Defaults to {subentry}.
-        ignoredirs: A list of directories to ignore when parsing the satellite location for experiments/subentries.
-        mountcommand: Specifies how to mount the satellite location as a local, virtual filesystem.
         regexs:     A dict with regular expressions specifying how to parse each element in the folderscheme.
                     The key must correspond to the name in the folderscheme, e.g. 'experiment': r'(?P<expid>RS[0-9]{3})[_ ]+(?P<exp_titledesc>.+)'
+        ignoredirs: A list of directories to ignore when parsing the satellite location for experiments/subentries.
+        mountcommand: Specifies how to mount the satellite location as a local, virtual filesystem.
 
     The rationale for keeping uri and rootdir separate is that the uri can be mounted, e.g. if it is an FTP server,
     followed by a 'cd' to the root dir.
