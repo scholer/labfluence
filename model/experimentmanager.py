@@ -88,7 +88,7 @@ class ExperimentManager(LabfluenceBase):
         """
         if self._experimentsbyid is None:
             #if 'local' in self._experimentsources:
-            #exps = self.Experiments or self.getLocalExperiments()
+            #exps = self.Experiments or self.genLocalExperiments()
             #self._experimentsbyid = self.makeExperimentByExpIdMap(exps, updateSelf=False)
             self.mergeLocalExperiments()
         # Perhaps throw in a sort?
@@ -364,16 +364,21 @@ class ExperimentManager(LabfluenceBase):
 
     def getLocalExpsDirGroupdictTuples(self, basedir=None):
         """
-        Returns a generator with (path, match.groupdict() ) tuples,
+        Returns a generator with (path, match.groupdict()) tuples,
         for local experiment folders.
+        We do 'pop'ing of date keys to find the correct date and remove the others,
+        in case the match has more date groups specified.
+
+        This is similar to satellite_location.SatelliteLocation.genPathGroupdictTupByPathscheme method.
         """
         pathgds = ((path, match.groupdict()) for path, match in self.getLocalExpsDirMatchTuples(basedir))
+        # gd.pop is in a list comprehension not generator because we want to pop all date groups.
         return ((path, dict(date=next(ifilter(None, [gd.pop('date', None), gd.pop('date1', None), gd.pop('date2', None)]), None),
                             **gd))
                 for path, gd in pathgds)
 
 
-    def getLocalExperiments(self, ret='experiment-object', basedir=None):
+    def genLocalExperiments(self, ret='experiment-object', basedir=None):
         """
         Parse the local experiment (sub)directory and create experiment objects from these.
         This should probably be a bit more advanced, or used from another method that processes the returned objects.
@@ -384,16 +389,18 @@ class ExperimentManager(LabfluenceBase):
         - 'experiment-object'   -> Returns instantiated experiment objects based on the directory listing
         - 'regex-match'         -> Returns the regex match objects from matching directory listings
         - 'properties'          -> Returns a dict with 'localdir' and match.groupdict
-        - 'tuple'               -> Returns a tuple of ( expid, exp_titledesc, date )
+        - 'tuple'               -> Returns a tuple of (foldername, expid, exp_titledesc, date, path)
         - 'expid'               -> Returns the expid only
         - 'display-tuple'       -> (<display>, <identifier>, <full object>) tuples. Well, currently not with the full object.
+        Changelog:
+            Renamed to genLocalExperiments to emphasize the fact that it returns a generator (and does not 'get' any property from self)
         """
         if ret == 'experiment-object':
             exps = (Experiment(localdir=exppath, regex_match=match, manager=self, confighandler=self.Confighandler)
                     for exppath, match in self.getLocalExpsDirMatchTuples(basedir))
         elif ret == 'regex-match':
             exps = (tup[1] for tup in self.getLocalExpsDirMatchTuples(basedir))
-        elif ret in ('properties', 'groupdict'):
+        elif ret in ('paths',):
             exps = (tup[0] for tup in self.getLocalExpsDirMatchTuples(basedir))
         elif ret in ('properties', 'groupdict'):
             exps = (tup[1] for tup in self.getLocalExpsDirGroupdictTuples(basedir))
@@ -405,8 +412,16 @@ class ExperimentManager(LabfluenceBase):
             exps = ((os.path.basename(exppath), gd.get('expid'), None) for exppath, gd in self.getLocalExpsDirGroupdictTuples(basedir))
         else:
             logger.warning("ret argument '%s' not recognized, will not return anything...", ret)
-            return
+            raise ValueError("ret argument '%s' not recognized, will not return anything..." % ret)
         return exps
+
+    def findLocalExpsPathGdTupByExpid(self, basedir=None):
+        """
+        Convenience method.
+        Returns dict with:
+            experiments[expid] = (path, match-groupdict)
+        """
+        return {gd.get('expid'): (path, gd) for path, gd in self.getLocalExpsDirGroupdictTuples(basedir=basedir)}
 
 
     def mergeLocalExperiments(self, basedir=None, addtoactive=False):#, sync_exptitledesc=None):
@@ -619,14 +634,14 @@ class ExperimentManager(LabfluenceBase):
     def makeExperimentByExpIdMap(self, experiments=None, updateSelf=True):
         """
         This is a convenience method complementing the
-        getLocalExperiments, getCurrentWikiExperiments, etc methods.
+        genLocalExperiments, getCurrentWikiExperiments, etc methods.
         The source methods can be called by this method, or it can
         be piped in as the "experiments" argument.
         """
         if experiments is None:
             experiments = self.Experiments
         elif 'local' == experiments or 'local' in experiments:
-            experiments = self.getLocalExperiments()
+            experiments = self.genLocalExperiments()
         elif experiments in ('wiki-current', 'wiki'):
             experiments = self.getCurrentWikiExperiments()
         if not experiments:

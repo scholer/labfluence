@@ -17,6 +17,7 @@
 # x-pyxxlint: disable-msg=C0103,C0301,C0302,R0902,R0201,W0142,R0913,R0904,W0221,W0402,E0202,W0201
 # pylint: disable-msg=C0103,C0301
 
+from __future__ import print_function
 import os
 import yaml
 import logging
@@ -49,7 +50,7 @@ class DirectoryMockstructure(object):
             self.loadFromFlatListOfPaths(f)
 
     def loadFromFlatListOfPaths(self, flatlistoffiles):
-        flatlistoffiles = filter(None, (line.strip() for line in flatlistoffiles))
+        flatlistoffiles = [elem for elem in (line.strip() for line in flatlistoffiles) if elem]
         for path in flatlistoffiles:
             pathitems = path.split('/')
             f = self._directorydictstructure
@@ -101,8 +102,8 @@ class DirectoryMockstructure(object):
             except KeyError as e:
                 logger.debug("KeyError encountered: %s; len(dictnodes) = %s, dictnodes[-1].keys() = %s; nodenames = %s",
                              e, len(dictnodes), dictnodes[-1].keys(), nodenames)
-                raise ValueError("KeyError encountered: %s; len(dictnodes) = %s, dictnodes[-1].keys() = %s; nodenames = %s" %(
-                             e, len(dictnodes), dictnodes[-1].keys(), nodenames))
+                raise ValueError("KeyError encountered: %s; len(dictnodes) = %s, dictnodes[-1].keys() = %s; nodenames = %s" \
+                                 %(e, len(dictnodes), dictnodes[-1].keys(), nodenames))
         logger.debug("Returning dictnode for dirpath '%s', nodenames = %s; depth (number of dictnodes) = %s;\
 last dictnode has %s child notes (subfolders/files).", dirpath, nodenames, len(dictnodes), len(dictnodes[-1]))
         return dictnodes, nodenames
@@ -111,7 +112,7 @@ last dictnode has %s child notes (subfolders/files).", dirpath, nodenames, len(d
         """
         Raises KeyError if dirpath does not exists.
         """
-        dictnodes, nodenames = self.getdirdictnodes(dirpath)
+        dictnodes, _ = self.getdirdictnodes(dirpath)
         return dictnodes[-1]
 
 
@@ -119,7 +120,7 @@ last dictnode has %s child notes (subfolders/files).", dirpath, nodenames, len(d
         try:
             f = self.getdirdict(dirpath)
         except KeyError:
-            print "Directory {} does not exists.".format(dirpath)
+            print("Directory {} does not exists.".format(dirpath))
             raise OSError("Directory '{}' does not exists.".format(dirpath))
         else:
             return f.keys()
@@ -169,7 +170,7 @@ last dictnode has %s child notes (subfolders/files).", dirpath, nodenames, len(d
         parentnode = dictnodes[-2]      # second-last element
         currentbasename = nodenames[-1] # last element
         if currentbasename == newbasename:
-            print "currentbasename == newbasename: ('%s' == '%s'), not doing anything..." % (currentbasename, newbasename)
+            print("currentbasename == newbasename: ('%s' == '%s'), not doing anything..." % (currentbasename, newbasename))
             return
         if newbasename in parentnode:
             raise OSError("A node with name '%s' already exists!", newbasename)

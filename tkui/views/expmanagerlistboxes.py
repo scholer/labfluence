@@ -269,11 +269,11 @@ class LocalExpsListbox(ExpManagerListBox):
         In this case, it is more efficient to re-implement the getTupleList:
         Several implementation options:
         1) Simply use ExperimentManager.ExperimentsById cached object list
-        2) Call ExperimentManager.getLocalExperiments(ret='expid') to get an updated list.
+        2) Call ExperimentManager.genLocalExperiments(ret='expid') to get an updated list.
         """
-        logger.info("self.ExperimentManager.ExperimentsById: %s", self.ExperimentManager.ExperimentsById)
+        logger.debug("self.ExperimentManager.ExperimentsById: %s", self.ExperimentManager.ExperimentsById)
         expids, experiments = zip(*self.ExperimentManager.ExperimentsById.items())
-        display = ( getattr(exp, 'Foldername', "") for exp in experiments )
+        display = (getattr(exp, 'Foldername', "") for exp in experiments)
         displaytuples = zip(display, expids, experiments)
         if self.Reversedsort:
             # Returning an iterator does not work for tkinter... :<

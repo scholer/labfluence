@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ##    Copyright 2013-2014 Rasmus Scholer Sorensen, rasmusscholer@gmail.com
 ##
@@ -14,8 +14,11 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable=C0103,C0111,W0212
+# pylint: disable=C0103,C0301,C0111,W0212
+#,E1101
+# xx ,F0401
 
+from __future__ import print_function
 import pytest
 import os
 import yaml
@@ -42,7 +45,7 @@ from model.satellite_location import SatelliteFileLocation
 #from model.model_testdoubles.fake_confighandler import FakeConfighandler as ExpConfigHandler
 #from model.model_testdoubles.fake_server import FakeConfluenceServer as ConfluenceXmlRpcServer
 
-from directorymockstructure import DirectoryMockstructure
+from .directorymockstructure import DirectoryMockstructure
 
 #logging.getLogger('directorymockstructure').setLevel(logging.INFO)
 #logging.getLogger('tests.model_pytest.directorymockstructure').setLevel(logging.INFO)
@@ -95,8 +98,8 @@ locations1 = testconfig['satellite_locations']
 
 @pytest.fixture
 def directorymockstructure_win2014():
-    print "testdatadir: ", testdatadir
-    fp = os.path.join(testdatadir, 'test_filestructure', 'windirstructure_short.txt')
+    print("testdatadir: ", testdatadir)
+    fp = os.path.join(testdatadir, 'test_fs', 'windirstructure_short.txt')
     assert os.path.isfile(fp)
     ds = DirectoryMockstructure()
     ds.loadFromFlatFile(fp)
@@ -130,6 +133,15 @@ def test_basics(monkeypatch):
     monkeypatch.setattr(SatelliteFileLocation, 'isMounted', lambda dirpath: 1)
     sl = SatelliteFileLocation(locationparams)
     sl.Regexs = testconfig['exp_folder_regexs']
+
+
+def test_getFolderschemeUpTo(satellitelocation_standalone_fswinmock):
+    """
+    genPathmatchTupsByPathscheme
+    """
+    sl = satellitelocation_standalone_fswinmock
+    scheme_exp = sl.getFolderschemeUpTo('experiment')
+    assert scheme_exp == './year/experiment'
 
 
 
@@ -328,55 +340,55 @@ def test_caching(satellitelocation_standalone_fswinmock):
 
 
 
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_init():
-    print "\n>>>>> test_init() -----------------"
-    print sfl.__dict__ # equivalent to vars(sfl)
-    print "<<<<< completed test_init() -------"
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_findDirs():
-    print "\n>>>>> test_findDirs() -----------------"
-#        regexpat = ch.get('exp_subentry_regex').format(expid=RS115, subentry_idx=
-    regexpat = ch.get('exp_subentry_regex')
-    all_subentries = sfl.findDirs(regexpat)
-    print 'all_subentries:'
-    print "\n".join(all_subentries)
-    print "<<<<< completed test_findDirs() -------"
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_findSubentries():
-    print "\n>>>>> test_findSubentries() -----------------"
-#        regexpat = ch.get('exp_subentry_regex').format(expid=RS115, subentry_idx=
-    regexpat = ch.get('exp_subentry_regex')
-    all_subentries = sfl.findSubentries(regexpat)
-    print 'all_subentries:'
-    print "\n".join(all_subentries)
-    print "<<<<< completed test_findSubentries() -------"
-
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_syncToLocalDir1():
-    print "\n>>>>> test_syncToLocalDir1() -----------------"
-    destdir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/"
-    sfl.syncToLocalDir("20130222 RS115g Dry-AFM of transferin TR",
-            "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1")
-    print "<<<<< completed test_syncToLocalDir1() -------"
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_syncToLocalDir2():
-    print "\n>>>>> test_syncToLocalDir2() -----------------"
-    # Testing sync-into with trailing '/' on source:
-    destdir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1/RS115g Dry-AFM of Transferrin TR (20130222)"
-    if not os.path.exists(destdir):
-        os.makedirs(destdir)
-    sfl.syncToLocalDir("20130222 RS115g Dry-AFM of transferin TR/", destdir)
-    print "<<<<< completed test_syncToLocalDir2() -------"
-
-@pytest.mark.skipif(True, reason="Not ready yet")
-def test_syncFileToLocalDir():
-    print "\n>>>>> test_syncFileToLocalDir() -----------------"
-    sfl.syncFileToLocalDir("20130222 RS115g Dry-AFM of transferin TR/RS115g_c5-grd1_TRctrl_130222_105519.mi",
-                "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1/20130222 RS115g Dry-AFM of transferin TR (old)")
-    print "<<<<< completed test_syncFileToLocalDir() -------"
+#
+#@pytest.mark.skipif(True, reason="Not ready yet")
+#def test_init():
+#    print "\n>>>>> test_init() -----------------"
+#    print sfl.__dict__ # equivalent to vars(sfl)
+#    print "<<<<< completed test_init() -------"
+#
+#@pytest.mark.skipif(True, reason="Not ready yet")
+#def test_findDirs():
+#    print "\n>>>>> test_findDirs() -----------------"
+##        regexpat = ch.get('exp_subentry_regex').format(expid=RS115, subentry_idx=
+#    regexpat = ch.get('exp_subentry_regex')
+#    all_subentries = sfl.findDirs(regexpat)
+#    print 'all_subentries:'
+#    print "\n".join(all_subentries)
+#    print "<<<<< completed test_findDirs() -------"
+#
+#@pytest.mark.skipif(True, reason="Not ready yet")
+#def test_findSubentries():
+#    print "\n>>>>> test_findSubentries() -----------------"
+##        regexpat = ch.get('exp_subentry_regex').format(expid=RS115, subentry_idx=
+#    regexpat = ch.get('exp_subentry_regex')
+#    all_subentries = sfl.findSubentries(regexpat)
+#    print 'all_subentries:'
+#    print "\n".join(all_subentries)
+#    print "<<<<< completed test_findSubentries() -------"
+#
+#
+#@pytest.mark.skipif(True, reason="Not ready yet")
+#def test_syncToLocalDir1():
+#    print "\n>>>>> test_syncToLocalDir1() -----------------"
+#    destdir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/"
+#    sfl.syncToLocalDir("20130222 RS115g Dry-AFM of transferin TR",
+#            "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1")
+#    print "<<<<< completed test_syncToLocalDir1() -------"
+#
+#@pytest.mark.skipif(True, reason="Not ready yet")
+#def test_syncToLocalDir2():
+#    print "\n>>>>> test_syncToLocalDir2() -----------------"
+#    # Testing sync-into with trailing '/' on source:
+#    destdir = "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1/RS115g Dry-AFM of Transferrin TR (20130222)"
+#    if not os.path.exists(destdir):
+#        os.makedirs(destdir)
+#    sfl.syncToLocalDir("20130222 RS115g Dry-AFM of transferin TR/", destdir)
+#    print "<<<<< completed test_syncToLocalDir2() -------"
+#
+#@pytest.mark.skipif(True, reason="Not ready yet")
+#def test_syncFileToLocalDir():
+#    print "\n>>>>> test_syncFileToLocalDir() -----------------"
+#    sfl.syncFileToLocalDir("20130222 RS115g Dry-AFM of transferin TR/RS115g_c5-grd1_TRctrl_130222_105519.mi",
+#                "/home/scholer/Documents/labfluence_data_testsetup/2013_Aarhus/RS115 Transferrin TR v1/20130222 RS115g Dry-AFM of transferin TR (old)")
+#    print "<<<<< completed test_syncFileToLocalDir() -------"

@@ -143,7 +143,7 @@ def em_with_fake_ch_and_patched_server(monkeypatch):
     return em, confighandler, server
 
 
-def test_getLocalExperiments(experimentmanager_with_confighandler):
+def test_genLocalExperiments(experimentmanager_with_confighandler):
     """
     If this fails, ask someone to email you test_filestructure.zip
     This isn't optimal, but works for now. It will be cleaned up if someone needs it.
@@ -151,7 +151,7 @@ def test_getLocalExperiments(experimentmanager_with_confighandler):
     em = experimentmanager_with_confighandler
     expdir = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup', '2013_Aarhus')
     assert em.getLocalExpSubDir() == expdir
-    exps = em.getLocalExperiments()  # Store is deprechated...
+    exps = em.genLocalExperiments()  # Store is deprechated...
     print "Experiments:"
     print "\n".join( "{exp.Foldername} : props={exp.Props}".format(exp=exp) for exp in exps )
     assert isinstance(exps, list) or inspect.isgenerator(exps)
@@ -279,8 +279,8 @@ def test_mergeCurrentWikiExperiments(em_with_fake_ch_and_patched_server, monkeyp
     # Modify local_exp_subDir:
     ch.setkey('local_exp_subDir', tempfiledir)
     logger.debug("ch.get('local_exp_subDir'): %s", ch.get('local_exp_subDir'))
-    # Monkeypatch em.getLocalExperiments() and em.makeExperimentByExpIdMap:
-    monkeypatch.setattr(em, 'getLocalExperiments', lambda *x: list() )
+    # Monkeypatch em.genLocalExperiments() and em.makeExperimentByExpIdMap:
+    monkeypatch.setattr(em, 'genLocalExperiments', lambda *x: list() )
     monkeypatch.setattr(em, 'mergeLocalExperiments', lambda *x: list() )
     def makeExperimentByExpIdMap_patch(exps, updateSelf=True):
         return OrderedDict()
@@ -326,7 +326,7 @@ def test_():
 def test_makeExperimentsByIdMap(experimentmanager_with_confighandler):
     exps = None
     em = experimentmanager_with_confighandler
-    exps = em.getLocalExperiments()
+    exps = em.genLocalExperiments()
     print "len(exps): {}".format(len(exps) if exps else 'None')
     print "\ntest_makeExperimentsByIdMap: invoking em.makeExperimentByExpIdMap"
     expbyid = em.makeExperimentByExpIdMap(exps, updateSelf=True)
