@@ -143,11 +143,16 @@ import time
 import logging
 logger = logging.getLogger(__name__)
 
+from labfluencebase import LabfluenceBase
+from dirtreeparsing import genPathmatchTupsByPathscheme, getFoldersWithSameProperty
+
 try:
     from .decorators.cache_decorator import cached_property
 except SystemError:
     # If the module is run from the model directory, we cannot do relative imports.
     from decorators.cache_decorator import cached_property
+
+
 
 class SatelliteLocation(object):
     r"""
@@ -325,6 +330,15 @@ class SatelliteLocation(object):
         self._regexpats = {schemekey : re.compile(regex) if isinstance(regex, string_types) else regex for schemekey, regex in regexs.items()}
         logger.debug("self._regexpats set to {}".format(self._regexpats))
 
+    def getConfigEntry(self, cfgkey, default=None):
+        """
+        Returns a config key from the confighandler, if possible.
+        """
+        ch = self.Confighandler
+        if ch:
+            return ch.get(cfgkey, default)
+
+
     ##################################
     ## Not-used/diabled properties ###
     ##################################
@@ -402,370 +416,6 @@ class SatelliteLocation(object):
             self.update_expsubfolders()
         return self._subentryfolderset
 
-    #def subentryfoldersupdated(self):
-    #    """
-    #    Call this to invalidate the stored cache:
-    #    Probably not the best thing to do.
-    #    """
-    #    self._expidsubidxbyfolder = None
-    #    self._subentryfolderset = None
-
-
-
-    def getConfigEntry(self, cfgkey, default=None):
-        """
-        Returns a config key from the confighandler, if possible.
-        """
-        ch = self.Confighandler
-        if ch:
-            return ch.get(cfgkey, default)
-
-
-    #def findSubentries(self, regexpat, basepath='.', folderscheme=None):
-    #    """
-    #    First primitive attempt. Finds subentry folders matching regexpat.
-    #    Returns a list of the subentry folders.
-    #    """
-    #    if folderscheme is None:
-    #        folderscheme = self.Folderscheme
-    #    if isinstance(regexpat, basestring):
-    #        regexpat = re.compile(regexpat)
-    #    basepath = self.getRealPath(basepath)
-    #    if folderscheme == './experiment/subentry/':
-    #        subentryfolders = ((subentry, self.join(basepath, experiment, subentry))
-    #                 for experiment in self.listdir(basepath) if self.isdir(self.join(basepath, experiment))
-    #                    for subentry in self.join(basepath, experiment) if self.isdir(self.join(basepath, experiment, subentry)))
-    #    else: # e.g. if self.FolderScheme == './subentry/':
-    #        subentryfolders = ((subentry, self.join(basepath, subentry)) for subentry in self.listdir(basepath))
-    #    dirs = [path for foldername, path in subentryfolders if regexpat.match(foldername)]
-    #    return dirs
-
-    #def genSubentryFolderMatches(self, regexs=None, basedir=None, folderscheme=None):
-    #    """
-    #    Generate a sequence of tuples:
-    #        (filepath, subentry_regex_match, exp_regex_match)
-    #    This could probably be made considerably better by splitting folderscheme to a sequence:
-    #        './experiment/subentry/'  ->  ( 'experiment', 'subentry' )
-    #    and then looping over this from the start / popping.
-    #    You could even combine with os.walk, stepping up and down in the items in folderscheme as you
-    #    walk up and down the directory tree.
-    #    This could yield corresponding directory matches:
-    #        [<experiment-match>][subentry-match] = <list of filename(-matche)s>
-    #    Alternatively, it could be a sequence of tuples:
-    #        (<experiment-match>, <subentry-match>, <filename-match>, filepath)
-    #    or a sequence of dicts ?
-    #        {'experiment': <exp-match>, 'subentry': <subentry-match>, 'filename' : <fn-match>, 'filepath' : <full filepath>}
-    #    """
-    #    return self.genPathmatchTupsByPathscheme(regexs, basedir, folderscheme)
-    #    ### All of the below is replaced by the line above:
-    #    #regexs = regexs or self.Regexs
-    #    #basedir = basedir or self.Rootdir
-    #    #basepath = self.getRealPath(basedir)
-    #    #folderscheme = folderscheme or self.Folderscheme
-    #    #
-    #    ## First: tuple-generator, where
-    #    ## first item  = folder path relative to basedir.
-    #    ## second item = regex match for subentry folder.
-    #    ## third item  = regex match for experiment folder (might be None).
-    #    #if folderscheme == './experiment/subentry/':
-    #    #    expfolders = self.listdir(basepath)
-    #    #    expregexpat = regexs['experiment']
-    #    #    if expregexpat:
-    #    #        expfolders = ((self.join(basedir, folder), match) for folder, match in
-    #    #                        ((folder, expregexpat.match(folder)) for folder in expfolders)
-    #    #                        if match)
-    #    #else:
-    #    #    expfolders = iter((basedir, None))
-    #    #
-    #    #if folderscheme.endswith('/subentry/'):
-    #    #    subentryregexpat = regexs['subentry']
-    #    #    def subentrymatch_gen():
-    #    #        """ is this a generator closure? """
-    #    #        for expfolder, expmatch in expfolders:
-    #    #            for folder in self.listdir(expfolder):
-    #    #                subentrymatch = subentryregexpat.match(folder)
-    #    #                if subentrymatch:
-    #    #                    yield (self.join(expfolder, folder), subentrymatch.groupdict(), expmatch.groupdict() if expmatch else None)
-    #    #return subentrymatch_gen()
-
-
-    def genPathmatchTupsByPathscheme(self, regexs=None, basedir=None, folderscheme=None, filterfun=None, matchcombiner=None, matchinit=None):
-        """
-        Proposal: Change method name to genPathmatchlistTupsByPathscheme to reflect that the method
-        returns a two-tuple generator with (path, *list of match objects*).
-            Edit: I've introduced a matchcombiner argument instead, which makes this method more flexible.
-        Args:
-            :regexs:
-            :basedir:       Where to start, e.g.
-            :folderscheme:  Specifies how the files are organized, e.g. './year/experiment/subentry'
-                            The result only includes paths for elements at the deepest level are included, e.g. subentries in the example above.
-            :filterfun:     A function that determines whether the path is included in the result. Default is self.isdir.
-            :matchcombiner: Can be used control what is returned as the second item in the two-tuples:
-                            (path, matchcombiner(basematch, schemekey, match))
-                            The default is to return a dict with schemekeys: match-object, i.e.:
-                                matchcombiner = lambda basematch, schemekey, match: dict(basematch, **{schemekey: match})
-
-        If you want to exclude folders based simply on their names (not path), add the foldername to self.IgnoreDirs.
-
-        Edits/Changelog:
-            The includefiles argument has been removed in favor of the more flexible filterfun functional argument.
-            (:includefiles: If set to True, the files (and not just folders) are also included in the result)
-
-            Introduced :matchcombiner: argument to control what is returned as the second item in the two-tuples:
-                (path, matchcombiner(basematch, schemekey, match))
-
-        Returns a sequnce/generator of two-item 'matchtuples':
-            (folderpath, dict-of-regex-matches)
-        where each match-items-dict has keys matching each scheme item in folderscheme
-        and each value is a regex match found during traversal at that scheme level.
-
-        Usage:
-            >>> genPathmatchTupsByPathscheme(regexs={'year': r'(?P<year>[0-9]{4})',
-                                                     'experiment': r'(?P<expid>RS[0-9]{3})[_ ]+(?P<exp_titledesc>.+)',
-                                                     'subentry': r'(?P<expid>RS[0-9]{3})(?P<subentry_idx>[a-Z])[_ ]+(?P<subentry_titledesc>.+)'},
-                                             basedir='/mnt/data/nanodrop/',
-                                             folderscheme='./year/experiment/subentry')
-            (returns generator with two-tuples similar to
-                ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
-                 {'year': re.Match(year='2014'),
-                  'experiment': re.Match(expid='RS123', exp_titledesc='My experiment')
-                  'subentry': re.Match(expid='RS123', subentry_idx='a', subentry_titledesc='subentryA')})
-
-        Discussions:
-            I was considering returning a single, combined match dict, i.e. tuples similar to:
-                ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
-                {'year': '2014', 'exp_titledesc': 'My experiment', 'expid': 'RS123', 'subentry_idx': 'a', 'subentry_titledesc': 'subentryA'))
-
-            Here, matches for later/deeper elements would overwrite previous match dict entries.
-            In the example above, if path had been '/mnt/data/nanodrop/2014/RS123 My experiment/RS124a subentryA'
-            then the resulting dict would include 'expid': 'RS124' for the /subentry/ level match.
-
-        While the result might be simpler, this would also cause a loss of information, so I decided to include all matches.
-        Producing a single dict should be trivial for the consumer.
-
-        Performance:
-            For a very deep pathscheme of 'year/experiment/subentry/filename'
-                {'year': <year match>, 'experiment': <exp-match>, 'subentry': <subentry-match>, 'filename' : <fn-match>}
-            (Usually, you do not want to include <filename> in the folderscheme, but perhaps parse that separately if required...)
-
-        Question: Do you save for all levels, or only for the final part? --> Only the last part. <--
-
-        """
-        regexs = regexs or self.Regexs
-        basedir = basedir or self.Rootdir
-        basedir = os.path.normpath(basedir)
-        basepath = self.getRealPath(basedir)
-        folderscheme = folderscheme or self.Folderscheme
-        filterfun = filterfun or self.isdir
-        schemekeys = [key for key in folderscheme.split('/') if key and key != '.'] if isinstance(folderscheme, string_types) else folderscheme
-        logger.debug("genPathmatchTupsByPathscheme invoked running with, regexs=%s, basedir=%r, folderscheme=%r, filterfun=%s",
-                     regexs, basedir, folderscheme, filterfun)
-        def default_matchcombiner(basematch, schemekey, match):
-            """
-            Make a shallow copy of basematch and add schemekey=match to it.
-            Note: This might mot be pypy compatible if schemekey is not a string.
-            """
-            if basematch is None:
-                basematch = {}
-            return dict(basematch, **{schemekey: match})
-        if matchcombiner is None or matchcombiner == 'matchobject-dict':
-            matchcombiner = default_matchcombiner
-
-        logger.debug("Making pathmatchtuples from pathscheme %s with regexs: %s", folderscheme, regexs)
-        def genitems(schemekeys, basefolder, basematch=None):
-            """
-            Args:
-                :schemekeys: are the remaining items in the pathscheme, starting at basefolder.
-                :basefolder: is the current folder from where we transverse recursively.
-                :basematch: is a dict with matches for the basefolder.
-
-            Changelog:
-                The returned two-tuples have changed.
-
-            If pathscheme is ./year/experiment/subentry and we are at ./2013/RS160.../
-            then basematch will be a dict : {'year': <year match>, 'experiment': <exp match>}.
-            Creating dict copies should not be a big memory issue, especially within a generator.
-            And, since the pathscheme should only go two maybe three steps deep,
-            recursing shouldn't be an issue either.
-            Returns a sequnce/generator of two-item 'matchtuples' for each folder* in basefolder:
-                (folderpath, match-items-dict)
-            (* or item, if includefiles is True.)
-            Usage:
-                >>> genitems(['year', 'experiment', 'subentry'], '/mnt/data/nanodrop/', basematch=None)
-                (generator with
-
-            """
-            # slicing does not raise indexerrors:
-            schemekey, remainingschemekeys = schemekeys[0], schemekeys[1:]
-            regexpat = regexs[schemekey]
-            # logging disabled: produces A LOT of output
-            #logger.debug("Running genitems for schemekey '%s', remaining items is: %s", schemekey, remainingschemekeys)
-            #logger.debug("basefolder is '%s', regex '%s', matching against directory elements: %s", basefolder, regexpat.pattern, self.listdir(basefolder))
-            # if schemekey is 'experiment' and remaining items is ['subentry'],
-            # then basefolder should be e.g. ./2014/.
-            # Produce list of folders (or files, if includefiles=True):
-            foldernames = (foldername for foldername in self.listdir(basefolder)
-                           if foldername not in self.IgnoreDirs and filterfun(self.join(basefolder, foldername)))
-            #foldernames = list(foldernames)             # debug:
-            #print("Foldernames for basefolder %s: %s" % (basefolder, foldernames))
-            # Make tuples with folder path and regex match
-            pathmatchtup = ((self.join(basefolder, foldername), regexpat.match(foldername))
-                            for foldername in foldernames)
-            #pathmatchtup = list(pathmatchtup)             # debug:
-            #print("pathmatchtup for basefolder %s: %s" % (basefolder, pathmatchtup))
-            #logger.debug("Number of folders matched:  %s", len(pathmatchtup))#, pathmatchtup)
-            # Filter out tuples where regex match is None (= no match)
-            # Return the match? Or the match groupdict? Or a combined dict?
-            # And, as a dict(schemekey=match) or list? And do you copy, or just keep?
-            foldertups = ((self.path.normpath(folderpath), matchcombiner(basematch, schemekey, match)) # alternatively basematch.copy().update({schemekey: match})
-                          for folderpath, match in pathmatchtup if match)
-            #pathmatchtup = list(pathmatchtup)             # debug:
-            #print("pathmatchtup after filter: %s" % (pathmatchtup,))
-            #logger.debug("Number of matching matched: %s", len(foldertups))
-            if remainingschemekeys:
-                matchitems = (subfoldertup
-                              for folderpath, matchdict in foldertups
-                              for subfoldertup in genitems(remainingschemekeys, folderpath, matchdict))
-                #logger.debug("Received matching items from remainingschemekeys: %s", len(matchitems))
-            else:
-                #logger.debug("No remaining items, returning foldertups at this level.")
-                matchitems = foldertups
-            return matchitems
-
-        foldermatchtups = genitems(schemekeys, basepath, matchinit)
-        return foldermatchtups
-
-    def genPathMatchlistTupByPathscheme(self, regexs=None, basedir=None, folderscheme=None, filterfun=None):
-        """
-        Example to demonstrate how to use the matchcombiner argument in self.genPathmatchTupsByPathscheme.
-        Instead of returning
-            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
-             {'year': <year match>, 'experiment': <exp-match>, 'subentry': <subentry-match>})
-        This method returns a two-tuple generator where the second element is a *list of match objects*,
-        in the same order as folderscheme, i.e. (for folderscheme='year/experiment/subentry')
-            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
-             [<year match>, <exp-match>, <subentry-match>])
-        """
-        def matchcombiner(basematch, schemekey, match):  # pylint: disable=W0613
-            """ Creates a list with all match objects. """
-            if basematch is None:
-                basematch = []
-            newlist = basematch.copy()
-            newlist.append(match)
-            return newlist
-        return self.genPathmatchTupsByPathscheme(regexs=regexs, basedir=basedir, folderscheme=folderscheme,
-                                                 filterfun=filterfun, matchcombiner=matchcombiner)
-
-
-    def genPathGroupdictTupByPathscheme(self, regexs=None, basedir=None, folderscheme=None, filterfun=None):
-        """
-        Example to demonstrate how to use the matchcombiner argument in self.genPathmatchTupsByPathscheme.
-        This also sets a starting basematch using matchinit argument (rather than handling the case in matchcombiner).
-        Instead of returning
-            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
-             {'year': <year match>, 'experiment': <exp-match>, 'subentry': <subentry-match>)
-
-        This method returns a two-tuple generator where the second element is a single, combined match dict for the path, i.e. tuples similar to:
-            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
-             {'year': '2014', 'exp_titledesc': 'My experiment', 'expid': 'RS123', 'subentry_idx': 'a', 'subentry_titledesc': 'subentryA'})
-
-        Here, matches for later/deeper elements will overwrite previous match dict entries.
-        In the example above, if path had been '/mnt/data/nanodrop/2014/RS123 My experiment/RS124a subentryA'
-        then the resulting dict would include 'expid': 'RS124' for the /subentry/ level match.
-        """
-        def matchcombiner(basematch, schemekey, match):  # pylint: disable=W0613
-            """ Creates a copy of basematch and updates it with the match's groupdict. """
-            return dict(basematch, **match.groupdict())
-        return self.genPathmatchTupsByPathscheme(regexs=regexs, basedir=basedir, folderscheme=folderscheme,
-                                                 filterfun=filterfun, matchcombiner=matchcombiner, matchinit={})
-
-    def getFolderschemeUpTo(self, rightmost='subentry', folderscheme=None):
-        """
-        Lets say that folderscheme is './year/experiment/subentry'.
-        However, I only want the part that includes './year/experiment',
-        in order to get the experiment folders.
-        Does not include trailing '/'.
-        """
-        folderscheme = folderscheme or self.Folderscheme
-        schemekeys = [elem for elem in folderscheme.split('/') if elem] # do not include empty
-        left = "/".join(schemekeys[:schemekeys.index(rightmost)+1])
-        return left
-
-
-    def getExpfoldersByExpid(self, regexs=None, basedir=None, folderscheme=None):
-        """
-        Return datastructure:
-            [expid][subentry_idx] = <filepath relative to basedir/rootdir>
-        Usage:
-            ds = getSubentryfoldersByExpidSubidx(...)
-            subentry_fpath = ds['RS123']['a'] # returns e.g. "2014/RS123 Some experiment/RS123a Relevant subentry"
-        Requirements for this method to work:
-         a) Folderscheme and corresponding regexs must be configured (optionally also the rootdir).
-         b) Folderscheme must specify 'experiment', e.g. './year/experiment' or just 'experiment'
-         c) The regexs must specify the named group 'expid'.
-
-        Almost identical to experimentmanager.ExperimentManager.findLocalExpsPathGdTupByExpid method.
-        """
-        scheme = self.getFolderschemeUpTo('experiment')
-        foldermatchtuples = self.genPathGroupdictTupByPathscheme(regexs, basedir, folderscheme=scheme)
-        foldersbyexpid = {gd.get('expid'): path for path, gd in foldermatchtuples}
-        return foldersbyexpid
-
-
-    def getSubentryfoldersByExpidSubidx(self, regexs=None, basedir=None, folderscheme=None):
-        """
-        Return datastructure:
-            [expid][subentry_idx] = <filepath relative to basedir/rootdir>
-        Usage:
-            ds = getSubentryfoldersByExpidSubidx(...)
-            subentry_fpath = ds['RS123']['a'] # returns e.g. "2014/RS123 Some experiment/RS123a Relevant subentry"
-
-        Requirements for this method to work:
-         a) Folderscheme and corresponding regexs must be configured (optionally also the rootdir).
-         b) Folderscheme must specify 'subentry', e.g. './year/experiment/subentry' or just 'subentry'
-         c) The regexs must specify the named groups 'expid' and 'subentry_idx'
-        Changelog:
-            Deprechated the use of self.Matchpriorities and just using genPathmatchdictTupByPathscheme to
-            get a combined match group dict for each path.
-        """
-        # logger.debug("getSubentryfoldersByExpidSubidx(regexs=%s, basedir='%s', folderscheme='%s')", regexs, basedir, folderscheme)
-        #subentryfoldermatchtuples = self.genPathmatchTupsByPathscheme(regexs, basedir, folderscheme)
-        subentryfoldermatchtuples = self.genPathGroupdictTupByPathscheme(regexs, basedir, folderscheme)
-        foldersbyexpidsubidx = {}
-        #self.Matchpriorities = {'expid' : ('experiment', 'subentry'), #'filename'), # folderscheme looks for subentries, so there will not be a file.
-        #                        'subentry_idx' : ('subentry', )# 'filename') # Remember the fucking comma.
-        #                        }
-        # This runs the generator. You may want to grab as much as possible now that you have it.
-        for folderpath, matchdict in subentryfoldermatchtuples:
-            #expid = next(expid
-            #             for expid in (matchdict[k].groupdict().get('expid')
-            #                           for k in (schemekey
-            #                                     for schemekey in self.Matchpriorities['expid']
-            #                                     if schemekey in matchdict)
-            #                          ) if expid)
-            ## DEBUGGING:
-            ##logger.debug("self.Matchpriorities['subentry_idx'] = %s, matchdict = %s",
-            ##             self.Matchpriorities['subentry_idx'], matchdict)
-            ### For the schemekeys specified for subentry_idx in self.Matchpriorities, find those that are in the matchdict.
-            ##schemekeys_in_matchdict = [elem for elem in self.Matchpriorities['subentry_idx'] if elem in matchdict.keys()]
-            ##logger.debug("Relevant relevant_schemekeys: %s", schemekeys_in_matchdict)
-            ##groupdict_subentryidx = [matchdict[k].groupdict().get('subentry_idx') for k in schemekeys_in_matchdict]
-            ##logger.debug("Match groupdict subentry_idx: %s", groupdict_subentryidx)
-            #subentry_idx = next(subentry_idx
-            #                    for subentry_idx in (matchdict[k].groupdict().get('subentry_idx')
-            #                                         for k in (elem
-            #                                                   for elem in self.Matchpriorities['subentry_idx']
-            #                                                   if elem in matchdict)
-            #                                        ) if subentry_idx)
-            try:
-                expid, subentry_idx = (matchdict[k] for k in ('expid', 'subentry_idx'))
-            except KeyError:
-                logger.warning("Matchdict %s for folderpath %s does not contain keys 'expid' and 'subentry_idx' !!", matchdict, folderpath)
-                continue
-            foldersbyexpidsubidx.setdefault(expid, {})[subentry_idx] = folderpath
-        logger.debug("expsubfolders expids: %s", foldersbyexpidsubidx.keys())
-        return foldersbyexpidsubidx
-
 
 
     def update_expsubfolders(self, clearcache=False, foldersbyexpidsubidx=None):
@@ -811,23 +461,169 @@ class SatelliteLocation(object):
         removedsubentryfolders = self._subentryfolderset - subentryfoldersset
         newexpsubidx = {expidsubidxbyfolder[folder] for folder in newsubentryfolders}
 
-        #self._subentryfoldersbyexpidsubidx = foldersbyexpidsubidx
         self._expidsubidxbyfolder = expidsubidxbyfolder
         self._subentryfolderset = subentryfoldersset
-        #self._newexpsubidxsincelastupdate = newexpsubidx
-        #self._newsubentryfolderssincelastupdate = newsubentryfolders
-        #self._removedsubentryfolderssincelastupdate = removedsubentryfolders
-
-        ## Update the cache:
-        ## Edit: Not required;
-        #now = time.time()
-        #toupdate = (('SubentryfoldersByExpidSubidx', foldersbyexpidsubidx),
-        #            ('Subentryfoldersset', subentryfoldersset),
-        #            ('ExpidSubidxByFolder', expidsubidxbyfolder))
-        #for cachename, value in toupdate:
-        #    self._cache['cachename'] = (value, now)
 
         return (newexpsubidx, newsubentryfolders, removedsubentryfolders)
+
+
+
+    ### DIR TREE PARSING ###
+
+    def genPathmatchTupsByPathscheme(self, filterfun=None, matchcombiner=None, matchinit=None, rightmost=None):
+        """
+        Specifying regexs, basedir and folderscheme have been deprechated.
+        These are taken from self.Regexs, self.Rootdir, and self.Folderscheme.
+        See dirtreeparsing.genPathmatchTupsByPathscheme for more info.
+
+        Args:
+            :filterfun:     A function that determines whether the path is included in the result.
+                            Default is something like:
+                                lambda path: self.isdir(path) and self.path.basename(path) not in self.IgnoreDirs
+            :matchcombiner: Can be used control what is returned as the second item in the two-tuples:
+                            (path, matchcombiner(basematch, schemekey, match))
+                            The default is to return a dict with schemekeys: match-object, i.e.:
+                                matchcombiner = lambda basematch, schemekey, match: dict(basematch, **{schemekey: match})
+
+        If you want to exclude folders based simply on their names (not path), add the foldername to self.IgnoreDirs.
+
+        """
+        basepath = self.getRealPath(os.path.normpath(self.Rootdir))
+        folderscheme = self.Folderscheme
+        regexs = self.Regexs
+        default_filter = lambda path: self.isdir(path) and self.path.basename(path) not in self.IgnoreDirs
+        filterfun = filterfun or default_filter
+
+        foldermatchtups = genPathmatchTupsByPathscheme(basepath=basepath, folderscheme=folderscheme, regexs=regexs,
+                                                       filterfun=filterfun, matchcombiner=matchcombiner,
+                                                       matchinit=matchinit, rightmost=rightmost, fs=self)
+        return foldermatchtups
+
+    def genPathMatchlistTupByPathscheme(self, filterfun=None, rightmost=None):
+        """
+        Example to demonstrate how to use the matchcombiner argument in self.genPathmatchTupsByPathscheme.
+        Instead of returning
+            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
+             {'year': <year match>, 'experiment': <exp-match>, 'subentry': <subentry-match>})
+        This method returns a two-tuple generator where the second element is a *list of match objects*,
+        in the same order as folderscheme, i.e. (for folderscheme='year/experiment/subentry')
+            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
+             [<year match>, <exp-match>, <subentry-match>])
+        """
+        def matchcombiner(basematch, schemekey, match):  # pylint: disable=W0613
+            """ Creates a list with all match objects. """
+            if basematch is None:
+                basematch = []
+            newlist = basematch.copy()
+            newlist.append(match)
+            return newlist
+        return self.genPathmatchTupsByPathscheme(filterfun=filterfun, matchcombiner=matchcombiner, rightmost=rightmost)
+
+
+    def genPathGroupdictTupByPathscheme(self, filterfun=None, rightmost=None):
+        """
+        Example to demonstrate how to use the matchcombiner argument in self.genPathmatchTupsByPathscheme.
+        This also sets a starting basematch using matchinit argument (rather than handling the case in matchcombiner).
+        Instead of returning
+            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
+             {'year': <year match>, 'experiment': <exp-match>, 'subentry': <subentry-match>)
+
+        This method returns a two-tuple generator where the second element is a single, combined match dict for the path, i.e. tuples similar to:
+            ('/mnt/data/nanodrop/2014/RS123 My experiment/RS123a subentryA':
+             {'year': '2014', 'exp_titledesc': 'My experiment', 'expid': 'RS123', 'subentry_idx': 'a', 'subentry_titledesc': 'subentryA'})
+
+        Here, matches for later/deeper elements will overwrite previous match dict entries.
+        In the example above, if path had been '/mnt/data/nanodrop/2014/RS123 My experiment/RS124a subentryA'
+        then the resulting dict would include 'expid': 'RS124' for the /subentry/ level match.
+        """
+        def matchcombiner(basematch, schemekey, match):  # pylint: disable=W0613
+            """ Creates a copy of basematch and updates it with the match's groupdict. """
+            return dict(basematch, **match.groupdict())
+        return self.genPathmatchTupsByPathscheme(filterfun=filterfun, matchcombiner=matchcombiner,
+                                                 matchinit={}, rightmost=rightmost)
+
+    def make_dirparse_kwargs(self, basepath=None, folderscheme=None, regexs=None, fs=None, filterfun=None):
+        """ Generate ubiqutous keyword arguments for dirtree parsing. """
+        default_filter = lambda path: self.isdir(path) and self.path.basename(path) not in self.IgnoreDirs
+        return dict(basepath=basepath or self.Rootdir,
+                    folderscheme=folderscheme or self.Folderscheme,
+                    regexs=regexs or self.Regexs,
+                    fs=fs or self,
+                    filterfun=filterfun or default_filter)
+
+    def getExpfoldersByExpid(self):
+        """
+        Return datastructure:
+            [expid][subentry_idx] = <filepath relative to basedir/rootdir>
+        Usage:
+            ds = getSubentryfoldersByExpidSubidx(...)
+            subentry_fpath = ds['RS123']['a'] # returns e.g. "2014/RS123 Some experiment/RS123a Relevant subentry"
+        Requirements for this method to work:
+         a) Folderscheme and corresponding regexs must be configured (optionally also the rootdir).
+         b) Folderscheme must specify 'experiment', e.g. './year/experiment' or just 'experiment'
+         c) The regexs must specify the named group 'expid'.
+
+        Almost identical to experimentmanager.ExperimentManager.findLocalExpsPathGdTupByExpid method.
+        """
+        foldermatchtuples = self.genPathGroupdictTupByPathscheme(rightmost='experiment')
+        foldersbyexpid = {gd.get('expid'): path for path, gd in foldermatchtuples}
+        return foldersbyexpid
+
+    def getDuplicates(self, subentries=False):
+        if subentries:
+            return self.getDuplicateSubentries()
+        else:
+            return self.getDuplicateExps()
+
+
+    def getDuplicateExps(self):
+        """
+        Returns a dict with lists of paths for experiment folders with duplicate IDs.
+        """
+        #foldermatchtuples = self.genPathGroupdictTupByPathscheme(rightmost='experiment')
+        #listfoldersbyexp = {}
+        #for folderpath, matchdict in foldermatchtuples:
+        #    listfoldersbyexp.setdefault(matchdict['expid'], []).append(folderpath)
+        #listfoldersbyexp = {expid: folderlist for expid, folderlist in listfoldersbyexp.items() if len(folderlist) > 1}
+        #return listfoldersbyexp
+        return getFoldersWithSameProperty(group='expid', rightmost='experiment', **self.make_dirparse_kwargs())
+
+    def getDuplicateSubentries(self):
+        " Return a ... "
+        return getFoldersWithSameProperty(group=('expid', 'subentry_idx'), rightmost='subentry',
+                                          **self.make_dirparse_kwargs())
+
+    def getSubentryfoldersByExpidSubidx(self, regexs=None, basedir=None, folderscheme=None):
+        """
+        Return datastructure:
+            [expid][subentry_idx] = <filepath relative to basedir/rootdir>
+        Usage:
+            ds = getSubentryfoldersByExpidSubidx(...)
+            subentry_fpath = ds['RS123']['a'] # returns e.g. "2014/RS123 Some experiment/RS123a Relevant subentry"
+
+        Requirements for this method to work:
+         a) Folderscheme and corresponding regexs must be configured (optionally also the rootdir).
+         b) Folderscheme must specify 'subentry', e.g. './year/experiment/subentry' or just 'subentry'
+         c) The regexs must specify the named groups 'expid' and 'subentry_idx'
+        Changelog:
+            Deprechated the use of self.Matchpriorities and just using genPathmatchdictTupByPathscheme to
+            get a combined match group dict for each path.
+        """
+        logger.debug("getSubentryfoldersByExpidSubidx(regexs=%s, basedir='%s', folderscheme='%s')",
+                     regexs, basedir, folderscheme)
+        foldermatchtuples = self.genPathGroupdictTupByPathscheme(rightmost='subentry')
+        foldersbyexpidsubidx = {}
+        # This runs the generator. You may want to grab as much as possible now that you have it.
+        for folderpath, matchdict in foldermatchtuples:
+            try:
+                expid, subentry_idx = (matchdict[k] for k in ('expid', 'subentry_idx'))
+            except KeyError:
+                logger.warning("Matchdict %s for folderpath %s does not contain keys 'expid' and 'subentry_idx' !!",
+                               matchdict, folderpath)
+                continue
+            foldersbyexpidsubidx.setdefault(expid, {})[subentry_idx] = folderpath
+        logger.debug("expsubfolders expids: %s", foldersbyexpidsubidx.keys())
+        return foldersbyexpidsubidx
 
 
 
@@ -850,24 +646,12 @@ class SatelliteLocation(object):
         if 'filename' not in regexs:
             regexs['filename'] = re.compile('.*')
 
-        pathmatchtuples = self.genPathmatchTupsByPathscheme(regexs, basedir, pathscheme, filterfun=lambda path: True)
-        pathsbyexpidsubidx = dict()
-        #self.Matchpriorities = {'expid' : ('experiment', 'subentry', 'filename'),
-        #                        'subentry_idx' : ('subentry', 'filename')
-        #                       }
-        # This runs the generator. You may want to grab as much as possible now that you have it.
+        pathmatchtuples = self.genPathmatchTupsByPathscheme(filterfun=lambda path: True)
+        pathsbyexpidsubidx = {}
+
         for path, matchdict in pathmatchtuples:
-            # Find expid and subentry idx based on the matches in matchdict.
-            #expid = next(expid for expid in
-            #             (matchdict[k].groupdict().get('expid') for k in
-            #              (elem for elem in self.Matchpriorities['expid'] if elem in matchdict)
-            #             ) if expid)
-            #subentry_idx = next(subentry_idx for subentry_idx in
-            #                    (matchdict[k].groupdict().get('subentry_idx') for k in
-            #                     (elem for elem in self.Matchpriorities['subentry_idx'] if elem in matchdict)
-            #                    ) if subentry_idx)
             expid, subentry_idx = (matchdict[k] for k in ('expid', 'subentry_idx'))
-            pathsbyexpidsubidx.setdefault(expid, dict()).setdefault(subentry_idx, list()).append(path)
+            pathsbyexpidsubidx.setdefault(expid, {}).setdefault(subentry_idx, []).append(path)
         logger.debug("pathsbyexpidsubidx: %s", pathsbyexpidsubidx)
         return pathsbyexpidsubidx
 
@@ -1047,6 +831,8 @@ class SatelliteFileLocation(SatelliteLocation):
 
     def listdir(self, path):
         """ Implements directory listing with os.listdir(...) """
+        if os.path.isabs(path):
+            return os.listdir(path)
         return os.listdir(os.path.join(self.getRealRootPath(), path))
 
     def join(self, *paths):
@@ -1071,7 +857,6 @@ class SatelliteFileLocation(SatelliteLocation):
         # This will thus cause the contents of satellitepath to be copied into localpath, rather than localpath/foldername
         # I guess this is also the behaviour of e.g. rsync, so should be ok. Just be aware of it.
         """
-        ret = None
         if not os.path.isdir(localpath):
             logger.warning("localpath NOT A DIRECTORY, skipping...\n--'%s'", localpath)
             return
@@ -1103,7 +888,6 @@ class SatelliteFileLocation(SatelliteLocation):
         Syncs A FILE to local dir.
         True = File was copied, False = Sync failed, None = File not copied.
         """
-        ret = None
         if not os.path.isdir(localpath):
             logger.warning("Destination localpath '%s' is not a directory, skipping...", localpath)
             ## Consider perhaps creating destination instead...?

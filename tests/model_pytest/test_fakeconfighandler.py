@@ -46,11 +46,11 @@ def fakeconfighandler(monkeypatch):
 def test_fakeconfighandler_basics(monkeypatch, fakeconfighandler):
     ch = fakeconfighandler
     assert ch.get('wiki_serverparams')['baseurl'] == "http://10.14.40.245:8090"
-    print ch.get('local_exp_subDir')
-    #assert ch.get('local_exp_subDir') == './2013_Aarhus'
+    print ch.getAbsExpPath('local_exp_subDir')
+    #assert ch.getAbsExpPath('local_exp_subDir') == './2013_Aarhus'
     cwd = os.path.join(os.getcwd(), 'tests', 'test_data', 'test_filestructure', 'labfluence_data_testsetup')
     print cwd
-    assert ch.get('local_exp_subDir') == os.path.normpath(os.path.join(cwd, './2013_Aarhus'))
+    assert ch.getAbsExpPath('local_exp_subDir') == os.path.normpath(os.path.join(cwd, './2013_Aarhus'))
 
 
 def test_fakeconfighandler_setkey_and_get():

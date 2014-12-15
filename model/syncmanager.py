@@ -45,7 +45,7 @@ Notes:
 
 """
 from __future__ import print_function
-#from six import string_types
+from six import string_types
 import logging
 logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
 
@@ -81,7 +81,6 @@ class SyncManager(object):
         if verbosity > 1:
             print("Sync from '%s' complete!" % list(satlocs.keys()))
 
-
     def sync_remote(self, remote, onlyexpids=None, verbosity=None, dryrun=None):
         """
         Determines the best method to sync remote based on the remote's folderscheme.
@@ -101,6 +100,7 @@ class SyncManager(object):
         else:
             raise NotImplementedError("Remote is '%s', but folderscheme ('%s') does not include 'subentry' or 'experiment'.\
                                       These must currently be present in folderscheme for sync to work." % (remote, satloc.Folderscheme))
+
 
     def sync_experimentfolders(self, remote, onlyexpids=None, verbosity=None, dryrun=None):
         """
@@ -127,6 +127,11 @@ class SyncManager(object):
         for expid in common_expids:
             #exp = exps[expid]
             #localdirpath = exp if isinstance(exp, string_types) else exp.Localdirpath
+            """
+            There are two cases you would have to check, depending on whether
+            remote experiment folder exist in local directory:
+            """
+            return
             localdirpath, _ = exps[expid]
             #logger.info("Syncing for exp '%s' (%s)", expid, localdirpath)
             remotefolder = loc_ds[expid]
@@ -168,20 +173,35 @@ class SyncManager(object):
         logger.info("'%s' sync complete.", remote)
 
 
-    def duplicates_check(self, ):
+    def check_duplicates(self, local=True, remotes=None, subentries=False):
         """
         Implementation:
             Just get a list of duplicates, let the user resolve it.
             This is done separately, in ExperimentManager and SatelliteLocation.
             This should be done both for experiments and for subentries.
         """
-        pass
         #em = self.ExperimentManager
         #sm = self.SatelliteManager
         ## This should be done by these, separately.
         # For satellite, should be done in satellite_location.
         #remote_exp_scheme = sm.getFolderschemeUpTo('experiment')
         #foldermatchtuples = self.genPathGroupdictTupByPathscheme(regexs, basedir, folderscheme=scheme)
+
+        # getDuplicates uses dirtreeparsing.getFoldersWithSameProperty,
+        # which returns a dict: dups[(groups)] = <list of paths with duplicate match group properties>
+        if local or remotes is None:
+            dups = self.Experimentmanager.getDuplicates(subentries=subentries)
+            print("\nDuplicate local %s:\n" % ('subentries' if subentries else 'experiments',))
+            print("\n\n".join("{}:\n{}".format(groups, "\n".join(paths)) for groups, paths in sorted(dups.items())))
+        if remotes is not None:
+            if len(remotes) == 0:
+                # The user just specified --remotes without any arguments.
+                remotes = self.Satellitemanager.getLocationsSorted()
+            for remote in remotes:
+                dups = self.Satellitemanager.get(remote).getDuplicates(subentries=subentries)
+                print("\n\n", "-"*80, "\nDuplicate %s on remote %s:\n" % ('subentries' if subentries else 'experiments', remote))
+                print("\n\n".join("{}:\n{}".format(groups, "\n".join(paths)) for groups, paths in dups.items()))
+
 
     def check_local_rename(self, ):
         """
@@ -202,41 +222,7 @@ class SyncManager(object):
 
 
 
-if __name__ == '__main__':
-
-    """
-
-    ## TODO: Add check for duplicate Experiments and Subentry folders (locally and remote).
-
-    ## TODO: Add check for whether folders in satellite location has been renamed locally,
-             with option to rename the folder on remote.
-
-    ## TODO: Add optional checksum calculation of files before overwriting.
-
-    """
-
-    import argparse
-    import time
-    import os
-    import sys
-
-    scriptdir = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
-    sys.path.append(scriptdir)
-
-    from confighandler import ExpConfigHandler
-    from experimentmanager import ExperimentManager
-    from satellite_manager import SatelliteManager
-
-    parser = argparse.ArgumentParser("Satellite sync")
-    parser.add_argument('remote', nargs='*', help="The remotes to synchronize (by keys, as defined in your config).\
-                        If omitted, sync all remotes except those where donotsync is set to True.")
-    parser.add_argument('--expids', '-e', nargs='*', help="Sync only for experiments with these Experiment IDs.")
-    parser.add_argument('--verbose', '-v', action='count', default=0, help="Increase verbosity of printed output (independent on loglevels).")
-    parser.add_argument('--dryrun', '-n', action='store_true', help="Print output but do not actually perform sync.")
-    parser.add_argument('--loglevel', default='ERROR', help="Default LOG LEVEL to report.", choices=('debug', 'info', 'warning', 'error'))
-    parser.add_argument('--logformat', default='time', help="Logging format to use.", choices=('code', 'time'))
-    argns = parser.parse_args()
-
+def init_logging(argns):
     # https://docs.python.org/2/library/logging.html, https://docs.python.org/2/howto/logging.html,
     # https://docs.python.org/2/library/time.html#time.strftime
     # Default logging format DOES INCLUDE miliseconds, but only because that is a special case in the standard module's code.
@@ -253,17 +239,96 @@ if __name__ == '__main__':
     #logging.getLogger('__main__').setLevel(logging.INFO)
 
 
+def parseargs():
+    import argparse
+
+    parser = argparse.ArgumentParser("syncmanager")
+
+    # Creating sub-parsers for each command:
+    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand',
+                                       description='valid subcommands',
+                                       help='sub-command help')
+
+    ## Common args:
+    parser.add_argument('--verbose', '-v', action='count', default=0, help="Increase verbosity of printed output (independent on loglevels).")
+    parser.add_argument('--dryrun', '-n', action='store_true', help="Print output but do not actually perform sync.")
+    parser.add_argument('--loglevel', default='ERROR', help="Default LOG LEVEL to report.", choices=('debug', 'info', 'warning', 'error'))
+    parser.add_argument('--logformat', default='time', help="Logging format to use.", choices=('code', 'time'))
+
+
+    # sync command:
+    subparser = subparsers.add_parser('sync', help='Sync remote satellite location into local experiment tree.')
+    #subparser.set_defaults(func=getpagestruct)
+    subparser.add_argument('remotes', nargs='*', metavar='REMOTE', help="The remotes to synchronize (by keys, as defined in your config).\
+                        If omitted, sync all remotes except those where donotsync is set to True.")
+    subparser.add_argument('--expids', '-e', nargs='*', help="Sync only for experiments with these Experiment IDs.")
+
+
+    # check duplicates command:
+    subparser = subparsers.add_parser('checkduplicates', help='Sync remote satellite location into local experiment tree.')
+    #subparser.set_defaults(func=getpagestruct)
+    subparser.add_argument('--subentries', '-s', action='store_true', help="Check for duplicate subentries (default: check for duplicate experiments).")
+    subparser.add_argument('--local', '-l', action='store_true', default=None, help="Check duplicates for local expriment tree.")
+    subparser.add_argument('--remotes', '-r', nargs='*', metavar='REMOTE',
+                           help="The remotes to synchronize (by keys, as defined in your config).\
+                        If omitted, sync all remotes except those where donotsync is set to True.")
+
+    argns = parser.parse_args()
+    return argns
+
+
+
+def main(argns=None):
+
+    """
+
+    ## TODO: Add check for duplicate Experiments and Subentry folders (locally and remote).
+
+    ## TODO: Add check for whether folders in satellite location has been renamed locally,
+             with option to rename the folder on remote.
+
+    ## TODO: Add optional checksum calculation of files before overwriting.
+
+    """
+
+    import time
+    import os
+    import sys
+
+    scriptdir = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.append(scriptdir)
+
+    from confighandler import ExpConfigHandler
+    from experimentmanager import ExperimentManager
+    from satellite_manager import SatelliteManager
+
     ch = ExpConfigHandler()
     em = ExperimentManager(ch)
     sm = SatelliteManager(ch)
     syncmgr = SyncManager(em, sm)
 
     #print("argns.verbose:",argns.verbose)
+    argns = parseargs()
+    init_logging(argns)
 
-    if argns.verbose:
-        print("%s : Sync started..." %  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-    logger.info("Syncing remote '%s' to local data tree..." % argns.remote)
-    syncmgr.sync_remotes(argns.remote, onlyexpids=argns.expids, verbosity=argns.verbose, dryrun=argns.dryrun)
-    if argns.verbose:
-        print("%s : Sync completed!" %  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-    logger.info("Sync from '%s' complete!" % argns.remote)
+
+    #print(argns.__dict__)
+
+
+    if argns.subcommand == 'sync':
+        if argns.verbose:
+            print("%s : Sync started..." %  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        logger.info("Syncing remote '%s' to local data tree...", argns.remotes)
+        syncmgr.sync_remotes(argns.remotes, onlyexpids=argns.expids, verbosity=argns.verbose, dryrun=argns.dryrun)
+        if argns.verbose:
+            print("%s : Sync completed!" %  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        logger.info("Sync from '%s' complete!", argns.remotes)
+
+    elif argns.subcommand == 'checkduplicates':
+        syncmgr.check_duplicates(local=argns.local, remotes=argns.remotes, subentries=argns.subentries)
+
+
+
+
+if __name__ == '__main__':
+    main()

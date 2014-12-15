@@ -180,7 +180,7 @@ def test_mergeLocalExperiments(em_with_fake_ch_and_patched_server, monkeypatch, 
     em, ch, server = em_with_fake_ch_and_patched_server
     # Modify local_exp_subDir:
     ch.setkey('local_exp_subDir', tempfiledir)
-    logger.debug("ch.get('local_exp_subDir'): %s", ch.get('local_exp_subDir'))
+    logger.debug("ch.getAbsExpPath('local_exp_subDir'): %s", ch.getAbsExpPath('local_exp_subDir'))
 
     # Create test folders:
     for i, texpid in enumerate(('RS001', 'X002', 'RS003', '', 'RS005'), 1):
@@ -278,7 +278,7 @@ def test_mergeCurrentWikiExperiments(em_with_fake_ch_and_patched_server, monkeyp
     em, ch, server = em_with_fake_ch_and_patched_server
     # Modify local_exp_subDir:
     ch.setkey('local_exp_subDir', tempfiledir)
-    logger.debug("ch.get('local_exp_subDir'): %s", ch.get('local_exp_subDir'))
+    logger.debug("ch.getAbsExpPath('local_exp_subDir'): %s", ch.getAbsExpPath('local_exp_subDir'))
     # Monkeypatch em.genLocalExperiments() and em.makeExperimentByExpIdMap:
     monkeypatch.setattr(em, 'genLocalExperiments', lambda *x: list() )
     monkeypatch.setattr(em, 'mergeLocalExperiments', lambda *x: list() )

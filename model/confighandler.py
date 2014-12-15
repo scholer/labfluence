@@ -920,7 +920,7 @@ class ExpConfigHandler(ConfigHandler):
     """
     def __init__(self, systemconfigfn=None, userconfigfn=None, expconfigfn=None,
                  readfiles=True, pathscheme='default1', hierarchy_rootdir_config_key='local_exp_rootDir',
-                 enableHierarchy=True, hierarchy_ignoredirs_config_key='local_exp_ignoreDirs'):
+                 enableHierarchy=True):
         self.Pathfinder = PathFinder()
         pschemedict = self.Pathfinder.getScheme(pathscheme) if pathscheme else dict()
         systemconfigfn = systemconfigfn or pschemedict.get('sys')
@@ -939,7 +939,7 @@ class ExpConfigHandler(ConfigHandler):
             self.autoRead()
         if enableHierarchy and hierarchy_rootdir_config_key:
             rootdir = self.get(hierarchy_rootdir_config_key)
-            ignoredirs = self.get(hierarchy_ignoredirs_config_key)
+            ignoredirs = self.get('local_exp_ignoreDirs')
             logger.debug("Enabling HierarchicalConfigHandler with rootdir: %s", rootdir)
             if rootdir:
                 self.HierarchicalConfigHandler = HierarchicalConfigHandler(rootdir, ignoredirs, parent=self)
@@ -971,7 +971,7 @@ class ExpConfigHandler(ConfigHandler):
         return self.HierarchicalConfigHandler.getHierarchicalConfig(path, rootdir=rootdir)
 
 
-    def get(self, key, default=None, path=None, pathsrelativetoexp=True):
+    def get(self, key, default=None, path=None):
         """
         Simulated the get method of a dict.
         If path is provided, will search HierarchicalConfigHandler for a matching config before
@@ -980,24 +980,36 @@ class ExpConfigHandler(ConfigHandler):
         if path and self.HierarchicalConfigHandler:
             val = self.getHierarchicalEntry(key, path)
             # perhaps raise a KeyError if key is not found in the hierarchical confighandler;
-            # None could be a valid value in some cases...?
+            # None could be a valid value in some cases? But get*(key) immitates dict.get, and
+            # dict.get do not raise KeyError. Implement __getitem__ if you want something that raises KeyError.
             if val is not None:
                 return val
         # Optimized, and accounting for the fact that later added cfgs overrides the first added
         for cfg in reversed(list(self.Configs.values())):
             if key in cfg:
-                ## special cases, e.g. paths: ##
-                # Case 1, config keys specifying a single path:
-                if pathsrelativetoexp and key in ('local_exp_rootDir', 'local_exp_subDir') and cfg[key][0] == '.':
-                    exp_path = self.getConfigDir('exp')
-                    if exp_path:
-                        return os.path.normpath(os.path.join(exp_path, cfg[key]))
-                # Case 2, config keys specifying a list of paths:
-                elif pathsrelativetoexp and key in ('local_exp_ignoreDirs', ):
-                    exp_path = self.getConfigDir('exp')
-                    return [os.path.join(exp_path, ignoreDir) for ignoreDir in cfg[key]]
                 return cfg[key]
         return default
+
+
+    def getAbsExpPath(self, pathkey):
+        """
+        Returns an absolute path for paths defined relatively to the experiment root.
+        Used for paths in the config that might be specified relatively to
+        the root of the experiment directory tree.
+        """
+        path = self.get(pathkey)
+        if os.path.isabs(path):
+            return path
+        if pathkey == 'local_exp_rootDir':
+            # Return root dir path relative to the directory containing the experiment config file.
+            # (This is the best guess, if local_exp_rootDir is not absolute...)
+            return os.path.normpath(os.path.join(self.getConfigDir('exp'), path))
+        rootdir = self.getAbsExpPath('local_exp_rootDir')
+        if isinstance(path, string_types):
+            return os.path.normpath(os.path.join(rootdir, path))
+        elif isinstance(path, (list, tuple)):
+            # Case 2, config keys specifying a list of paths:
+            return [os.path.join(rootdir, elem) for elem in path]
 
     def getExpConfig(self, path):
         """
@@ -1081,9 +1093,8 @@ class HierarchicalConfigHandler(object):
         self.ConfigSearchFn = '.labfluence.yml'
         self.Rootdir = rootdir
         if ignoredirs is None:
-            ignoredirs = list() # yes, I could use a set instead, but not natively yaml compatible like list.
-        self.Ignoredirs = ignoredirs
-        #print "HELLO"
+            ignoredirs = list()
+        self.Ignoredirs = ignoredirs or [] # Using list, because set is not a yaml native.
         if doautoloadroothierarchy:
             self.loadRootHierarchy()
 
@@ -1105,7 +1116,7 @@ class HierarchicalConfigHandler(object):
             logger.debug("Searching for %s from rootdir %s; ignoredirs are: %s", self.ConfigSearchFn, rootdir, self.Ignoredirs)
         for dirpath, dirnames, filenames in os.walk(rootdir):
             if dirpath in self.Ignoredirs:
-                del dirnames[:] # Avoid walking into child dirs. Do not use dirnames=list(), as os.walk still refers to the old list.
+                del dirnames[:] # Avoid walking into child dirs. Do not use dirnames=list(), as os.walk would then still refer to the old list.
                 logger.debug("Ignoring dir (incl children): %s", dirpath)
                 continue
             if self.VERBOSE > 3:
@@ -1240,15 +1251,7 @@ class HierarchicalConfigHandler(object):
         #cfg['lastsaved'] = datetime.now() # This is now added by saveConfig()
         res = saveConfig(fpath, cfg, updatelastsaved=True)
         logger.debug("%s :: saveConfig(%s, <cfg>) returned: '%s'", self.__class__.__name__, fpath, res)
-        #return res
         return keysupdatedfromfile, keysupdatedinmemory, changedkeys
-        #try:
-        #    yaml.dump(cfg, open(fpath, 'wb'))
-        #    logger.debug("HierarchicalConfigHandler.saveConfig() :: config saved to file '%s'", fpath)
-        #    return True
-        #except IOError, e:
-        #    logger.warning("HierarchicalConfigHandler.saveConfig() :: Could not open path '%s'. Error is: %s", path, e)
-        #    return False
 
 
 

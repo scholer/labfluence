@@ -14,7 +14,7 @@
 ##
 ##    You should have received a copy of the GNU General Public License
 ##
-# pylint: disable-msg=C0302,R0902,R0904,W0142
+# pylint: disable-msg=C0103,C0302,R0902,R0904,W0142
 # messages:
 #   C0103: Invalid attribute/variable name (too short/long/etc?)
 #   C0111: Missing method docstring (pylint insists on docstrings, even for one-liner inline functions and properties)
@@ -664,7 +664,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
                 localdir = next(path for path in localdircandidates if os.path.isdir(path))
             except StopIteration:
                 # No localdir found by searching the most obvious candidates. Trying a bit extra using local_exp_subDir:
-                local_exp_subdir = self.Confighandler.get('local_exp_subDir')
+                local_exp_subdir = self.Confighandler.getAbsExpPath('local_exp_subDir')
                 logger.warning("localdir '%s' was not found, attempting to use local_exp_subDir (%s) as base.", localdir, local_exp_subdir)
                 common = os.path.commonprefix([local_exp_subdir, localdir])
                 if common:
@@ -690,7 +690,7 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
         # Note: If this is called as part of __init__, it is called as one of the first things,
         # before setting self.Props, and before pretty much anything.
         logger.debug("Experiment makeLocaldir invoked with props=%s, basedir=%s", props, basedir)
-        localexpsubdir = basedir or self.Confighandler.get('local_exp_subDir')
+        localexpsubdir = basedir or self.Confighandler.getAbsExpPath('local_exp_subDir')
         try:
             foldername = self.getFoldernameFromFmtAndProps(props)
             localdirpath = os.path.join(localexpsubdir, foldername)
@@ -1086,21 +1086,19 @@ props=%s, regex_match=%s, wikipage='%s'", props, regex_match, wikipage)
     ###
 
 
-    def getRelativeStartPath(self, relative):
+    def getPathFor(self, pathkey):
         """
-        Returns the relative path for various elements, e.g.
+        Returns the path for various elements, e.g.
         - 'exp'  (default)      -> returns self.Localdirpath
         - 'local_exp_subDir'
         - 'local_exp_rootDir'
         """
-        if relative is None or relative == 'exp':
+        if pathkey is None or pathkey == 'exp':
             relstart = self.Localdirpath
-        elif relative == 'local_exp_subDir':
-            relstart = self.Confighandler.get('local_exp_subDir')
-        elif relative == 'local_exp_rootDir':
-            relstart = self.Confighandler.get('local_exp_rootDir')
+        elif pathkey in ('local_exp_rootDir', 'local_exp_subDir'):
+            relstart = self.Confighandler.getAbsExpPath(pathkey)
         else:
-            relstart = relative
+            relstart = pathkey
         return relstart
 
     def listLocalFiles(self, relative=None):

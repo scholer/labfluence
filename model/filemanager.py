@@ -117,14 +117,15 @@ class Filemanager(object):
     ##### General methods:
     #####
 
-    def getRelativeStartPath(self, relative):
+    def getPathFor(self, relative):
         """
         Returns the relative path for various elements, e.g.
         - 'exp'  (default)      -> returns self.Localdirpath
         - 'local_exp_subDir'
         - 'local_exp_rootDir'
+        None will return the same as 'exp'.
         """
-        return self.Experiment.getRelativeStartPath(relative)
+        return self.Experiment.getPathFor(relative)
 
     def hashFile(self, filepath, digesttypes=('md5', )):
         """
@@ -192,11 +193,14 @@ class Filemanager(object):
         """
         Lists all local files, essentially a lite version of getLocalFilelist
         that makes it clear that the task can be accomplished as a one-liner :-)
+        Arg :relative: can be either a path, or a keyword
+        'exp', 'local_exp_rootDir', 'local_exp_subDir'.
+        Default (None) returns the same as as 'exp' (in getPathFor method).
         """
         if not self.Localdirpath:
             logger.info("No localdirpath? Is: %s", self.Localdirpath)
             return list()
-        relstart = self.getRelativeStartPath(relative)
+        relstart = self.getPathFor(relative)
         return [os.path.relpath(os.path.join(dirpath, filename), relstart)
                 for dirpath, _, filenames in os.walk(self.Localdirpath) for filename in filenames]
 
@@ -206,32 +210,36 @@ class Filemanager(object):
         filtering by:
         - fn_pattern
         - fn_is_regex   -> if True, will enterpret fn_pattern as a regular expression.
-        - relative       -> relative to what ('exp', 'local_exp_subDir', 'local_exp_rootDir')
         - subentries_only -> only return files from subentry folders and not other files.
         - subentries_idxs -> only return files from from subentries with these subentry indices (sequence)
+
+        The argument :relative: is used to return the filenames relative to a fixed dir (to truncate uninteresting parts).
+        :relative: can also be a keyword ('exp', 'local_exp_subDir', 'local_exp_rootDir', 'filename-only').
+        Default (None) is the same as 'exp'.
+
         # oneliner for listing files with os.walk:
-        #print "\n".join(u"{}:\n{}".format(dirpath,
-        #        "\n".join(os.path.join(dirpath, filename) for filename in filenames))for dirpath, dirnames, filenames in os.walk('.') )
+        print("\n".join(u"{}:\n{}".format(dirpath, "\n".join(os.path.join(dirpath, filename) for filename in filenames))
+                        for dirpath, dirnames, filenames in os.walk('.')))
         """
         ret = list()
         if not self.Localdirpath:
             return ret
         if subentry_idxs is None:
             subentry_idxs = list()
-        relstart = self.Experiment.getRelativeStartPath(relative)
+        relstart = self.getPathFor(relative)
         # I am not actually sure what is fastest, repeatedly checking "if include_prog and include_prog.match()
         if relative == 'filename-only':
-            def file_repr(path, filename, relstart):
+            def file_repr(path, filename, relstart): # pylint: disable=W0613
                 return filename
             def make_tuple(path, filename):
-                return ( filename, path, dict(fileName=filename, filepath=path) )
+                return (filename, path, dict(fileName=filename, filepath=path))
         else:
             def file_repr(dirpath, filename, relstart):
                 path = os.path.join(dirpath, filename)
                 return os.path.join(os.path.relpath(path, relstart))
             def make_tuple(dirpath, filename):
                 path = os.path.join(dirpath, filename)
-                return ( os.path.join(os.path.relpath(path, relstart)), path, dict(fileName=filename, filepath=path) )
+                return (os.path.join(os.path.relpath(path, relstart)), path, dict(fileName=filename, filepath=path))
         if fn_pattern:
             if not fn_is_regex:
                 # fnmatch translates into equivalent regex, offers the methods fnmatch, fnmatchcase, filter, re and translate

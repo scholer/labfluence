@@ -106,7 +106,7 @@ def fakeconfighandler(monkeypatch, tempfiledir):
 @pytest.fixture
 def experiment_with_ch(fakeconfighandler):
     ch = fakeconfighandler
-    subdir = ch.get('local_exp_subDir')
+    subdir = ch.getAbsExpPath('local_exp_subDir')
     foldername = 'RS001 Pytest test experiment'
     localdir = os.path.join(subdir, foldername)
     if not os.path.isdir(localdir):

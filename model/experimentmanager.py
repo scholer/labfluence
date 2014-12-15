@@ -33,11 +33,13 @@ try:
     from itertools import ifilter   # pylint: disable=E0611
 except ImportError:
     ifilter = filter
-logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
+logger = logging.getLogger(__name__)
 
 # Model classes:
 from experiment import Experiment
 from labfluencebase import LabfluenceBase
+
+from dirtreeparsing import genPathmatchTupsByPathscheme, getFoldersWithSameProperty
 
 # Decorators:
 from decorators.cache_decorator import cached_property
@@ -69,12 +71,74 @@ class ExperimentManager(LabfluenceBase):
         self._experimentsources = experimentsources
         self._experiments = list()
         self._localexpdirsparsed = False
+        self._regexpats = None  # Cached compiled regular expressions
         if autoinit:
             logger.info("Auto-initiating experiments for ExperimentManager...")
             self.mergeLocalExperiments()
             if 'wikiexps' in autoinit:
                 self.mergeCurrentWikiExperiments()
             logger.debug("self.ExperimentsById: %s", self.ExperimentsById)
+
+    @property
+    def LocalExpDirTreeParams(self):
+        """
+        Location parameters for this satellite location.
+        Having config parameters flat vs nested:
+        I've actually spent quite some time making confighandler able to handle relative paths, i.e.
+        transforming ./2014_Harvard to <absolute-exp-path>/2014_Harvard. This would be harder to have
+        if you have the parameters nested in a dict.
+        Also, with parameters nested in a dict, it becomes harder to split the entries across configs.
+        And possibly also harder to update.
+        """
+        pass
+        #return self.Confighandler.get('local_exp_dirtree', '.')
+
+    @property
+    def Rootdir(self):
+        """ Rootdir """
+        return self.Confighandler.getAbsExpPath('local_exp_rootDir')
+    @property
+    def CurrentWorkDir(self):
+        """ Current dir; where new experiments are placed. """
+        return self.Confighandler.getAbsExpPath('local_exp_subDir')
+    @property
+    def IgnoreDirs(self):
+        """
+        List of directories to ignore. Consider implementing glob-based syntax...
+        Excluding directories from e.g. previous years can help speed up lookups and location hashing.
+        """
+        #return self.LocalExpDirTreeParams.get('ignore_dirs', list())
+        return self.Confighandler.get('local_exp_ignoreDirs', list())
+
+    @property
+    def Folderscheme(self):
+        """ Folderscheme """
+        return self.Confighandler.get('local_exp_folderscheme', './year_loc/experiment/subentry')
+    def _set_regexs(self, regexs):
+        """ Compile and set regular expressions cache. """
+        self._regexpats = {schemekey : re.compile(regex) if isinstance(regex, string_types) else regex for schemekey, regex in regexs.items()}
+    @property
+    def Regexs(self):
+        """
+        Returns regex to use to parse foldernames.
+        If regex is defined in locationparams, this is returned.
+        Otherwise, try to find a default regex in the confighandler.
+        If that doesn't work, ... ?
+        """
+        if not self._regexpats:
+            regexs = self.Confighandler.get('local_exp_folder_regexs')
+            logger.debug('Loading regex from config: %s', list(regexs.items()))
+            self._set_regexs(regexs)
+        return self._regexpats
+    @Regexs.setter
+    def Regexs(self, regexs):
+        """
+        Set regexs. Format must be a dict where key corresponds to a pathscheme element (e.g. 'experiment')
+        and the values must be either regex patterns or strings (which will then be compiled...)
+        """
+        self._set_regexs(regexs)
+        logger.debug("self._regexpats set to {}".format(self._regexpats))
+
 
     @property
     def Experiments(self):
@@ -97,6 +161,8 @@ class ExperimentManager(LabfluenceBase):
     def ExperimentsById(self, value):
         """property setter"""
         self._experimentsbyid = value
+
+
 
     @cached_property(ttl=120) # 2 minutes cache...
     def CurrentWikiExperimentsPagestructsByExpid(self):
@@ -155,6 +221,16 @@ class ExperimentManager(LabfluenceBase):
         expids_init, experiments = self.getExpsById(expids)
         logger.debug("RecentExperimentIds=%s; of these the following are found/initialized: %s", expids, expids_init)
         return experiments
+
+
+    def make_dirparse_kwargs(self, basepath=None, folderscheme=None, regexs=None, fs=None, filterfun=None):
+        """ Generate ubiqutous keyword arguments for dirtree parsing. """
+        default_filter = lambda path: os.path.isdir(path) and os.path.basename(path) not in self.IgnoreDirs
+        return dict(basepath=basepath or self.Rootdir,
+                    folderscheme=folderscheme or self.Folderscheme,
+                    regexs=regexs or self.Regexs,
+                    fs=fs or self,
+                    filterfun=filterfun or default_filter)
 
     def archiveExperiment(self, exp):
         """
@@ -290,11 +366,11 @@ class ExperimentManager(LabfluenceBase):
 
     def getLocalExpRootDir(self):
         """relays to confighandler"""
-        return self.Confighandler.get('local_exp_rootDir') # e.g. the "_experiment_data/" dir
+        return self.Confighandler.getAbsExpPath('local_exp_rootDir') # e.g. the "_experiment_data/" dir
 
     def getLocalExpSubDir(self):
         """relays to confighandler"""
-        return self.Confighandler.get('local_exp_subDir') # E.g. the "2013_Aarhus/" dir
+        return self.Confighandler.getAbsExpPath('local_exp_subDir') # E.g. the "2013_Aarhus/" dir
 
     def getExpSeriesRegex(self, path=None):
         """
@@ -309,7 +385,7 @@ class ExperimentManager(LabfluenceBase):
 
 
     #def getRealLocalExpRootDir(self):
-    #    #return os.path.join(self.Confighandler.getConfigDir('exp'), self.getLocalExpRootDir() )
+    #    #return os.path.join(self.getConfigEntryConfigDir('exp'), self.getLocalExpRootDir() )
     #    # edit: I have updated ExpConfigHandler to account for this:
     #    path = self.getLocalExpRootDir()
     #    # perhaps perform some kind of check...
@@ -318,7 +394,7 @@ class ExperimentManager(LabfluenceBase):
     #    return path
     #
     #def getRealLocalExpSubDir(self):
-    #    #return os.path.join(self.Confighandler.getConfigDir('exp'), self.getLocalExpRootDir(), self.getLocalExpSubDir() )
+    #    #return os.path.join(self.getConfigEntryConfigDir('exp'), self.getLocalExpRootDir(), self.getLocalExpSubDir() )
     #    # edit: I have updated ExpConfigHandler to account for this:
     #    return self.getLocalExpSubDir()
 
@@ -327,6 +403,42 @@ class ExperimentManager(LabfluenceBase):
     #########################################
     ### Loading/parsing local experiments ###
     #########################################
+
+    def getFilterFun(self):
+        " Default filterfun for get... "
+        logger.debug("Filterfun with self.IgnoreDirs: %s", self.IgnoreDirs)
+        return lambda path: os.path.isdir(path) and os.path.basename(path) not in self.IgnoreDirs
+
+    def getDuplicates(self, local=True, subentries=False):
+        """ Convenience method for getDuplicateExps and getDuplicateSubentries dispatch. """
+        if subentries:
+            return self.getDuplicateSubentries()
+        else:
+            return self.getDuplicateExps()
+
+
+    def getDuplicateExps(self):
+        """ Returns a dict with lists of paths for experiment folders with duplicate IDs. """
+        logger.info("Getting duplicate local experiments, group='expid', basepath=%s, folderscheme=%s, \
+                    regexs=%s, filterfun=None, rightmost='experiment'""",
+                    self.Rootdir, self.Folderscheme, self.Regexs)
+        return getFoldersWithSameProperty(group='expid',
+                                          basepath=self.Rootdir,
+                                          folderscheme=self.Folderscheme,
+                                          regexs=self.Regexs,
+                                          filterfun=self.getFilterFun(), rightmost='experiment')
+
+    def getDuplicateSubentries(self):
+        """ Returns a dict with lists of paths for experiment folders with duplicate IDs. """
+        logger.info("Getting duplicate local subentries, group=('expid', 'subentry_idx'), basepath=%s, folderscheme=%s, \
+                    regexs=%s, filterfun=None, rightmost='experiment'""",
+                    self.Rootdir, self.Folderscheme, self.Regexs)
+        return getFoldersWithSameProperty(group=('expid', 'subentry_idx'),
+                                          basepath=self.Rootdir,
+                                          folderscheme=self.Folderscheme,
+                                          regexs=self.Regexs,
+                                          filterfun=self.getFilterFun(), rightmost='subentry')
+
 
     def getLocalExperimentFolderpaths(self, directory=None):
         """
@@ -664,7 +776,6 @@ class ExperimentManager(LabfluenceBase):
         return expByIdMap
 
 
-
     def getExperimentsIndices(self, expByIdMap=None):
         """
         Returns a list of experiment indices, i.e. for expids list:
@@ -673,30 +784,13 @@ class ExperimentManager(LabfluenceBase):
         """
         if expByIdMap is None:
             expByIdMap = self.ExperimentsById
-        regex_str = self.getConfigEntry('expid_regex')
+        regex_str = self.Confighandler.get('expid_regex')
         if not regex_str:
             logger.info("No expid regex in config, aborting.")
         logger.debug("Regex: %s", regex_str)
         regex_prog = re.compile(regex_str)
-        #def matchgroupdummy(*args):
-        #    """ Used to avoid calling .group() method of None object: """
-        #    return None
-        #def intConv(str_number):
-        #    """convert string to number or return None (instead of raising ValueErroor)"""
-        #    try:
-        #        return int(str_number)
-        #    except ValueError:
-        #        return None
-        #f = itemgetter('expid'), g = itemgetter('Props') # allows using f(g(exp)) to get exp id, but does not deal well with KeyError exceptions
-        #f = methodcaller(1) # does not work, f(a) will call a.1(), not a(1)
-        #return [ intConv(getattr(regex_prog(getattr(exp, 'Props', dict()).get('expid', "")), 'group', matchgroupdummy)(1)) for exp in self.Experiments ]
-        #return [ getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) for expid in self.ExperimentsById.keys() ]
-        #return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
-
         return sorted((x for x in (int(match.group(1)) for match in (regex_prog.match(expid) for expid in expByIdMap.keys()))
                        if x is not None))
-
-#        return sorted(filter(lambda x: x is not None, [ intConv(getattr(regex_prog.match(expid), 'group', matchgroupdummy)(1) ) for expid in sorted(expByIdMap.keys()) ] ))
 
 
     def getNewExpIndex(self):
