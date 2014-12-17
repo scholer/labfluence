@@ -8,7 +8,7 @@ REM call activate oldpil
 REM 2) Alternatively, call the environment-specific pythonexecutable in the environment:
 REM "C:\Program Files (x86)\Anaconda\envs\oldpil\python.exe" %~dp0\..\gelutils\gelannotator_gui.py %1
 
-python %~dp0\..\model\syncmanager.py -v sync --subentries
+python %~dp0\..\model\syncmanager.py -v checkduplicates --subentries --crosscheck --rename
 
 
 REM IF ERRORLEVEL 1 pause

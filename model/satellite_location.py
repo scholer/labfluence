@@ -272,7 +272,7 @@ class SatelliteLocation(object):
         return self.LocationParams.get('uri')
     @property
     def Rootdir(self):
-        """ Rootdir """
+        """ Rootdir. Can be simply '.' -- most fs methods will interpret that with getAbsPath()... """
         return self.LocationParams.get('rootdir', '.')
     @property
     def IgnoreDirs(self):
@@ -545,7 +545,7 @@ class SatelliteLocation(object):
     def make_dirparse_kwargs(self, basepath=None, folderscheme=None, regexs=None, fs=None, filterfun=None):
         """ Generate ubiqutous keyword arguments for dirtree parsing. """
         default_filter = lambda path: self.isdir(path) and self.path.basename(path) not in self.IgnoreDirs
-        return dict(basepath=basepath or self.Rootdir,
+        return dict(basepath=basepath or self.getRealPath(),
                     folderscheme=folderscheme or self.Folderscheme,
                     regexs=regexs or self.Regexs,
                     fs=fs or self,
@@ -569,12 +569,24 @@ class SatelliteLocation(object):
         foldersbyexpid = {gd.get('expid'): path for path, gd in foldermatchtuples}
         return foldersbyexpid
 
+    def getFoldersWithSameProperty(self, group, rightmost=None, countlim=1):
+        """
+        Returns folders with the same set of dirtree parsed group properties.
+        Args:
+            :group:     The property or group of property to filter for, e.g. 'expid', or ('expid', 'year')
+            :rightmost: The rightmost part of the pathscheme to parse. E.g. for pathscheme
+                        'year/experiment/subentry', setting rightmost='experiment' will only parse experiments and not subentries.
+            :countlim:  Can be used to only return for groups with more than a certain number of hits,
+                        e.g. setting countlim=2 will only return groups with duplicate folders.
+        """
+        return getFoldersWithSameProperty(group=group, rightmost=rightmost, countlim=countlim,
+                                          **self.make_dirparse_kwargs())
+
     def getDuplicates(self, subentries=False):
         if subentries:
             return self.getDuplicateSubentries()
         else:
             return self.getDuplicateExps()
-
 
     def getDuplicateExps(self):
         """
@@ -586,12 +598,11 @@ class SatelliteLocation(object):
         #    listfoldersbyexp.setdefault(matchdict['expid'], []).append(folderpath)
         #listfoldersbyexp = {expid: folderlist for expid, folderlist in listfoldersbyexp.items() if len(folderlist) > 1}
         #return listfoldersbyexp
-        return getFoldersWithSameProperty(group='expid', rightmost='experiment', **self.make_dirparse_kwargs())
+        return self.getFoldersWithSameProperty(group='expid', rightmost='experiment', countlim=2)
 
     def getDuplicateSubentries(self):
         " Return a ... "
-        return getFoldersWithSameProperty(group=('expid', 'subentry_idx'), rightmost='subentry',
-                                          **self.make_dirparse_kwargs())
+        return self.getFoldersWithSameProperty(group=('expid', 'subentry_idx'), rightmost='subentry', countlim=2)
 
     def getSubentryfoldersByExpidSubidx(self, regexs=None, basedir=None, folderscheme=None):
         """
@@ -760,7 +771,7 @@ class SatelliteLocation(object):
     def join(self, *paths):
         """ Override in filesystem/ressource-dependent subclass. """
         raise NotImplementedError("%s not implemented for base class - something is probably wrong.")
-    def getRealPath(self, path):
+    def getRealPath(self, path='.'):
         """ Override in filesystem/ressource-dependent subclass. """
         raise NotImplementedError("%s not implemented for base class - something is probably wrong.")
     def mount(self, path):
@@ -809,14 +820,21 @@ class SatelliteFileLocation(SatelliteLocation):
             uri = self.URI
         mountcommand = self.Mountcommand
         if not mountcommand:
+            logger.warning("Trying to mount satellite location %s, but mount command is: %s", uri, mountcommand)
             return
         import subprocess, sys
         errorcode = subprocess.call(mountcommand, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
+        logger.info("Mount command '%s' returned with errorcode %s", mountcommand, errorcode)
         return errorcode
 
     def isMounted(self):
         """ Tests if a location is mounted (by checking if it is non-empty)."""
-        return len(os.listdir(self.getRealRootPath()))
+        path = self.getRealRootPath()
+        try:
+            return len(os.listdir(path))
+        except FileNotFoundError as err:
+            logger.info("FileNotFoundError while trying to list dir %s: %s", path, err)
+            return False
 
     def getRealRootPath(self):
         """ Returns self.getRealPath('.') """
@@ -895,6 +913,8 @@ class SatelliteFileLocation(SatelliteLocation):
         srcfilepath = self.getRealPath(satellitepath)
         if not os.path.isfile(srcfilepath):
             logger.info("Source file '%s' is not a file, skipping...", srcfilepath)
+            if verbosity > 0:
+                print("%s\t%s\t %s \t %s" % ('S!', 'skipping', srcfilepath, '<src is not a file>')) # Symbols: N=New, O=Overwrite, S=Skipping
             return False
         filename = os.path.basename(srcfilepath)
         destfilepath = os.path.join(localpath, filename)
@@ -912,9 +932,13 @@ class SatelliteFileLocation(SatelliteLocation):
         logger.debug("Destfile exists: '%s'\n%s", destfilepath, lastmodst)
         if os.path.isdir(destfilepath):
             logger.warning("Destfilepath '%s' is a directory in localpath (but a file on source). Cannot sync, skipping...", destfilepath)
+            if verbosity > 0:
+                print("%s\t%s\t %s \t %s" % ('S!', 'skipping', srcfilepath, '<dest is a directory (unexpected)>')) # Symbols: N=New, O=Overwrite, S=Skipping
             return False
         if not os.path.isfile(destfilepath):
             logger.warning("Destfilepath '%s' exists but is not a file (but a file on source). Cannot sync,  skipping...", destfilepath)
+            if verbosity > 0:
+                print("%s\t%s\t %s \t %s" % ('S!', 'skipping', srcfilepath, '<dest is not a file (unexpected)>')) # Symbols: N=New, O=Overwrite, S=Skipping
             return False
         # destfilepath is a file, determine if it should be overwritten...
         if os.path.getmtime(srcfilepath) > os.path.getmtime(destfilepath):

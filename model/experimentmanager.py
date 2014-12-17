@@ -409,6 +409,24 @@ class ExperimentManager(LabfluenceBase):
         logger.debug("Filterfun with self.IgnoreDirs: %s", self.IgnoreDirs)
         return lambda path: os.path.isdir(path) and os.path.basename(path) not in self.IgnoreDirs
 
+    def getFoldersWithSameProperty(self, group, rightmost=None, countlim=1):
+        """
+        Returns folders with the same set of dirtree parsed group properties.
+        Args:
+            :group:     The property or group of property to filter for, e.g. 'expid', or ('expid', 'year')
+            :rightmost: The rightmost part of the pathscheme to parse. E.g. for pathscheme
+                        'year/experiment/subentry', setting rightmost='experiment' will only parse experiments and not subentries.
+            :countlim:  Can be used to only return for groups with more than a certain number of hits,
+                        e.g. setting countlim=2 will only return groups with duplicate folders.
+        """
+        return getFoldersWithSameProperty(group=group,
+                                          basepath=self.Rootdir,
+                                          folderscheme=self.Folderscheme,
+                                          regexs=self.Regexs,
+                                          filterfun=self.getFilterFun(),
+                                          rightmost=rightmost,
+                                          countlim=countlim)
+
     def getDuplicates(self, local=True, subentries=False):
         """ Convenience method for getDuplicateExps and getDuplicateSubentries dispatch. """
         if subentries:
@@ -416,28 +434,19 @@ class ExperimentManager(LabfluenceBase):
         else:
             return self.getDuplicateExps()
 
-
     def getDuplicateExps(self):
         """ Returns a dict with lists of paths for experiment folders with duplicate IDs. """
         logger.info("Getting duplicate local experiments, group='expid', basepath=%s, folderscheme=%s, \
                     regexs=%s, filterfun=None, rightmost='experiment'""",
                     self.Rootdir, self.Folderscheme, self.Regexs)
-        return getFoldersWithSameProperty(group='expid',
-                                          basepath=self.Rootdir,
-                                          folderscheme=self.Folderscheme,
-                                          regexs=self.Regexs,
-                                          filterfun=self.getFilterFun(), rightmost='experiment')
+        return self.getFoldersWithSameProperty(group='expid', rightmost='experiment', countlim=2)
 
     def getDuplicateSubentries(self):
         """ Returns a dict with lists of paths for experiment folders with duplicate IDs. """
         logger.info("Getting duplicate local subentries, group=('expid', 'subentry_idx'), basepath=%s, folderscheme=%s, \
                     regexs=%s, filterfun=None, rightmost='experiment'""",
                     self.Rootdir, self.Folderscheme, self.Regexs)
-        return getFoldersWithSameProperty(group=('expid', 'subentry_idx'),
-                                          basepath=self.Rootdir,
-                                          folderscheme=self.Folderscheme,
-                                          regexs=self.Regexs,
-                                          filterfun=self.getFilterFun(), rightmost='subentry')
+        return self.getFoldersWithSameProperty(group=('expid', 'subentry_idx'), rightmost='subentry', countlim=2)
 
 
     def getLocalExperimentFolderpaths(self, directory=None):

@@ -250,9 +250,10 @@ def makeFolderByMatchgroupForScheme(group, basepath, folderscheme, regexs,
 
 
 def getFoldersWithSameProperty(group, basepath, folderscheme, regexs,
-                               fs=None, filterfun=None, rightmost=None):
+                               fs=None, filterfun=None, rightmost=None, countlim=1):
     """
     Returns a dict with list of paths for folders with duplicate match group values.
+    Set countlim=2 to only get duplicates.
     """
     foldermatchtuples = genPathGroupdictTupByPathscheme(basepath, folderscheme, regexs,
                                                         fs=fs, filterfun=filterfun, rightmost=rightmost)
@@ -268,5 +269,6 @@ def getFoldersWithSameProperty(group, basepath, folderscheme, regexs,
     for folderpath, matchdict in foldermatchtuples:
         listfoldersbyexp.setdefault(groupgetter(matchdict), []).append(folderpath)
     # Create new dict, where we only have elements with more than one, i.e. where we actually have duplicates:
-    listfoldersbyexp = {expid: folderlist for expid, folderlist in listfoldersbyexp.items() if len(folderlist) > 1}
+    if countlim:
+        listfoldersbyexp = {expid: folderlist for expid, folderlist in listfoldersbyexp.items() if len(folderlist) >= countlim}
     return listfoldersbyexp

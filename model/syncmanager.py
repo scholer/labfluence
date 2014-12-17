@@ -46,6 +46,7 @@ Notes:
 """
 from __future__ import print_function
 from six import string_types
+import os
 import logging
 logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
 
@@ -126,15 +127,17 @@ class SyncManager(object):
             print("Syncing experiments: %s" % common_expids)
         for expid in common_expids:
             #exp = exps[expid]
-            #localdirpath = exp if isinstance(exp, string_types) else exp.Localdirpath
             """
             There are two cases you would have to check, depending on whether
-            remote experiment folder exist in local directory:
+            remote experiment folder exist in local directory.
+            Uhm... well, localdirpath would always exist. So it is just a matter
+            of whehter the names are the same. But, if we just make sure to use
+            /path/to/remote/ with a trailing slash, this should sync the content
+            *inside* the remote folder into localdirpath.
             """
-            return
             localdirpath, _ = exps[expid]
             #logger.info("Syncing for exp '%s' (%s)", expid, localdirpath)
-            remotefolder = loc_ds[expid]
+            remotefolder = loc_ds[expid] + '/'
             logger.info("Syncing for expriment %s : (%s -> %s)", expid, remotefolder, localdirpath)
             satloc.syncToLocalDir(remotefolder, localdirpath, verbosity=verbosity, dryrun=dryrun)
         logger.info("'%s' sync complete.", remote)
@@ -173,7 +176,7 @@ class SyncManager(object):
         logger.info("'%s' sync complete.", remote)
 
 
-    def check_duplicates(self, local=True, remotes=None, subentries=False):
+    def check_duplicates(self, local=True, remotes=None, subentries=False, crosscheck=False, rename=False):
         """
         Implementation:
             Just get a list of duplicates, let the user resolve it.
@@ -189,18 +192,56 @@ class SyncManager(object):
 
         # getDuplicates uses dirtreeparsing.getFoldersWithSameProperty,
         # which returns a dict: dups[(groups)] = <list of paths with duplicate match group properties>
-        if local or remotes is None:
+        if local or (remotes is None and not crosscheck):
             dups = self.Experimentmanager.getDuplicates(subentries=subentries)
             print("\nDuplicate local %s:\n" % ('subentries' if subentries else 'experiments',))
             print("\n\n".join("{}:\n{}".format(groups, "\n".join(paths)) for groups, paths in sorted(dups.items())))
         if remotes is not None:
             if len(remotes) == 0:
                 # The user just specified --remotes without any arguments.
-                remotes = self.Satellitemanager.getLocationsSorted()
-            for remote in remotes:
-                dups = self.Satellitemanager.get(remote).getDuplicates(subentries=subentries)
+                remotes = self.Satellitemanager.getLocationsSorted()    # returns an ordered dict of name: satloc-object
+            for remote in remotes.values():
+                dups = remote.getDuplicates(subentries=subentries)
                 print("\n\n", "-"*80, "\nDuplicate %s on remote %s:\n" % ('subentries' if subentries else 'experiments', remote))
-                print("\n\n".join("{}:\n{}".format(groups, "\n".join(paths)) for groups, paths in dups.items()))
+                print("\n\n".join("{}:\n{}".format(groups, "\n".join(paths)) for groups, paths in sorted(dups.items())))
+        if crosscheck:
+            rightmost = 'subentry' if subentries else 'experiment'
+            group = ('expid', 'subentry_idx') if subentries else 'expid'
+            foldersbygroup = self.Experimentmanager.getFoldersWithSameProperty(group=group, rightmost=rightmost)
+            if not remotes:
+                remotes = self.Satellitemanager.getLocationsSorted()
+            for remote in remotes.values():
+                for group, folders in remote.getFoldersWithSameProperty(group=group, rightmost=rightmost).items():
+                    # group should be present in local in most cases, so try...except should be optimal:
+                    try:
+                        foldersbygroup[group] += folders
+                    except KeyError:
+                        foldersbygroup[group] = folders
+            # Only for groups with > 2 folders and where the folder's basenames differ:
+            foldersbygroup = {group: folderlist for group, folderlist in foldersbygroup.items()
+                              if len(folderlist) > 1 and len(set(os.path.basename(folder) for folder in folderlist)) > 1}
+            print("\n\n", "-"*80, "\nFolders where local and remote %s differ (or there are duplicates):\n" % ('subentries' if subentries else 'experiments',))
+            for group, paths in sorted(foldersbygroup.items()):
+                print("\n{}:\n- {}".format(group, "\n- ".join(paths)))
+                if rename:
+                    # This only works for filesystems that works with the standard os module:
+                    mainbasename = os.path.basename(paths[0])
+                    for path in paths[1:]:
+                        if os.path.basename(path) != mainbasename:
+                            newpath = os.path.join(os.path.dirname(path), mainbasename)
+                            try:
+                                answer = input("Rename (from/to):\n- %s\n- %s\n? (Y/N) " % (path, newpath))
+                                if answer and answer[0].lower() == 'y':
+                                    logger.info("Renaming %s to %s", path, newpath)
+                                    os.rename(path, newpath)
+                                elif answer and answer.lower() in ('skip', 'break'):
+                                    break
+                            except KeyboardInterrupt:
+                                logger.info("KeyboardInterrupt intercepted, returning...")
+                                return
+
+
+
 
 
     def check_local_rename(self, ):
@@ -272,6 +313,8 @@ def parseargs():
     subparser.add_argument('--remotes', '-r', nargs='*', metavar='REMOTE',
                            help="The remotes to synchronize (by keys, as defined in your config).\
                         If omitted, sync all remotes except those where donotsync is set to True.")
+    subparser.add_argument('--crosscheck', action='store_true', help="Crosscheck local and remote.")
+    subparser.add_argument('--rename', action='store_true', help="Rename remotes that does not match local foldername.")
 
     argns = parser.parse_args()
     return argns
@@ -325,7 +368,8 @@ def main(argns=None):
         logger.info("Sync from '%s' complete!", argns.remotes)
 
     elif argns.subcommand == 'checkduplicates':
-        syncmgr.check_duplicates(local=argns.local, remotes=argns.remotes, subentries=argns.subentries)
+        syncmgr.check_duplicates(local=argns.local, remotes=argns.remotes, subentries=argns.subentries,
+                                 crosscheck=argns.crosscheck, rename=argns.rename)
 
 
 
