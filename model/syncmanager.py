@@ -303,6 +303,8 @@ def parseargs():
     subparser.add_argument('remotes', nargs='*', metavar='REMOTE', help="The remotes to synchronize (by keys, as defined in your config).\
                         If omitted, sync all remotes except those where donotsync is set to True.")
     subparser.add_argument('--expids', '-e', nargs='*', help="Sync only for experiments with these Experiment IDs.")
+    #subparser.add_argument('--subentries', '-s', action='store_true', help="Sync subentries (rather than experiments).")
+    # Edit: subentry vs experiment is determined by the remote satellite_location's pathscheme.
 
 
     # check duplicates command:
@@ -332,6 +334,13 @@ def main(argns=None):
 
     ## TODO: Add optional checksum calculation of files before overwriting.
 
+    ## TODO: Add 'shallow' sync, where you just look at the folder's modification time on remote
+        (instead of doing it on a per-file basis)
+
+    ## TODO: Add option to sync experiments with ID larger than a certain value.
+        (Can be done on a simple expid > "RS340" basis because of how python compares strings)
+
+    ## TODO: Make 'sync buffer time' (allowable difference between network and local) to be controlled.
     """
 
     import time
@@ -360,7 +369,8 @@ def main(argns=None):
 
     if argns.subcommand == 'sync':
         if argns.verbose:
-            print("%s : Sync started..." %  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            print("%s : Sync started... %s" % (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                                               "[DRYRUN]" if argns.dryrun else ""))
         logger.info("Syncing remote '%s' to local data tree...", argns.remotes)
         syncmgr.sync_remotes(argns.remotes, onlyexpids=argns.expids, verbosity=argns.verbose, dryrun=argns.dryrun)
         if argns.verbose:

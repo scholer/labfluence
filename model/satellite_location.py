@@ -941,7 +941,8 @@ class SatelliteFileLocation(SatelliteLocation):
                 print("%s\t%s\t %s \t %s" % ('S!', 'skipping', srcfilepath, '<dest is not a file (unexpected)>')) # Symbols: N=New, O=Overwrite, S=Skipping
             return False
         # destfilepath is a file, determine if it should be overwritten...
-        if os.path.getmtime(srcfilepath) > os.path.getmtime(destfilepath):
+        # Add 10 seconds to account for time differences between network and local:
+        if round(os.path.getmtime(srcfilepath)) > round(os.path.getmtime(destfilepath))+10:
             logger.info("srcfile NEWER than destfile, OVERWRITING destfile... ('%s')", filename)
             logger.debug("\n--srcfile: '%s'\n--dstfile: '%s'\n--Invoking shutil.copy2(%s, %s)",
                          srcfilepath, destfilepath, srcfilepath, destfilepath)
