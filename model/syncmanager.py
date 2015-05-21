@@ -45,7 +45,6 @@ Notes:
 
 """
 from __future__ import print_function
-from six import string_types
 import os
 import logging
 logger = logging.getLogger(__name__) # http://victorlin.me/posts/2012/08/good-logging-practice-in-python/
@@ -341,10 +340,23 @@ def main(argns=None):
         (Can be done on a simple expid > "RS340" basis because of how python compares strings)
 
     ## TODO: Make 'sync buffer time' (allowable difference between network and local) to be controlled.
+
+    ## TODO: Implement --detect-local-renames
+        For files:
+        1)  Check size (and possibly date stamp) for all files detected as "new",
+            and match against existing local files.
+        2)  If a local file with matching size and datestamp is detected, optionally calculate checksum.
+        3)  Ask user if he wants to copy the remote file or rename it to match the local file.
+
+        For folders: This should be handled by checkduplicates functionality?
+        -- actually, this could also be added to checkduplicates rather than sync only?
+
+    ## TODO: Implement feature to not copy hidden files or system files
+        e.g. thumbs.db...
+
     """
 
     import time
-    import os
     import sys
 
     scriptdir = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
@@ -374,7 +386,7 @@ def main(argns=None):
         logger.info("Syncing remote '%s' to local data tree...", argns.remotes)
         syncmgr.sync_remotes(argns.remotes, onlyexpids=argns.expids, verbosity=argns.verbose, dryrun=argns.dryrun)
         if argns.verbose:
-            print("%s : Sync completed!" %  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            print("\n%s : Sync completed!" %  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
         logger.info("Sync from '%s' complete!", argns.remotes)
 
     elif argns.subcommand == 'checkduplicates':

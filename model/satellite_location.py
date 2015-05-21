@@ -302,6 +302,10 @@ class SatelliteLocation(object):
         """ Description """
         return self.LocationParams.get('description')
     @property
+    def FileExcludePatterns(self):
+        """ Description """
+        return self.LocationParams.get('file_exclude_patterns')
+    @property
     def Regexs(self):
         """
         Returns regex to use to parse foldernames.
@@ -329,6 +333,7 @@ class SatelliteLocation(object):
         """
         self._regexpats = {schemekey : re.compile(regex) if isinstance(regex, string_types) else regex for schemekey, regex in regexs.items()}
         logger.debug("self._regexpats set to {}".format(self._regexpats))
+
 
     def getConfigEntry(self, cfgkey, default=None):
         """
@@ -917,6 +922,13 @@ class SatelliteFileLocation(SatelliteLocation):
                 print("%s\t%s\t %s \t %s" % ('S!', 'skipping', srcfilepath, '<src is not a file>')) # Symbols: N=New, O=Overwrite, S=Skipping
             return False
         filename = os.path.basename(srcfilepath)
+        import fnmatch
+        if self.FileExcludePatterns:
+            if any(fnmatch.fnmatch(filename, pat) for pat in self.FileExcludePatterns):
+                logger.info("File excluded by pattern: %s", srcfilepath)
+                if verbosity > 1:
+                    print("Excluding file '%s'" % srcfilepath)
+                return
         destfilepath = os.path.join(localpath, filename)
         if not os.path.exists(destfilepath):
             logger.info("Destfilepath does not exists. Invoking shutil.copy2(\n'%s',\n'%s')", srcfilepath, destfilepath)
