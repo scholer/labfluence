@@ -1,0 +1,76 @@
+# Old gedit backups:
+*~
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# C extensions
+*.so
+
+# Clutter:
+.DS_Store
+
+# PyInstaller .spec files:
+
+
+# Distribution / packaging
+.Python
+env/
+bin/
+build/
+develop-eggs/
+dist/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+
+# Translations
+*.mo
+
+# Project files:
+.mr.developer.cfg
+.project
+.pydevproject
+.ropeproject
+.projectfiles/
+.idea/
+
+# Django stuff:
+*.log
+*.pot
+
+# Sphinx documentation
+docs/_build/
+
+# Mkdocs build:
+site/
+
+# Extra images
+res/icons/*.jpg
+res/icons/*.png
+res/icons/*.ai
+res/icons/*.svg
+res/icons/*/*
+
+
+res/icons/Version1
+

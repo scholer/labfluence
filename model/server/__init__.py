@@ -26,8 +26,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from abstractserverproxy import AbstractServerProxy
-AbstractServer = AbstractServerProxy
+# from abstractserverproxy import AbstractServerProxy
+# AbstractServer = AbstractServerProxy
+
+from abstract_clients import AbstractClient, AbstractXmlRpcClient
+
 
 from xmlrpcserverproxies import ConfluenceXmlRpcServerProxy
 ConfluenceXmlRpcServer = ConfluenceXmlRpcServerProxy
